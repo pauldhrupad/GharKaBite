@@ -1,5 +1,7 @@
 # GharKaBite prototype
 
+Live prototype: https://gharkabite.vercel.app · Source: https://github.com/pauldhrupad/GharKaBite
+
 Next.js 16 app for a local meal kitchen. Meals, daily menus, subscriptions and orders are stored in MongoDB. Checkout offers cash on delivery and a **demo payment simulator**. The simulator does not take card details or move money; never present it as a real gateway.
 
 ## Run locally
@@ -22,7 +24,7 @@ The first menu request seeds eight example meals and the Trial, Weekly and Month
 | `KITCHEN_LATITUDE`, `KITCHEN_LONGITUDE` | Private center of the delivery radius. Never use `NEXT_PUBLIC_` for these. |
 | `MAX_DELIVERY_RADIUS_KM` | Straight-line limit, default `5`. |
 
-The current prototype has no Cloudinary, Geoapify or kitchen-coordinate values configured. Existing local meal images remain selectable. Address verification and order placement fail closed until the Geoapify key and kitchen coordinates are supplied. There is no keyword-only delivery fallback.
+Production values for Cloudinary, Geoapify and the private kitchen center are configured in Vercel. They are kept out of Git. Existing local meal images remain selectable. A fresh installation must supply its own values; address verification and order placement fail closed until then. There is no keyword-only delivery fallback.
 
 ## Admin and checkout
 
@@ -40,7 +42,7 @@ The current prototype has no Cloudinary, Geoapify or kitchen-coordinate values c
 4. Keep the demo gateway visibly labeled. Before collecting real money, replace it with Razorpay server-created orders, server-verified signatures and webhooks; add `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `NEXT_PUBLIC_RAZORPAY_KEY_ID` only then. If replacing Geoapify with Google Maps later, restrict browser keys by domain and API, server keys by API and service account context, and review usage and billing limits. Neither provider is used for real payment or Google Maps in this prototype.
 5. Have the privacy, terms and refund text reviewed before commercial launch. Supply a real contact channel and verify food-business information and claims.
 
-Deployment is prepared here; the site is not published by this repository change.
+The prototype is deployed on Vercel with GitHub connected to the `main` branch. The canonical URL is `https://gharkabite.vercel.app`. To move to a custom domain, add it in Vercel, follow the DNS instructions there, then update `SITE_URL` and `NEXTAUTH_URL` for Production and redeploy. No live payment gateway is enabled.
 
 ## Checks
 
