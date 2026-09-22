@@ -215,7 +215,7 @@ export default async function Home() {
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/70">Plan ahead, eat better</p>
           <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-black tracking-[-0.04em] md:text-4xl">Tomorrow&apos;s meal can already be sorted.</h2>
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button href="/menu" className="bg-white text-accent hover:bg-surface-muted">Browse Menu</Button>
+            <Button href="/menu" variant="light">Browse Menu</Button>
             <Button href="/plans" variant="secondary" className="border-white/25 bg-transparent text-white hover:bg-white/10">See Meal Plans</Button>
           </div>
         </div>

@@ -142,11 +142,15 @@ export default function CartPageContent() {
               <Tag className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
               <input
                 id="promo-code"
+                name="promoCode"
+                type="text"
                 value={promoInput}
                 onChange={(event) => setPromoInput(event.target.value.toUpperCase())}
-                className="input-field pl-10 uppercase"
-                placeholder="WELCOME10"
+                className="input-field with-leading-icon uppercase"
+                placeholder="Enter promo code"
                 autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
               />
             </div>
             <button type="submit" className="min-h-12 rounded-xl border border-primary px-4 text-sm font-black text-primary hover:bg-primary/8">Apply</button>

@@ -90,10 +90,13 @@ export default function MenuExplorer({ initialDate }) {
           <Search className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
           <input
             type="search"
+            name="mealSearch"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            className="input-field pl-11"
-            placeholder="Search meals..."
+            className="input-field with-leading-icon"
+            placeholder="Search by meal or ingredient"
+            autoComplete="off"
+            enterKeyHint="search"
           />
         </label>
       </div>

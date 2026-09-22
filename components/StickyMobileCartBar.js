@@ -14,9 +14,9 @@ export default function StickyMobileCartBar() {
 
   return (
     <>
-      <div className="h-20 md:hidden" aria-hidden="true" />
+      <div className="h-20 lg:hidden" aria-hidden="true" />
       <aside
-        className="fixed inset-x-0 z-40 px-3 md:hidden"
+        className="fixed inset-x-0 z-40 px-3 lg:hidden"
         style={{ bottom: "calc(4.65rem + env(safe-area-inset-bottom))" }}
         aria-label="Cart summary"
       >

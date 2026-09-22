@@ -1,8 +1,10 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Banknote, Check, Clock3, CreditCard, MapPin, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import Button from "./Button";
 import EmptyState from "./EmptyState";
@@ -19,12 +21,34 @@ const deliverySlots = {
 const initialForm = {
   fullName: "", mobile: "", email: "", house: "", street: "", area: "", landmark: "", city: "Kolkata", pinCode: "", notes: "",
 };
+const addressFields = ["house", "street", "area", "landmark", "city", "pinCode"];
+
+function addressKey(address, index) {
+  return String(address._id || index);
+}
+
+function addressValues(address) {
+  return {
+    house: address.house || "",
+    street: address.street || "",
+    area: address.area || "",
+    landmark: address.landmark || "",
+    city: address.city || "Kolkata",
+    pinCode: address.pinCode || "",
+  };
+}
 
 export default function CheckoutForm() {
   const router = useRouter();
+  const { data: session, status: authStatus } = useSession();
   const { items, hydrated, subtotal, cartPeriod, cartDate, clearCart, promoCode, setPromoCode } = useCart();
   const { getAvailability } = useKitchen();
   const [form, setForm] = useState(initialForm);
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState("custom");
+  const [editingContact, setEditingContact] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(true);
+  const [profileState, setProfileState] = useState({ userId: "", status: "loading" });
   const [deliverySlot, setDeliverySlot] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("COD");
   const [errors, setErrors] = useState({});
@@ -56,6 +80,53 @@ export default function CheckoutForm() {
   const promo = promoCode ? validatePromoCode(promoCode, subtotal - (coveredItem?.price || 0)) : null;
   const total = Math.max(0, subtotal - (coveredItem?.price || 0) - (promo?.valid ? promo.discount : 0) + deliveryFee);
   const availability = serviceDate === kolkataDate() ? getAvailability(mealPeriod) : { available: true, reason: "" };
+  const selectedAddress = savedAddresses.find((address, index) => addressKey(address, index) === selectedAddressId);
+  const profileReady = authStatus === "authenticated" && profileState.userId === session?.user?.id && profileState.status === "ready";
+  const profileFailed = authStatus === "authenticated" && profileState.userId === session?.user?.id && profileState.status === "error";
+
+  useEffect(() => {
+    if (authStatus !== "authenticated" || !session?.user?.id) return undefined;
+    const controller = new AbortController();
+
+    async function loadProfile() {
+      try {
+        const response = await fetch("/api/profile", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Unable to load saved details.");
+        const data = await response.json();
+        if (controller.signal.aborted) return;
+
+        const user = data.user;
+        const addresses = Array.isArray(user?.addresses) ? user.addresses : [];
+        const firstAddress = addresses[0];
+        setSavedAddresses(addresses);
+        setSelectedAddressId(firstAddress ? addressKey(firstAddress, 0) : "custom");
+        setEditingContact(!user?.name || !user?.phone);
+        setEditingAddress(!firstAddress || !firstAddress.house || !firstAddress.street || !firstAddress.area || !firstAddress.pinCode);
+        setForm((current) => ({
+          ...current,
+          fullName: user?.name || "",
+          mobile: user?.phone || "",
+          email: user?.email || "",
+          ...(firstAddress ? addressValues(firstAddress) : {}),
+        }));
+        setProfileState({ userId: session.user.id, status: "ready" });
+      } catch {
+        if (controller.signal.aborted) return;
+        setEditingContact(true);
+        setEditingAddress(true);
+        setForm((current) => ({
+          ...current,
+          fullName: session.user.name || "",
+          mobile: session.user.phone || "",
+          email: session.user.email || "",
+        }));
+        setProfileState({ userId: session.user.id, status: "error" });
+      }
+    }
+
+    loadProfile();
+    return () => controller.abort();
+  }, [authStatus, session?.user?.id, session?.user?.name, session?.user?.phone, session?.user?.email]);
 
   useEffect(() => {
     fetch("/api/subscriptions").then((response) => response.ok ? response.json() : null).then((data) => setSubscriptions((data?.subscriptions || []).filter((item) => item.status === "active" && item.remainingMeals > 0 && new Date(item.expiryDate) > new Date(`${serviceDate}T00:00:00+05:30`) && (item.mode === "Mixed" || item.mode === mealPeriod)))).catch(() => {});
@@ -72,7 +143,22 @@ export default function CheckoutForm() {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
     setErrors((current) => ({ ...current, [name]: "" }));
-    if (["house", "street", "area", "city", "pinCode"].includes(name)) setDeliveryResult(null);
+    if (addressFields.includes(name)) {
+      setSelectedAddressId("custom");
+      setDeliveryResult(null);
+    }
+  }
+
+  function selectAddress(event) {
+    const id = event.target.value;
+    setSelectedAddressId(id);
+    setAddressQuery("");
+    setSuggestions([]);
+    setDeliveryResult(null);
+    setErrors((current) => ({ ...current, house: "", street: "", area: "", city: "", pinCode: "" }));
+    const address = savedAddresses.find((item, index) => addressKey(item, index) === id);
+    setForm((current) => ({ ...current, ...addressValues(address || initialForm) }));
+    setEditingAddress(!address);
   }
 
   function validate() {
@@ -85,6 +171,8 @@ export default function CheckoutForm() {
     if (!deliverySlot) nextErrors.deliverySlot = "Choose a delivery slot.";
     if (subscriptionId && !coveredMealId) nextErrors.coveredMealId = "Choose one meal for your plan credit.";
     setErrors(nextErrors);
+    if (["fullName", "mobile", "email"].some((field) => nextErrors[field])) setEditingContact(true);
+    if (addressFields.some((field) => nextErrors[field])) setEditingAddress(true);
     return Object.keys(nextErrors).length === 0;
   }
 
@@ -145,29 +233,50 @@ export default function CheckoutForm() {
 
   if (!hydrated) return <section className="container-shell py-10"><div className="h-80 animate-pulse rounded-2xl bg-surface-muted" /></section>;
   if (!items.length) return <section className="container-shell py-12"><EmptyState title="Your tiffin box is empty." description="Add a lunch or dinner meal before continuing to checkout." actionLabel="Browse Today’s Menu" /></section>;
+  if (authStatus === "loading" || (authStatus === "authenticated" && !profileReady && !profileFailed)) return <section className="container-shell py-10"><div className="card-surface h-44 animate-pulse bg-surface-muted" aria-label="Loading your checkout details" /></section>;
+  if (authStatus === "unauthenticated") return <section className="container-shell py-10"><div className="card-surface max-w-xl p-6 md:p-8"><h2 className="text-2xl font-black">Sign in to finish your order</h2><p className="mt-2 text-sm leading-6 text-text-secondary">Your saved contact details and delivery addresses will be filled in automatically. Your cart will be waiting when you return.</p><div className="mt-5 flex flex-wrap gap-3"><Button href="/login?callbackUrl=/checkout">Sign in and continue</Button><Button href="/register" variant="secondary">Create an account</Button></div></div></section>;
 
   return (
     <form onSubmit={handleSubmit} noValidate className="container-shell grid gap-7 py-10 lg:grid-cols-[1fr_23rem] lg:items-start">
       <div className="space-y-5">
         <CheckoutSection icon={UserRound} number="1" title="Contact Information">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Full Name" name="fullName" value={form.fullName} onChange={updateField} error={errors.fullName} autoComplete="name" placeholder="Your full name" />
-            <Field label="Mobile Number" name="mobile" value={form.mobile} onChange={updateField} error={errors.mobile} autoComplete="tel" inputMode="numeric" placeholder="10-digit mobile number" maxLength={10} />
-            <Field label="Email" optional name="email" value={form.email} onChange={updateField} error={errors.email} type="email" autoComplete="email" placeholder="you@example.com" className="sm:col-span-2" />
-          </div>
+          {profileFailed && <p className="mb-4 rounded-xl bg-warning/10 p-3 text-sm text-text-secondary" role="status">We couldn’t load your saved profile. Please review your details for this order.</p>}
+          {profileReady && !editingContact ? (
+            <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-border bg-surface-muted p-4">
+              <div className="min-w-0 text-sm leading-6"><p className="font-black">{form.fullName}</p><p>{form.mobile}</p>{form.email && <p className="break-all text-text-secondary">{form.email}</p>}</div>
+              <button type="button" onClick={() => setEditingContact(true)} className="text-sm font-bold text-primary underline underline-offset-4">Edit for this order</button>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Full name" name="fullName" type="text" value={form.fullName} onChange={updateField} error={errors.fullName} autoComplete="name" placeholder="e.g. Ananya Sen" />
+              <Field label="Mobile number" name="mobile" type="tel" value={form.mobile} onChange={updateField} error={errors.mobile} autoComplete="tel" inputMode="numeric" pattern="[0-9]{10}" placeholder="e.g. 9876543210" maxLength={10} />
+              <Field label="Email" optional name="email" value={form.email} onChange={updateField} error={errors.email} type="email" autoComplete="email" placeholder="e.g. ananya@example.com" className="sm:col-span-2" />
+            </div>
+          )}
         </CheckoutSection>
 
         <CheckoutSection icon={MapPin} number="2" title="Delivery Address">
-          <label className="mb-4 block text-sm font-bold">Search address<input value={addressQuery} onChange={(event) => setAddressQuery(event.target.value)} className="input-field mt-2" placeholder="Start typing a street and area" /></label>
-          {suggestions.length > 0 && <div className="mb-4 max-h-40 overflow-y-auto rounded-xl border border-border bg-white">{suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { setAddressQuery(suggestion); setSuggestions([]); setForm((current) => ({ ...current, street: suggestion })); setDeliveryResult(null); }} className="block w-full border-b border-border p-2 text-left text-xs hover:bg-surface-muted">{suggestion}</button>)}</div>}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="House / Flat" name="house" value={form.house} onChange={updateField} error={errors.house} autoComplete="address-line1" placeholder="Flat or house number" />
-            <Field label="Building / Street" name="street" value={form.street} onChange={updateField} error={errors.street} autoComplete="address-line2" placeholder="Building and road" />
-            <Field label="Area" name="area" value={form.area} onChange={updateField} error={errors.area} placeholder="Locality" />
-            <Field label="Landmark" optional name="landmark" value={form.landmark} onChange={updateField} placeholder="Nearby landmark" />
-            <Field label="City" name="city" value={form.city} onChange={updateField} error={errors.city} autoComplete="address-level2" />
-            <Field label="PIN Code" name="pinCode" value={form.pinCode} onChange={updateField} error={errors.pinCode} autoComplete="postal-code" inputMode="numeric" placeholder="7000XX" maxLength={6} />
-          </div>
+          {savedAddresses.length > 0 && <label className="mb-4 block text-sm font-bold">Deliver to<select value={selectedAddressId} onChange={selectAddress} className="input-field mt-2"><option value="custom">Use another address</option>{savedAddresses.map((address, index) => <option key={addressKey(address, index)} value={addressKey(address, index)}>{address.label || `Address ${index + 1}`} · {address.area}, {address.city}</option>)}</select></label>}
+          {selectedAddress && !editingAddress ? (
+            <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-border bg-surface-muted p-4">
+              <div className="min-w-0 text-sm leading-6"><p className="font-black">{selectedAddress.label || "Saved address"}</p><p>{[form.house, form.street, form.area].filter(Boolean).join(", ")}</p>{form.landmark && <p>{form.landmark}</p>}<p>{form.city} · {form.pinCode}</p></div>
+              <button type="button" onClick={() => setEditingAddress(true)} className="text-sm font-bold text-primary underline underline-offset-4">Edit for this order</button>
+            </div>
+          ) : (
+            <>
+              <label className="mb-4 block text-sm font-bold">Search address<input type="search" name="addressSearch" value={addressQuery} onChange={(event) => setAddressQuery(event.target.value)} className="input-field mt-2" placeholder="Search by street, area or PIN" autoComplete="off" enterKeyHint="search" /></label>
+              {suggestions.length > 0 && <div className="mb-4 max-h-40 overflow-y-auto rounded-xl border border-border bg-white">{suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { setAddressQuery(suggestion); setSuggestions([]); setSelectedAddressId("custom"); setForm((current) => ({ ...current, street: suggestion })); setDeliveryResult(null); }} className="block w-full border-b border-border p-2 text-left text-xs hover:bg-surface-muted">{suggestion}</button>)}</div>}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="House / flat" name="house" value={form.house} onChange={updateField} error={errors.house} autoComplete="address-line1" placeholder="e.g. Flat 3B" />
+                <Field label="Building / street" name="street" value={form.street} onChange={updateField} error={errors.street} autoComplete="address-line2" placeholder="e.g. 21 Lake Road" />
+                <Field label="Area" name="area" value={form.area} onChange={updateField} error={errors.area} autoComplete="address-level3" placeholder="e.g. Ballygunge" />
+                <Field label="Landmark" optional name="landmark" value={form.landmark} onChange={updateField} placeholder="e.g. Near the post office" />
+                <Field label="City" name="city" value={form.city} onChange={updateField} error={errors.city} autoComplete="address-level2" />
+                <Field label="PIN code" name="pinCode" value={form.pinCode} onChange={updateField} error={errors.pinCode} autoComplete="postal-code" inputMode="numeric" pattern="[0-9]{6}" placeholder="e.g. 700029" maxLength={6} />
+              </div>
+              {!savedAddresses.length && <p className="mt-3 text-xs text-text-secondary">Save an address in <Link href="/profile" className="font-bold text-primary underline underline-offset-2">your profile</Link> for faster checkout next time.</p>}
+            </>
+          )}
           <button type="button" onClick={checkAddress} className="mt-4 rounded-xl border border-primary px-4 py-2 text-sm font-bold text-primary">Check this address</button>
           {deliveryResult && <p className={`mt-3 text-sm font-bold ${deliveryResult.serviceable ? "text-success" : "text-danger"}`} role="status">{deliveryResult.reason}</p>}
         </CheckoutSection>
@@ -194,7 +303,7 @@ export default function CheckoutForm() {
         {availableSubscriptions.length > 0 && <CheckoutSection icon={Check} number="5" title="Use a meal plan"><label className="text-sm font-bold">Subscription<select value={subscriptionId} onChange={(event) => { setSubscriptionId(event.target.value); setCoveredMealId(""); }} className="input-field mt-2"><option value="">Pay without a plan credit</option>{availableSubscriptions.map((item) => <option key={item._id} value={item._id}>{item.planName} · {item.remainingMeals} left</option>)}</select></label>{subscriptionId && <label className="mt-3 block text-sm font-bold">Cover one meal unit<select value={coveredMealId} onChange={(event) => setCoveredMealId(event.target.value)} className="input-field mt-2"><option value="">Choose a meal</option>{eligibleItems.map((item) => <option key={item.mealId} value={item.mealId}>{item.name} · ₹{item.price} covered</option>)}</select>{errors.coveredMealId && <span className="text-xs text-danger">{errors.coveredMealId}</span>}</label>}<p className="mt-3 text-xs text-text-secondary">Using a plan credit makes delivery free for this order.</p></CheckoutSection>}
 
         <CheckoutSection icon={NotebookPen} number="6" title="Order Notes">
-          <label className="block text-sm font-bold">Cooking or delivery instructions <span className="font-normal text-text-secondary">(optional)</span><textarea name="notes" value={form.notes} onChange={updateField} className="input-field mt-2 min-h-24 resize-y" placeholder="Less spicy if possible" maxLength={300} /></label>
+          <label className="block text-sm font-bold">Cooking or delivery instructions <span className="font-normal text-text-secondary">(optional)</span><textarea name="notes" value={form.notes} onChange={updateField} className="input-field mt-2 min-h-24 resize-y" placeholder="e.g. Please make it mildly spicy" maxLength={300} /></label>
           <p className="mt-2 text-xs font-semibold text-text-secondary">Special requests are subject to availability.</p>
         </CheckoutSection>
       </div>
@@ -207,7 +316,7 @@ export default function CheckoutForm() {
         <div className="mt-5 space-y-3 border-t border-border pt-5 text-sm">
           {coveredItem && <div className="flex justify-between text-success"><span>Plan meal</span><span>−₹{coveredItem.price}</span></div>}
           {promo?.valid && <div className="flex justify-between text-success"><span>{promo.code}</span><span>−₹{promo.discount}</span></div>}
-          <label className="block font-bold">Promo code<input value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="WELCOME10" className="input-field mt-1" /></label>
+          <label className="block font-bold">Promo code<input name="promoCode" type="text" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Enter promo code" autoComplete="off" autoCapitalize="characters" spellCheck={false} className="input-field mt-1 uppercase" /></label>
           <div className="flex justify-between text-text-secondary"><span>Subtotal</span><span>₹{subtotal}</span></div>
           <div className="flex justify-between text-text-secondary"><span>Delivery</span><span className={deliveryFee === 0 ? "font-black text-success" : ""}>{deliveryFee === 0 ? "Free" : `₹${deliveryFee}`}</span></div>
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
@@ -226,5 +335,7 @@ function CheckoutSection({ icon: Icon, number, title, children }) {
 }
 
 function Field({ label, optional, error, className = "", ...props }) {
-  return <label className={`text-sm font-bold ${className}`}>{label} {optional && <span className="font-normal text-text-secondary">(optional)</span>}<input className={`input-field mt-2 ${error ? "border-danger" : ""}`} {...props} />{error && <span className="mt-1 block text-xs font-bold text-danger">{error}</span>}</label>;
+  const inputId = props.id || `checkout-${props.name}`;
+  const errorId = `${inputId}-error`;
+  return <label htmlFor={inputId} className={`text-sm font-bold ${className}`}>{label} {optional && <span className="font-normal text-text-secondary">(optional)</span>}<input id={inputId} className="input-field mt-2" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} {...props} />{error && <span id={errorId} className="mt-1 block text-xs font-bold text-danger">{error}</span>}</label>;
 }

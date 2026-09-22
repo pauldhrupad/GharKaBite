@@ -8,7 +8,7 @@ Next.js 16 app for a local meal kitchen. Meals, daily menus, subscriptions and o
 
 Use Node.js 20.9 or later. Run `npm ci`, copy `.env.example` to `.env.local`, fill the required values, then run `npm run dev`. Visit `http://localhost:3000`. `.env.local` is ignored by Git; keep secrets out of source files and screenshots.
 
-The first menu request seeds eight example meals and the Trial, Weekly and Monthly plans only if their collections are empty. Existing records are not overwritten. Register an account, then change its `role` to `admin` in MongoDB Atlas to create the first owner. Admin routes also check authorization server-side.
+The first menu request seeds eight example meals and the Trial, Weekly and Monthly plans only if their collections are empty. Existing records are not overwritten. For a solo owner, register one regular account, then change its `role` to `admin` in MongoDB Atlas. Sign in at `/owner/login` to reach `/admin/dashboard`. There is no separate admin registration; admin routes check authorization server-side. Sign out and back in after changing the role so the session receives it.
 
 ## Environment variables
 

@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, ShoppingBag, Sparkles, UserRound } from "lucide-react";
+import { LogOut, ShoppingBag, UserRound } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import Button from "./Button";
+import BrandMark from "./BrandMark";
 import { useCart } from "@/context/CartContext";
 
 const links = [{ href: "/", label: "Home" }, { href: "/menu", label: "Today's Menu" }, { href: "/plans", label: "Meal Plans" }, { href: "/subscriptions", label: "My Plans" }, { href: "/orders", label: "My Orders" }];
@@ -15,8 +16,8 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/88 backdrop-blur-xl">
       <nav className="container-shell flex h-17 items-center justify-between" aria-label="Primary navigation">
-        <Link href="/" className="flex items-center gap-2" aria-label="GharKaBite home"><span className="grid size-9 place-items-center rounded-xl bg-primary text-white shadow-sm"><Sparkles className="size-4" aria-hidden="true" /></span><span className="text-lg font-black tracking-[-0.04em]">GharKa<span className="text-accent">Bite</span></span></Link>
-        <div className="hidden items-center gap-1 md:flex">
+        <Link href="/" className="flex shrink-0 items-center gap-1.5" aria-label="GharKaBite home"><BrandMark className="size-10 shrink-0" /><span className="text-lg font-black tracking-[-0.04em]">GharKa<span className="text-accent">Bite</span></span></Link>
+        <div className="hidden items-center gap-1 lg:flex">
           {links.map((link) => { const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href); return <Link key={link.href} href={link.href} className={`rounded-lg px-3.5 py-2 text-sm font-bold transition ${active ? "bg-primary/9 text-primary" : "text-text-secondary hover:bg-surface-muted hover:text-text-primary"}`}>{link.label}</Link>; })}
         </div>
         <div className="flex items-center gap-2">

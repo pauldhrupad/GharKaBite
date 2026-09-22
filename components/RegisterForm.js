@@ -38,5 +38,23 @@ export default function RegisterForm() {
     }
   }
 
-  return <section className="container-shell grid min-h-[70vh] place-items-center py-12"><div className="card-surface w-full max-w-lg p-6 md:p-8"><div className="grid size-12 place-items-center rounded-2xl bg-accent/10 text-accent"><UserPlus className="size-6" aria-hidden="true" /></div><p className="eyebrow mt-6">Start simply</p><h1 className="mt-2 text-3xl font-black tracking-tight">Create your account</h1><p className="mt-2 text-sm leading-6 text-text-secondary">Save time on repeat orders and manage delivery details.</p><form onSubmit={handleSubmit} className="mt-7 grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Full name<input className="input-field mt-2" name="name" value={form.name} onChange={updateField} autoComplete="name" placeholder="Your name" required /></label><label className="text-sm font-bold">Phone<input className="input-field mt-2" name="phone" value={form.phone} onChange={updateField} autoComplete="tel" inputMode="numeric" maxLength={10} placeholder="10-digit number" required /></label><label className="text-sm font-bold sm:col-span-2">Email<input className="input-field mt-2" name="email" value={form.email} onChange={updateField} type="email" autoComplete="email" placeholder="you@example.com" required /></label><label className="text-sm font-bold sm:col-span-2">Password<input className="input-field mt-2" name="password" value={form.password} onChange={updateField} type="password" autoComplete="new-password" placeholder="Minimum 8 characters" required /></label>{error && <p className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger sm:col-span-2" role="alert">{error}</p>}<Button type="submit" disabled={submitting} className="sm:col-span-2 disabled:opacity-55">{submitting ? "Creating account…" : <>Create account <ArrowRight className="size-4" aria-hidden="true" /></>}</Button></form><p className="mt-5 text-center text-sm text-text-secondary">Already registered? <Link href="/login" className="font-black text-primary hover:underline">Sign in</Link></p></div></section>;
+  const content = (
+    <>
+      <div className="grid size-12 place-items-center rounded-2xl bg-accent/10 text-accent"><UserPlus className="size-6" aria-hidden="true" /></div>
+      <p className="mt-6 text-xs font-extrabold uppercase tracking-[0.16em] text-accent">Start simply</p>
+      <h1 className="mt-2 text-3xl font-black tracking-tight">Create your account</h1>
+      <p className="mt-2 text-sm leading-6 text-text-secondary">Save time on repeat orders and manage delivery details.</p>
+      <form onSubmit={handleSubmit} className="mt-7 grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-bold">Full name<input className="input-field mt-2" name="name" type="text" value={form.name} onChange={updateField} autoComplete="name" placeholder="e.g. Ananya Sen" required /></label>
+        <label className="text-sm font-bold">Phone<input className="input-field mt-2" name="phone" type="tel" value={form.phone} onChange={updateField} autoComplete="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} placeholder="e.g. 9876543210" required /></label>
+        <label className="text-sm font-bold sm:col-span-2">Email<input className="input-field mt-2" name="email" value={form.email} onChange={updateField} type="email" autoComplete="email" placeholder="e.g. ananya@example.com" required /></label>
+        <label className="text-sm font-bold sm:col-span-2">Password<input className="input-field mt-2" name="password" value={form.password} onChange={updateField} type="password" autoComplete="new-password" placeholder="Create a password" minLength={8} aria-describedby="password-hint" required /><span id="password-hint" className="mt-1.5 block text-xs font-normal text-text-secondary">Use at least 8 characters.</span></label>
+        {error && <p className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger sm:col-span-2" role="alert">{error}</p>}
+        <Button type="submit" disabled={submitting} className="sm:col-span-2 disabled:opacity-55">{submitting ? "Creating account…" : <>Create account <ArrowRight className="size-4" aria-hidden="true" /></>}</Button>
+      </form>
+      <p className="mt-5 text-center text-sm text-text-secondary">Already registered? <Link href="/login" className="font-black text-primary hover:underline">Sign in</Link></p>
+    </>
+  );
+
+  return <section className="container-shell grid min-h-[70vh] place-items-center py-12"><div className="card-surface w-full max-w-lg p-6 md:p-8">{content}</div></section>;
 }

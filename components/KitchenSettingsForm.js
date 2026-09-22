@@ -51,5 +51,5 @@ function KitchenSettingsEditor({ initialSettings, updateSettings }) {
 }
 
 function SettingField({ label, ...props }) {
-  return <label className="text-sm font-bold">{label}<input className="input-field mt-2" required {...props} /></label>;
+  return <label className="text-sm font-bold">{label}<input className="input-field mt-2" inputMode={props.type === "number" ? "numeric" : undefined} step={props.type === "number" ? 1 : undefined} required {...props} /></label>;
 }
