@@ -28,7 +28,7 @@ export async function DELETE(_request, { params }) {
   const { id } = await params;
   try {
     await dbConnect();
-    const meal = await Meal.findOneAndUpdate({ slug: id, archivedAt: null }, { active: false, archivedAt: new Date() }, { new: true });
+    const meal = await Meal.findOneAndUpdate({ slug: id, archivedAt: null }, { active: false, archivedAt: new Date() }, { returnDocument: "after" });
     if (!meal) return Response.json({ message: "Meal not found." }, { status: 404 });
     return Response.json({ message: "Meal archived." });
   } catch { return Response.json({ message: "Unable to delete meal." }, { status: 503 }); }

@@ -11,7 +11,7 @@ export async function GET() {
     const settings = await KitchenSettings.findOneAndUpdate(
       { key: "primary" },
       { $setOnInsert: { key: "primary", ...defaultKitchenSettings } },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     ).lean();
     return Response.json({ settings });
   } catch {
@@ -32,7 +32,7 @@ export async function PATCH(request) {
       dinnerCutoff: /^\d{2}:\d{2}$/.test(body.dinnerCutoff) ? body.dinnerCutoff : defaultKitchenSettings.dinnerCutoff,
     };
     await dbConnect();
-    const updated = await KitchenSettings.findOneAndUpdate({ key: "primary" }, { $set: settings }, { upsert: true, new: true, runValidators: true }).lean();
+    const updated = await KitchenSettings.findOneAndUpdate({ key: "primary" }, { $set: settings }, { upsert: true, returnDocument: "after", runValidators: true }).lean();
     return Response.json({ settings: updated, message: "Kitchen settings updated." });
   } catch {
     return Response.json({ message: "Unable to save kitchen settings." }, { status: 503 });

@@ -35,7 +35,7 @@ export async function PATCH(request) {
       if (!Number.isInteger(body.remaining) || body.remaining < 0 || body.remaining > meal.stockLimit) return Response.json({ message: "Stock must be between zero and the daily limit." }, { status: 400 });
       patch.remaining = body.remaining;
     }
-    const daily = await DailyMenu.findOneAndUpdate({ meal: meal._id, date: body.date }, { $setOnInsert: { meal: meal._id, date: body.date, ...(!Object.hasOwn(patch, "remaining") ? { remaining: meal.stockLimit } : {}), stockLimitSnapshot: meal.stockLimit }, $set: patch }, { upsert: true, new: true, runValidators: true });
+    const daily = await DailyMenu.findOneAndUpdate({ meal: meal._id, date: body.date }, { $setOnInsert: { meal: meal._id, date: body.date, ...(!Object.hasOwn(patch, "remaining") ? { remaining: meal.stockLimit } : {}), stockLimitSnapshot: meal.stockLimit }, $set: patch }, { upsert: true, returnDocument: "after", runValidators: true });
     return Response.json({ daily });
   } catch (error) {
     if (error.code === 40) return Response.json({ message: "Stock update conflicted; retry." }, { status: 409 });

@@ -32,7 +32,7 @@ export async function POST(request, { params }) {
       if (!failed) return Response.json({ message: "This demo payment is already processing." }, { status: 409 });
       return Response.json({ message: "Demo payment failed. No order or plan was created.", status: "failed", demo: true });
     }
-    const claimedIntent = await DemoPayment.findOneAndUpdate({ _id: id, user: authSession.user.id, $or: [{ status: "pending" }, { status: "processing", processingAt: { $lt: new Date(Date.now() - 120000) } }] }, { status: "processing", processingAt: new Date() }, { new: true });
+    const claimedIntent = await DemoPayment.findOneAndUpdate({ _id: id, user: authSession.user.id, $or: [{ status: "pending" }, { status: "processing", processingAt: { $lt: new Date(Date.now() - 120000) } }] }, { status: "processing", processingAt: new Date() }, { returnDocument: "after" });
     if (!claimedIntent) return Response.json({ message: "This demo payment is already processing." }, { status: 409 });
     claimed = true;
     const result = intent.kind === "order" ? await createOrder(authSession.user.id, intent.payload, "DEMO") : await purchaseSubscription(authSession.user.id, intent.payload);
