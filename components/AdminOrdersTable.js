@@ -51,10 +51,6 @@ export default function AdminOrdersTable({ initialPaymentFilter = "all" }) {
       setLoading(true);
       setPaymentFilter(next);
     }
-    const url = new URL(window.location.href);
-    if (next === "all") url.searchParams.delete("paymentStatus");
-    else url.searchParams.set("paymentStatus", next);
-    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
   function clearFilters() {
@@ -67,9 +63,9 @@ export default function AdminOrdersTable({ initialPaymentFilter = "all" }) {
   return (
     <section className="mt-7 overflow-hidden rounded-2xl border border-border bg-white">
       <div className="space-y-3 border-b border-border p-4 sm:p-5">
-        <label className="relative block min-w-0"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" /><span className="sr-only">Search by order ID, customer or phone</span><input type="search" name="orderSearch" value={query} onChange={(event) => setQuery(event.target.value)} className="input-field with-leading-icon" placeholder="Search by order ID, customer or phone" autoComplete="off" enterKeyHint="search" /></label>
+        <label className="relative block min-w-0"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" /><span className="sr-only">Search by order ID, customer or phone</span><input type="search" name="orderSearch" value={query} onChange={(event) => setQuery(event.target.value)} className="input-field with-leading-icon" placeholder="Search orders or customers" autoComplete="off" enterKeyHint="search" /></label>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex">
-          <CustomSelect aria-label="Meal period" value={period} onChange={(event) => setPeriod(event.target.value)} className="input-field min-w-0 py-2 text-sm font-bold sm:w-48"><option value="All">All meals</option><option value="Lunch">Lunch</option><option value="Dinner">Dinner</option></CustomSelect>
+          <div className="min-w-0 sm:w-48"><CustomSelect aria-label="Meal period" value={period} onChange={(event) => setPeriod(event.target.value)} className="input-field py-2 text-sm font-bold"><option value="All">All meals</option><option value="Lunch">Lunch</option><option value="Dinner">Dinner</option></CustomSelect></div>
           <button type="button" onClick={() => setFiltersOpen((current) => !current)} aria-expanded={filtersOpen} aria-controls={filtersOpen ? "order-advanced-filters" : undefined} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black sm:px-4 ${filtersOpen || activeFilters.length > 0 ? "border-primary bg-primary/5 text-primary" : "border-border text-text-primary hover:bg-surface-muted"}`}><SlidersHorizontal className="size-4 shrink-0" aria-hidden="true" />Filters{activeFilters.length > 0 && <span className="grid size-5 place-items-center rounded-full bg-primary text-[11px] text-white" aria-label={`${activeFilters.length} active filters`}>{activeFilters.length}</span>}<ChevronDown className={`size-4 shrink-0 transition-transform ${filtersOpen ? "rotate-180" : ""}`} aria-hidden="true" /></button>
         </div>
         {activeFilters.length > 0 && <div className="flex flex-wrap gap-2" aria-label="Active filters">{activeFilters.map((filter) => <button key={filter.key} type="button" onClick={filter.clear} aria-label={`Remove ${filter.label} filter`} className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 text-xs font-bold text-primary hover:bg-primary/10"><span className="truncate">{filter.label}</span><X className="size-3.5 shrink-0" aria-hidden="true" /></button>)}</div>}
