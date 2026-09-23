@@ -2,16 +2,18 @@ import mongoose from "mongoose";
 
 export const CATEGORIES = ["Veg", "Egg", "Chicken", "Fish", "Special"];
 export const MEAL_TYPES = ["Rice Meal", "Roti Meal", "Comfort Meal", "Light Meal"];
+export const MENU_TYPES = [...MEAL_TYPES, "Single Dish"];
 export const BADGES = ["Popular", "Low Oil", "Limited", "Today's Special"];
 
 const mealSchema = new mongoose.Schema({
+  kind: { type: String, enum: ["thali", "dish"], default: "thali" },
   slug: { type: String, required: true, unique: true, match: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ },
   name: { type: String, required: true, trim: true, maxlength: 90 },
   shortDescription: { type: String, required: true, trim: true, maxlength: 180 },
   description: { type: String, required: true, trim: true, maxlength: 1500 },
   price: { type: Number, required: true, min: 1, max: 10000 },
   category: { type: String, required: true, enum: CATEGORIES },
-  mealType: { type: String, required: true, enum: MEAL_TYPES },
+  mealType: { type: String, required: true, enum: MENU_TYPES },
   contents: { type: [String], required: true, validate: (value) => value.length > 0 && value.length <= 20 },
   customizationVersion: { type: Number, default: 1 },
   fixedItems: { type: [{ name: { type: String, required: true }, description: { type: String, default: "" } }], default: [], _id: false },

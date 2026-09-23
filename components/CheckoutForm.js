@@ -80,7 +80,7 @@ export default function CheckoutForm() {
   const selectedSubscription = availableSubscriptions.find((item) => item._id === subscriptionId);
   const eligibleItems = items.filter((item) => {
     const meal = menu.find((entry) => entry.id === item.mealId);
-    return meal && selectedSubscription?.allowedMealTypes.includes(meal.mealType);
+    return meal && meal.kind !== "dish" && selectedSubscription?.allowedMealTypes.includes(meal.mealType);
   }).filter((item, index, eligible) => eligible.findIndex((candidate) => candidate.mealId === item.mealId) === index);
   const coveredItem = eligibleItems.find((item) => item.mealId === coveredMealId);
   const payableSubtotal = subtotal - (coveredItem?.basePrice || 0);
@@ -313,7 +313,7 @@ export default function CheckoutForm() {
       <aside className="card-surface p-5 lg:sticky lg:top-24">
         <h2 className="text-xl font-black">Order Summary</h2>
         <div className="mt-5 space-y-4">
-          {items.map((item) => <div key={item.key} className="flex gap-3"><div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-surface-muted"><Image src={item.image} alt="" fill sizes="56px" className="object-cover" /></div><div className="min-w-0 flex-1"><p className="text-sm font-black">{item.name}</p><p className="text-xs text-text-secondary">{item.quantity} × ₹{item.price}</p>{item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}{item.addOnSummary?.map((addOn) => <p key={addOn.id} className="text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per Thali</p>)}</div><p className="text-sm font-black">₹{item.quantity * item.price}</p></div>)}
+          {items.map((item) => <div key={item.key} className="flex gap-3"><div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-surface-muted"><Image src={item.image} alt="" fill sizes="56px" className="object-cover" /></div><div className="min-w-0 flex-1"><p className="text-sm font-black">{item.name}</p><p className="text-xs text-text-secondary">{item.quantity} × ₹{item.price}</p>{item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}{item.addOnSummary?.map((addOn) => <p key={addOn.id} className="text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per {item.kind === "dish" ? "dish" : "Thali"}</p>)}</div><p className="text-sm font-black">₹{item.quantity * item.price}</p></div>)}
         </div>
         <div className="mt-5 space-y-3 border-t border-border pt-5 text-sm">
           {coveredItem && <div className="flex justify-between text-success"><span>Plan Thali base</span><span>−₹{coveredItem.basePrice}</span></div>}

@@ -13,6 +13,7 @@ let patchOrder;
 let getPublicPaymentSettings, patchAdminPaymentSettings;
 let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, updateAdminPromo, deleteAdminPromo, validateCustomerPromo;
 let getAdminAvatar, uploadAdminAvatar;
+let getCustomerProfile, uploadCustomerAvatar;
 let createAdminThali;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
@@ -53,6 +54,8 @@ beforeAll(async () => {
   ({ GET: getAdminPromos, POST: createAdminPromo, PATCH: updateAdminPromo, DELETE: deleteAdminPromo } = await import("@/app/api/admin/promos/route"));
   ({ POST: validateCustomerPromo } = await import("@/app/api/promos/validate/route"));
   ({ GET: getAdminAvatar, POST: uploadAdminAvatar } = await import("@/app/api/admin/avatar/route"));
+  ({ GET: getCustomerProfile } = await import("@/app/api/profile/route"));
+  ({ POST: uploadCustomerAvatar } = await import("@/app/api/profile/avatar/route"));
   ({ POST: createAdminThali } = await import("@/app/api/admin/meals/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
@@ -139,6 +142,28 @@ describe("daily menu and checkout", () => {
     const order = await createOrder(user(), body, "COD", { verifyDelivery: delivery });
     expect(order.items[0].price).toBe(274);
     expect(order.items[0].selectedChoices[1].options[0].name).toBe("Moong Dal");
+  });
+
+  it("lets admin add a single dish, order it, and keeps plan credits for Thalis", async () => {
+    authState.role = "admin";
+    const source = (await Meal.findOne({ slug: "veg-home-meal" })).toObject();
+    const payload = { ...source, slug: "test-aloo-bhaja", kind: "dish", mealType: "Single Dish", name: "Aloo Bhaja", shortDescription: "Crisp potato fry", description: "Home-style potato fry.", price: 79, choiceGroups: [], addOns: [], fixedItems: [] };
+    const response = await createAdminThali(new Request("http://localhost/api/admin/meals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }));
+    expect(response.status).toBe(201);
+    const dish = (await getMenu(kolkataDate(1))).find((item) => item.id === payload.slug);
+    expect(dish).toMatchObject({ kind: "dish", mealType: "Single Dish", contents: ["Aloo Bhaja"] });
+
+    authState.role = "customer";
+    const buyer = user();
+    const body = request(payload.slug);
+    body.items[0].selectedChoices = {};
+    const order = await createOrder(buyer, body, "COD", { verifyDelivery: delivery });
+    expect(order.items[0]).toMatchObject({ kind: "dish", name: "Aloo Bhaja", price: 79 });
+
+    const plan = await SubscriptionPlan.findOne({ slug: "trial" });
+    const subscription = await purchaseSubscription(buyer, { planId: String(plan._id), mode: "Mixed", purchaseKey: crypto.randomUUID() });
+    await expect(createOrder(buyer, { ...body, checkoutKey: crypto.randomUUID(), subscriptionId: String(subscription._id), coveredMealId: payload.slug }, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+    expect((await Subscription.findById(subscription._id)).remainingMeals).toBe(3);
   });
   it("applies a daily override without changing the weekly schedule", async () => {
     const date = kolkataDate(1);
@@ -598,6 +623,29 @@ describe("owner profile photo", () => {
       authState.role = "customer";
       expect((await getAdminAvatar()).status).toBe(403);
       expect((await upload(valid)).status).toBe(403);
+    } finally {
+      vi.unstubAllGlobals();
+      for (const [envKey, value] of [["CLOUDINARY_CLOUD_NAME", previous.cloud], ["CLOUDINARY_API_KEY", previous.key], ["CLOUDINARY_API_SECRET", previous.secret]]) { if (value === undefined) delete process.env[envKey]; else process.env[envKey] = value; }
+    }
+  });
+});
+
+describe("customer profile photo", () => {
+  it("uploads a verified image and returns it with the customer profile", async () => {
+    const customer = await User.create({ name: "Test Customer", email: "customer-photo@example.com", phone: "9876543212", passwordHash: "test" });
+    authState.id = String(customer._id);
+    const previous = { cloud: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY, secret: process.env.CLOUDINARY_API_SECRET };
+    process.env.CLOUDINARY_CLOUD_NAME = "testcloud";
+    process.env.CLOUDINARY_API_KEY = "testkey";
+    process.env.CLOUDINARY_API_SECRET = "testsecret";
+    const photoUrl = `https://res.cloudinary.com/testcloud/image/upload/v2/gharkabite/avatars/${customer._id}.png`;
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ public_id: `gharkabite/avatars/${customer._id}`, secure_url: photoUrl })));
+    const upload = (file) => { const form = new FormData(); form.set("file", file); return uploadCustomerAvatar(new Request("http://localhost/api/profile/avatar", { method: "POST", body: form })); };
+    try {
+      expect((await upload(new File(["fake"], "fake.png", { type: "image/png" }))).status).toBe(400);
+      expect((await upload(new File([Uint8Array.from([137,80,78,71,13,10,26,10,1])], "photo.png", { type: "image/png" }))).status).toBe(200);
+      const profile = await (await getCustomerProfile()).json();
+      expect(profile.user.avatarUrl).toBe(photoUrl);
     } finally {
       vi.unstubAllGlobals();
       for (const [envKey, value] of [["CLOUDINARY_CLOUD_NAME", previous.cloud], ["CLOUDINARY_API_KEY", previous.key], ["CLOUDINARY_API_SECRET", previous.secret]]) { if (value === undefined) delete process.env[envKey]; else process.env[envKey] = value; }

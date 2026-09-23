@@ -35,7 +35,7 @@ function HomeMealCard({ meal, orderingDisabled, unavailableReason }) {
         <p className="mt-1 min-h-11 text-sm leading-5 text-text-secondary">{meal.description}</p>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
           <p className="text-xl font-black">From ₹{meal.price}</p>
-          {orderingDisabled ? <span className="rounded-xl bg-surface-muted px-4 py-2 text-sm font-extrabold text-text-secondary">Closed</span> : <Link href={`/menu/${meal.id}?date=${kolkataDate()}`} className="ui-action inline-flex min-h-11 items-center gap-1 rounded-xl bg-primary px-4 text-sm font-extrabold text-white">Customize <ArrowRight className="size-4" aria-hidden="true" /></Link>}
+          {orderingDisabled ? <span className="rounded-xl bg-surface-muted px-4 py-2 text-sm font-extrabold text-text-secondary">Closed</span> : <Link href={`/menu/${meal.id}?date=${kolkataDate()}`} className="ui-action inline-flex min-h-11 items-center gap-1 rounded-xl bg-primary px-4 text-sm font-extrabold text-white">{meal.kind === "dish" ? "View dish" : "Customize"} <ArrowRight className="size-4" aria-hidden="true" /></Link>}
         </div>
         {orderingDisabled && <p className="mt-3 text-xs font-bold text-danger">{unavailableReason}</p>}
       </div>
@@ -48,7 +48,7 @@ export default function HomeMenuSection() {
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
   const { settings, hydrated: kitchenHydrated, getAvailability } = useKitchen();
-  const meals = menu.filter((meal) => meal.slots.includes(mealTime === "lunch" ? "Lunch" : "Dinner")).slice(0, 4).map((meal) => ({ ...meal, description: meal.contents.join(" + "), deliveryMealPeriod: mealTime === "lunch" ? "Lunch" : "Dinner" }));
+  const meals = menu.filter((meal) => meal.slots.includes(mealTime === "lunch" ? "Lunch" : "Dinner")).slice(0, 4).map((meal) => ({ ...meal, description: meal.kind === "dish" ? meal.shortDescription : meal.contents.join(" + "), deliveryMealPeriod: mealTime === "lunch" ? "Lunch" : "Dinner" }));
   const selectedPeriod = mealTime === "lunch" ? "Lunch" : "Dinner";
   const periodAvailability = kitchenHydrated ? getAvailability(selectedPeriod) : { available: true, reason: "" };
 
@@ -71,8 +71,8 @@ export default function HomeMenuSection() {
     <section id="todays-menu" aria-busy={loading} className="container-shell py-14 md:py-20">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="eyebrow">Today&apos;s Thalis</p>
-          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Build Your Thali</h2>
+          <p className="eyebrow">Today&apos;s menu</p>
+          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Fresh from the kitchen</h2>
           <p className="mt-1 font-bold text-accent">আজকের রান্না</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

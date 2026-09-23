@@ -55,8 +55,8 @@ export default function OrdersHistory() {
     }
     try {
       const result = addOrderItems(selections.map(({ item, meal, customization }) => ({ meal, quantity: item.quantity, customization })), order.mealPeriod, kolkataDate());
-      setMessage(result.status === "conflict" ? `Your existing cart uses another meal period. Confirm the switch to reorder this ${order.mealPeriod.toLowerCase()}.` : "Previous Thalis and their customizations added to your cart.");
-    } catch { setMessage("Some previous selections are no longer available. Please review your Thali."); }
+      setMessage(result.status === "conflict" ? `Your existing cart uses another meal period. Confirm the switch to reorder this ${order.mealPeriod.toLowerCase()}.` : "Previous menu items and their choices added to your cart.");
+    } catch { setMessage("Some previous selections are no longer available. Please review your menu items."); }
   }
 
   if (loading) return <section className="container-shell py-10"><div className="h-56 animate-pulse rounded-2xl bg-surface-muted" /></section>;

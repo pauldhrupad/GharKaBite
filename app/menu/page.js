@@ -5,7 +5,7 @@ import { allowedOrderDate, kolkataDate } from "@/lib/dates";
 
 export const metadata = {
   title: "Menu",
-  description: "Browse and customize fresh homemade lunch and dinner Thalis from GharKaBite.",
+  description: "Browse fresh homemade Thalis and individual dishes for lunch and dinner from GharKaBite.",
 };
 
 export default async function MenuPage({ searchParams }) {

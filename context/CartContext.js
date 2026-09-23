@@ -25,6 +25,7 @@ function createCartItem(meal, deliveryMealPeriod, quantity, serviceDate, customi
   return {
     key: itemKey(meal.id, deliveryMealPeriod, selectedChoices, selectedAddOns),
     mealId: meal.id,
+    kind: meal.kind || "thali",
     name: meal.name,
     image: meal.image,
     price: priced.unitTotal,
@@ -58,7 +59,7 @@ function sanitizeSavedCart(savedItems) {
 
   return validItems
     .filter((item) => item.deliveryMealPeriod === savedPeriod && (item.serviceDate || savedDate) === savedDate && allowedOrderDate(savedDate))
-    .map((item) => ({ ...item, key: item.key || itemKey(item.mealId, item.deliveryMealPeriod, item.selectedChoices || {}, item.selectedAddOns || {}), basePrice: item.basePrice ?? item.price, selectedChoices: item.selectedChoices || {}, selectedAddOns: item.selectedAddOns || {}, choiceSummary: item.choiceSummary || [], addOnSummary: item.addOnSummary || [], needsReview: item.needsReview || !Object.hasOwn(item, "selectedChoices"), serviceDate: savedDate, quantity: clampQuantity(item.quantity) }));
+    .map((item) => ({ ...item, kind: item.kind || "thali", key: item.key || itemKey(item.mealId, item.deliveryMealPeriod, item.selectedChoices || {}, item.selectedAddOns || {}), basePrice: item.basePrice ?? item.price, selectedChoices: item.selectedChoices || {}, selectedAddOns: item.selectedAddOns || {}, choiceSummary: item.choiceSummary || [], addOnSummary: item.addOnSummary || [], needsReview: item.needsReview || !Object.hasOwn(item, "selectedChoices"), serviceDate: savedDate, quantity: clampQuantity(item.quantity) }));
 }
 
 export function CartProvider({ children }) {

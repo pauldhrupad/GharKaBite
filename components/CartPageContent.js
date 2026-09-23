@@ -58,7 +58,7 @@ export default function CartPageContent() {
     <section className="container-shell grid gap-7 py-10 lg:grid-cols-[1fr_22rem] lg:items-start">
       <div>
         <div className="mb-4 flex items-center justify-between gap-4">
-          <p className="text-sm font-bold text-text-secondary">{items.length} {items.length === 1 ? "Thali selection" : "Thali selections"}</p>
+          <p className="text-sm font-bold text-text-secondary">{items.length} {items.length === 1 ? "menu item" : "menu items"}</p>
           <button type="button" onClick={clearCart} className="min-h-10 rounded-lg px-2 text-sm font-black text-danger hover:bg-danger/8">Clear cart</button>
         </div>
 
@@ -76,7 +76,7 @@ export default function CartPageContent() {
                     <p className="mt-2 text-sm font-extrabold">₹{item.price} each</p>
                     {item.needsReview && <p className="mt-2 text-xs font-bold text-warning">Please review this older selection before checkout.</p>}
                     {item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="mt-1 text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}
-                    {item.addOnSummary?.map((addOn) => <p key={addOn.id} className="mt-1 text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per Thali</p>)}
+                    {item.addOnSummary?.map((addOn) => <p key={addOn.id} className="mt-1 text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per {item.kind === "dish" ? "dish" : "Thali"}</p>)}
                     <Link href={`/menu/${item.mealId}?date=${item.serviceDate}&edit=${encodeURIComponent(item.key)}`} className="mt-2 inline-block text-sm font-bold text-primary underline underline-offset-4">Edit customization</Link>
                   </div>
                   <button
@@ -170,7 +170,7 @@ export default function CartPageContent() {
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
         </div>
         {promoCode && !promo.valid ? <p className="mt-4 text-xs font-semibold text-warning">Remove or correct the promo code to continue.</p> : null}
-        {needsReview && <p className="mt-4 text-xs font-semibold text-warning">Edit the older cart selection to choose its Thali options.</p>}
+        {needsReview && <p className="mt-4 text-xs font-semibold text-warning">Edit the older cart selection to review its options.</p>}
         {(needsReview || promoCode && !promo.valid) ? <button type="button" disabled className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-black text-white opacity-50">Continue to checkout</button> : <Button href="/checkout" className="mt-5 w-full">Continue to checkout</Button>}
         <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 shrink-0 text-success" aria-hidden="true" /> Checkout offers manually verified Online Payment and Cash on Delivery when enabled.</p>
       </aside>

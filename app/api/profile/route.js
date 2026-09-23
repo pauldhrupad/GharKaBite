@@ -11,7 +11,7 @@ export async function GET() {
 
   try {
     await dbConnect();
-    const user = await User.findById(session.user.id).select("name email phone addresses role").lean();
+    const user = await User.findById(session.user.id).select("name email phone addresses role avatarUrl").lean();
     if (!user) return Response.json({ message: "User not found." }, { status: 404 });
     return Response.json({ user });
   } catch {
@@ -35,7 +35,7 @@ export async function PATCH(request) {
     await dbConnect();
     const duplicatePhone = await User.findOne({ phone, _id: { $ne: session.user.id } }).lean();
     if (duplicatePhone) return Response.json({ message: "That mobile number is already registered." }, { status: 409 });
-    const user = await User.findByIdAndUpdate(session.user.id, { name, phone, addresses }, { returnDocument: "after", runValidators: true }).select("name email phone addresses role").lean();
+    const user = await User.findByIdAndUpdate(session.user.id, { name, phone, addresses }, { returnDocument: "after", runValidators: true }).select("name email phone addresses role avatarUrl").lean();
     return Response.json({ user, message: "Profile updated." });
   } catch {
     return Response.json({ message: "Unable to update the profile right now." }, { status: 503 });

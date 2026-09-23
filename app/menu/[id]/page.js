@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }) {
   const { id } = await params;
   const meal = (await getMenu()).find((item) => item.id === id);
-  if (!meal) return { title: "Thali Not Found" };
+  if (!meal) return { title: "Menu Item Not Found" };
   return { title: meal.name, description: meal.shortDescription };
 }
 
@@ -48,22 +48,22 @@ export default async function MealDetailPage({ params, searchParams }) {
               {meal.badges.map((badge) => <Badge key={badge} tone={badge === "Limited" ? "warning" : "muted"}>{badge}</Badge>)}
             </div>
             <h1 className="mt-4 text-4xl font-black tracking-[-0.045em] md:text-5xl">{meal.name}</h1>
-            {meal.choiceUnavailable && <p className="mt-3 rounded-xl bg-warning/10 p-3 text-sm font-bold text-warning">A required choice is currently unavailable, so this Thali cannot be ordered.</p>}
+            {meal.choiceUnavailable && <p className="mt-3 rounded-xl bg-warning/10 p-3 text-sm font-bold text-warning">A required choice is currently unavailable, so this item cannot be ordered.</p>}
             <p className="mt-3 text-lg font-bold text-accent">{meal.shortDescription}</p>
             <p className="mt-5 text-base leading-8 text-text-secondary">{meal.description}</p>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-surface-muted p-4"><Layers3 className="size-5 text-primary" aria-hidden="true" /><p className="mt-2 text-xs font-bold text-text-secondary">Thali type</p><p className="font-black">{meal.category}</p></div>
+              <div className="rounded-xl bg-surface-muted p-4"><Layers3 className="size-5 text-primary" aria-hidden="true" /><p className="mt-2 text-xs font-bold text-text-secondary">{meal.kind === "dish" ? "Dish category" : "Thali type"}</p><p className="font-black">{meal.category}</p></div>
               <div className="rounded-xl bg-surface-muted p-4"><Clock3 className="size-5 text-primary" aria-hidden="true" /><p className="mt-2 text-xs font-bold text-text-secondary">Available for</p><p className="font-black">{meal.slots.join(" & ")}</p></div>
               <div className="rounded-xl bg-surface-muted p-4"><PackageCheck className="size-5 text-primary" aria-hidden="true" /><p className="mt-2 text-xs font-bold text-text-secondary">Availability</p><p className={`font-black ${soldOut ? "text-danger" : meal.stock <= 3 ? "text-warning" : "text-success"}`}>{soldOut ? "Sold Out" : meal.stock <= 3 ? `Only ${meal.stock} left` : "Available"}</p></div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
+            {meal.kind !== "dish" && <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
               <h2 className="text-sm font-black uppercase tracking-wide text-text-secondary">Included in your Thali</h2>
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {meal.fixedItems.map((item) => <li key={item.name} className="flex items-center gap-2 text-sm font-bold"><span className="grid size-5 place-items-center rounded-full bg-success/10"><Check className="size-3 text-success" aria-hidden="true" /></span>{item.name}</li>)}
               </ul>
-            </div>
+            </div>}
 
             <ThaliCustomizer meal={meal} serviceDate={date} editKey={query?.edit || ""} restore={query?.restore === "1"} />
           </div>

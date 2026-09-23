@@ -3,6 +3,7 @@ import { locationSchema } from "./Location";
 
 const orderItemSchema = new mongoose.Schema({
   mealId: { type: String, required: true },
+  kind: { type: String, enum: ["thali", "dish"], default: "thali" },
   name: { type: String, required: true },
   image: { type: String, required: true },
   price: { type: Number, required: true, min: 0 },

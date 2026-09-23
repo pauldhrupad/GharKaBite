@@ -9,7 +9,7 @@ import { useKitchen } from "@/context/KitchenContext";
 import { formatCutoffTime } from "@/lib/kitchen-operations";
 
 const periods = ["Lunch", "Dinner"];
-const categories = ["All", "Veg", "Egg", "Chicken", "Fish"];
+const categories = ["All", "Veg", "Egg", "Chicken", "Fish", "Special"];
 
 export default function MenuExplorer({ initialDate }) {
   const [period, setPeriod] = useState("Lunch");
@@ -87,7 +87,7 @@ export default function MenuExplorer({ initialDate }) {
         </div>
 
         <label className="group relative block w-full lg:max-w-sm">
-          <span className="sr-only">Search Thalis</span>
+          <span className="sr-only">Search menu</span>
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-text-secondary group-focus-within:text-primary" aria-hidden="true" />
           <input
             type="search"
@@ -95,15 +95,15 @@ export default function MenuExplorer({ initialDate }) {
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             className={`input-field with-leading-icon ${searchQuery ? "pr-12" : ""}`}
-            placeholder="Search by Thali or ingredient"
+            placeholder="Search dishes, Thalis or ingredients"
             autoComplete="off"
             enterKeyHint="search"
           />
-          {searchQuery && <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear Thali search" className="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-text-secondary hover:bg-surface-muted hover:text-primary"><X className="size-4" aria-hidden="true" /></button>}
+          {searchQuery && <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear menu search" className="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-text-secondary hover:bg-surface-muted hover:text-primary"><X className="size-4" aria-hidden="true" /></button>}
         </label>
       </div>
 
-      <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none]" aria-label="Filter Thalis by category">
+      <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none]" aria-label="Filter menu by category">
         <span className="mr-1 inline-flex shrink-0 items-center gap-2 text-sm font-black"><SlidersHorizontal className="size-4" aria-hidden="true" /> Categories</span>
         {categories.map((option) => (
           <button
@@ -119,18 +119,18 @@ export default function MenuExplorer({ initialDate }) {
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-4">
-        <p className="text-sm font-bold text-text-secondary" aria-live="polite">{loading ? "Loading Thalis…" : `Showing ${filteredMeals.length} ${period.toLowerCase()} ${filteredMeals.length === 1 ? "Thali" : "Thalis"}`}</p>
+        <p className="text-sm font-bold text-text-secondary" aria-live="polite">{loading ? "Loading menu…" : `Showing ${filteredMeals.length} ${period.toLowerCase()} ${filteredMeals.length === 1 ? "item" : "items"}`}</p>
         <p className="hidden text-xs font-bold text-text-secondary sm:block">Availability reflects today&apos;s limited batches.</p>
       </div>
 
-      {loading ? <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="status" aria-label="Loading Thalis">{[0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse bg-surface-muted" />)}</div> : filteredMeals.length > 0 ? (
+      {loading ? <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="status" aria-label="Loading menu">{[0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse bg-surface-muted" />)}</div> : filteredMeals.length > 0 ? (
         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredMeals.map((meal) => <MealCard key={meal.id} meal={meal} deliveryMealPeriod={period} serviceDate={date} orderingDisabled={!periodAvailability.available} unavailableReason={periodAvailability.reason} />)}
         </div>
       ) : (
         <div className="card-surface mt-6 px-6 py-14 text-center">
           <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary"><UtensilsCrossed className="size-6" aria-hidden="true" /></span>
-          <h2 className="mt-5 text-xl font-black">No matching Thalis</h2>
+          <h2 className="mt-5 text-xl font-black">No matching menu items</h2>
           <p className="mt-2 text-sm text-text-secondary">Try another category, meal period or search term.</p>
           <button type="button" onClick={clearFilters} className="mt-5 min-h-10 rounded-xl bg-primary px-5 text-sm font-extrabold text-white hover:bg-primary-hover">Clear filters</button>
         </div>

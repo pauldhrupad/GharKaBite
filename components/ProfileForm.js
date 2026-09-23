@@ -1,26 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, LogOut, MapPin, Plus, Save, Trash2, UserRound } from "lucide-react";
+import { Camera, LayoutDashboard, LogOut, MapPin, Plus, Save, Trash2, UserRound } from "lucide-react";
 import Button from "./Button";
 import LocationPicker from "./LocationPicker";
 
 const emptyAddress = { label: "Home", house: "", street: "", area: "", landmark: "", city: "Kolkata", pinCode: "" };
 
 export default function ProfileForm({ initialUser }) {
-  const [profile, setProfile] = useState({ name: initialUser?.name || "", email: initialUser?.email || "", phone: initialUser?.phone || "", addresses: [] });
+  const [profile, setProfile] = useState({ name: initialUser?.name || "", email: initialUser?.email || "", phone: initialUser?.phone || "", avatarUrl: "", addresses: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
     fetch("/api/profile").then(async (response) => {
-      if (response.ok && active) setProfile(await response.json().then((data) => ({ ...data.user, addresses: data.user.addresses || [] })));
-    }).finally(() => { if (active) setLoading(false); });
+      if (!response.ok) throw new Error("Unable to load your profile right now.");
+      const data = await response.json();
+      if (active) setProfile({ ...data.user, addresses: data.user.addresses || [] });
+    }).catch(() => { if (active) setError("Unable to load your profile right now."); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -44,6 +48,28 @@ export default function ProfileForm({ initialUser }) {
 
   function removeAddress(index) {
     setProfile((current) => ({ ...current, addresses: current.addresses.filter((_, addressIndex) => addressIndex !== index) }));
+  }
+
+  async function uploadPhoto(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setMessage(""); setError("");
+    if (file.size > 2 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("Choose a JPEG, PNG or WebP photo under 2 MB."); return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      const response = await fetch("/api/profile/avatar", { method: "POST", body });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Profile photo upload failed.");
+      setProfile((current) => ({ ...current, avatarUrl: data.avatarUrl }));
+      setMessage("Profile photo saved.");
+    } catch (cause) {
+      setError(cause.message || "Profile photo upload failed.");
+    } finally { setUploadingPhoto(false); }
   }
 
   async function saveProfile(event) {
@@ -70,7 +96,7 @@ export default function ProfileForm({ initialUser }) {
 
   return (
     <form onSubmit={saveProfile} className="container-shell grid gap-6 py-10 lg:grid-cols-[20rem_1fr] lg:items-start">
-      <aside className="card-surface p-5 lg:sticky lg:top-24"><span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary"><UserRound className="size-7" aria-hidden="true" /></span><h2 className="mt-4 text-xl font-black">{profile.name || "Your profile"}</h2><p className="mt-1 text-sm text-text-secondary">{profile.email}</p>{initialUser?.role === "admin" && <Link href="/admin/dashboard" className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-white hover:bg-primary-hover"><LayoutDashboard className="size-4" aria-hidden="true" /> Open admin dashboard</Link>}<div className="mt-5 border-t border-border pt-5"><button type="button" onClick={() => signOut({ callbackUrl: "/" })} className="inline-flex min-h-10 items-center gap-2 text-sm font-black text-danger"><LogOut className="size-4" aria-hidden="true" /> Sign out</button></div></aside>
+      <aside className="card-surface p-5 lg:sticky lg:top-24"><div className="flex items-center gap-4"><span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-primary/10 text-primary">{profile.avatarUrl ? <Image src={profile.avatarUrl} alt={`${profile.name || "Your"} profile photo`} width={64} height={64} className="size-full object-cover" unoptimized onError={() => setProfile((current) => ({ ...current, avatarUrl: "" }))} /> : <UserRound className="size-7" aria-hidden="true" />}</span><label className={`inline-flex min-h-11 items-center gap-2 rounded-xl border border-border px-3 text-sm font-bold text-primary focus-within:outline-2 focus-within:outline-primary ${uploadingPhoto ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-primary hover:bg-primary/5"}`}><Camera className="size-4" aria-hidden="true" />{uploadingPhoto ? "Uploading…" : profile.avatarUrl ? "Change photo" : "Add photo"}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadPhoto} disabled={uploadingPhoto} className="sr-only" aria-label="Choose profile photo" /></label></div><p className="mt-2 text-xs text-text-secondary">JPG, PNG or WebP · under 2 MB</p><h2 className="mt-4 text-xl font-black">{profile.name || "Your profile"}</h2><p className="mt-1 text-sm text-text-secondary">{profile.email}</p>{initialUser?.role === "admin" && <Link href="/admin/dashboard" className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-white hover:bg-primary-hover"><LayoutDashboard className="size-4" aria-hidden="true" /> Open admin dashboard</Link>}<div className="mt-5 border-t border-border pt-5"><button type="button" onClick={() => signOut({ callbackUrl: "/" })} className="inline-flex min-h-10 items-center gap-2 text-sm font-black text-danger"><LogOut className="size-4" aria-hidden="true" /> Sign out</button></div></aside>
 
       <div className="space-y-6">
         <section className="card-surface p-5 md:p-7"><h2 className="flex items-center gap-2 text-xl font-black"><UserRound className="size-5 text-primary" aria-hidden="true" /> Account details</h2><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Name<input className="input-field mt-2" name="name" type="text" value={profile.name} onChange={updateProfile} autoComplete="name" placeholder="e.g. Ananya Sen" required /></label><label className="text-sm font-bold">Phone<input className="input-field mt-2" name="phone" type="tel" value={profile.phone || ""} onChange={updateProfile} autoComplete="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} placeholder="e.g. 9876543210" required /></label><label className="text-sm font-bold sm:col-span-2">Email<input className="input-field mt-2" type="email" value={profile.email || ""} autoComplete="email" readOnly aria-describedby="email-note" /></label></div><p id="email-note" className="mt-2 text-xs text-text-secondary">Email changes are disabled to protect your login identity.</p></section>
