@@ -2,13 +2,14 @@ import crypto from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 
-const authState = vi.hoisted(() => ({ id: null }));
-vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: authState.id, role: "customer" } }) }));
+const authState = vi.hoisted(() => ({ id: null, role: "customer" }));
+vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: authState.id, role: authState.role } }) }));
 vi.mock("@/lib/delivery", () => ({ checkDelivery: async () => ({ serviceable: true }), validLocation: (location) => typeof location?.lat === "number" && typeof location?.lon === "number" && Math.abs(location.lat) <= 90 && Math.abs(location.lon) <= 180 }));
 
 let replica, mongoose, Meal, DailyMenu, DailyCapacity, Order, Subscription, SubscriptionPlan, KitchenSettings, DemoPayment;
-let getMenu, seedCatalog, kolkataDate, createOrder, updateOrderStatus, purchaseSubscription, setSubscriptionStatus;
+let getMenu, seedCatalog, kolkataDate, createOrder, updateOrderStatus, markCodPaymentReceived, purchaseSubscription, setSubscriptionStatus;
 let createDemoPayment, completeDemoPayment;
+let patchOrder;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
@@ -31,7 +32,8 @@ beforeAll(async () => {
   ({ default: DemoPayment } = await import("@/models/DemoPayment"));
   ({ getMenu, seedCatalog } = await import("@/lib/catalog"));
   ({ kolkataDate } = await import("@/lib/dates"));
-  ({ createOrder, updateOrderStatus } = await import("@/lib/order-service"));
+  ({ createOrder, updateOrderStatus, markCodPaymentReceived } = await import("@/lib/order-service"));
+  ({ PATCH: patchOrder } = await import("@/app/api/orders/[orderId]/route"));
   ({ purchaseSubscription, setSubscriptionStatus } = await import("@/lib/subscription-service"));
   ({ POST: createDemoPayment } = await import("@/app/api/demo-payments/route"));
   ({ POST: completeDemoPayment } = await import("@/app/api/demo-payments/[id]/route"));
@@ -40,7 +42,7 @@ beforeAll(async () => {
   await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init()]);
 });
 afterAll(async () => { if (mongoose?.connection?.readyState) await mongoose.disconnect(); if (replica) await replica.stop(); });
-beforeEach(async () => { for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
+beforeEach(async () => { authState.role = "customer"; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
 
 describe("daily menu and checkout", () => {
   it("applies a daily override without changing the weekly schedule", async () => {
@@ -109,6 +111,35 @@ describe("daily menu and checkout", () => {
   it("rejects unverified delivery without creating an order", async () => {
     await expect(createOrder(user(), request(), "COD", { verifyDelivery: async () => ({ serviceable: false, reason: "Unverified" }) })).rejects.toMatchObject({ status: 422 });
     expect(await Order.countDocuments()).toBe(0);
+  });
+
+  it("requires delivery before confirming COD cash and records it only once", async () => {
+    const order = await createOrder(user(), request(), "COD", { verifyDelivery: delivery });
+    await expect(markCodPaymentReceived(order.orderNumber)).rejects.toMatchObject({ status: 409 });
+    await updateOrderStatus(order.orderNumber, "delivered");
+    const paid = await markCodPaymentReceived(order.orderNumber);
+    expect(paid).toMatchObject({ orderStatus: "delivered", paymentStatus: "paid" });
+    expect(paid.paymentReceivedAt).toBeTruthy();
+    const repeated = await markCodPaymentReceived(order.orderNumber);
+    expect(new Date(repeated.paymentReceivedAt).getTime()).toBe(new Date(paid.paymentReceivedAt).getTime());
+    await expect(updateOrderStatus(order.orderNumber, "cancelled")).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("lets only an admin confirm an already-delivered COD payment", async () => {
+    const order = await createOrder(user(), request(), "COD", { verifyDelivery: delivery });
+    await updateOrderStatus(order.orderNumber, "delivered");
+    const makeRequest = () => new Request(`http://localhost/api/orders/${order.orderNumber}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "confirm_cod_received" }) });
+    expect((await patchOrder(makeRequest(), { params: Promise.resolve({ orderId: order.orderNumber }) })).status).toBe(403);
+    authState.role = "admin";
+    const response = await patchOrder(makeRequest(), { params: Promise.resolve({ orderId: order.orderNumber }) });
+    expect(response.status).toBe(200);
+    expect((await response.json()).order.paymentStatus).toBe("paid");
+  });
+
+  it("does not allow a demo payment to be confirmed as COD cash", async () => {
+    const order = await createOrder(user(), request(), "DEMO", { verifyDelivery: delivery });
+    await updateOrderStatus(order.orderNumber, "delivered");
+    await expect(markCodPaymentReceived(order.orderNumber)).rejects.toMatchObject({ status: 409 });
   });
 
   it("rechecks and stores a map pin, while rejecting invalid coordinates", async () => {

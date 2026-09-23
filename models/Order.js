@@ -45,6 +45,7 @@ const orderSchema = new mongoose.Schema({
   reservationsReturned: { type: Boolean, default: false },
   paymentMethod: { type: String, enum: ["COD", "DEMO"], required: true },
   paymentStatus: { type: String, enum: ["pending", "paid", "failed", "refunded"], default: "pending" },
+  paymentReceivedAt: { type: Date, default: null },
   orderStatus: { type: String, enum: ["received", "confirmed", "cooking", "packed", "out_for_delivery", "delivered", "cancelled"], default: "received" },
   subtotal: { type: Number, required: true, min: 0 },
   deliveryFee: { type: Number, required: true, min: 0 },

@@ -4,14 +4,16 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Clock3, MapPin, NotebookPen, Phone, UserRound } from "lucide-react";
 import Link from "next/link";
 import { adminStatusOptions } from "@/data/order-statuses";
-import { formatOrderTimestamp } from "@/lib/order-utils";
+import { formatOrderTimestamp, isOrderComplete } from "@/lib/order-utils";
 
 export default function AdminOrderDetail({ orderId, initialOrder }) {
   const [order, setOrder] = useState(initialOrder);
   const [selectedStatus, setSelectedStatus] = useState(initialOrder?.orderStatus || "received");
   const [loading, setLoading] = useState(!initialOrder);
   const [saving, setSaving] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
   const [message, setMessage] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState("");
 
   useEffect(() => {
     if (initialOrder) return undefined;
@@ -47,14 +49,32 @@ export default function AdminOrderDetail({ orderId, initialOrder }) {
     }
   }
 
+  async function confirmCashReceived() {
+    if (!window.confirm(`Confirm that you received ₹${order.total} in cash for this delivered order?`)) return;
+    setSavingPayment(true);
+    setPaymentMessage("");
+    try {
+      const response = await fetch(`/api/orders/${order.orderNumber}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "confirm_cod_received" }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Could not confirm the cash payment.");
+      setOrder(data.order);
+      setPaymentMessage("Cash received. This order is complete.");
+    } catch (error) {
+      setPaymentMessage(error.message || "Could not confirm the cash payment.");
+    } finally {
+      setSavingPayment(false);
+    }
+  }
+
   if (loading) return <div className="h-80 animate-pulse rounded-2xl bg-surface-muted" />;
   if (!order) return <div className="rounded-2xl border border-border bg-white p-10 text-center"><h1 className="text-2xl font-black">Order not found</h1><p className="mt-2 text-sm text-text-secondary">This order is not available in the demo data or connected database.</p><Link href="/admin/orders" className="mt-5 inline-flex font-black text-primary">Return to orders</Link></div>;
 
   const address = order.deliveryAddress;
+  const completed = isOrderComplete(order);
   return (
     <>
       <Link href="/admin/orders" className="inline-flex min-h-10 items-center gap-2 text-sm font-black text-primary"><ArrowLeft className="size-4" aria-hidden="true" /> Back to orders</Link>
-      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="eyebrow">Order detail</p><h1 className="mt-1 text-3xl font-black">{order.orderNumber}</h1><p className="mt-1 text-sm text-text-secondary">Placed {formatOrderTimestamp(order.createdAt)}</p></div><span className="w-fit rounded-full bg-warning/10 px-3 py-1.5 text-xs font-black capitalize text-warning">{order.orderStatus.replaceAll("_", " ")}</span></div>
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="eyebrow">Order detail</p><h1 className="mt-1 text-3xl font-black">{order.orderNumber}</h1><p className="mt-1 text-sm text-text-secondary">Placed {formatOrderTimestamp(order.createdAt)}</p></div><span className={`w-fit rounded-full px-3 py-1.5 text-xs font-black capitalize ${completed ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}`}>{completed ? "Completed" : order.orderStatus.replaceAll("_", " ")}</span></div>
 
       <div className="mt-7 grid gap-6 xl:grid-cols-[1fr_22rem] xl:items-start">
         <div className="space-y-6">
@@ -64,9 +84,9 @@ export default function AdminOrderDetail({ orderId, initialOrder }) {
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-6">
-          <section className="rounded-2xl border border-border bg-white p-5"><h2 className="text-lg font-black">Update status</h2><label className="mt-4 block text-sm font-bold">Current stage<select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)} className="input-field mt-2">{adminStatusOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><button type="button" onClick={updateStatus} disabled={saving || selectedStatus === order.orderStatus} className="mt-4 min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{saving ? "Updating…" : "Update order"}</button>{message && <p className="mt-3 text-xs font-bold text-text-secondary" aria-live="polite">{message}</p>}</section>
+          <section className="rounded-2xl border border-border bg-white p-5"><h2 className="text-lg font-black">Update status</h2><label className="mt-4 block text-sm font-bold">Current stage<select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)} disabled={completed} className="input-field mt-2 disabled:opacity-60">{adminStatusOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><button type="button" onClick={updateStatus} disabled={saving || completed || selectedStatus === order.orderStatus} className="mt-4 min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{saving ? "Updating…" : "Update order"}</button>{completed && <p className="mt-2 text-xs text-text-secondary">Delivery and payment are complete.</p>}{message && <p className="mt-3 text-xs font-bold text-text-secondary" aria-live="polite">{message}</p>}</section>
           <section className="rounded-2xl border border-border bg-white p-5"><h2 className="text-lg font-black">Order timeline</h2><ol className="mt-4 space-y-4">{order.statusHistory.map((entry, index) => <li key={`${entry.status}-${entry.timestamp}-${index}`} className="relative flex gap-3"><span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-primary" /><div><p className="text-sm font-black capitalize">{entry.status.replaceAll("_", " ")}</p><p className="text-xs text-text-secondary">{formatOrderTimestamp(entry.timestamp)}</p></div></li>)}</ol></section>
-          <section className="rounded-2xl border border-border bg-white p-5"><h2 className="font-black">Payment</h2><p className="mt-2 text-sm text-text-secondary">{order.paymentMethod} · <span className="capitalize">{order.paymentStatus}</span></p></section>
+          <section className="rounded-2xl border border-border bg-white p-5"><h2 className="font-black">Payment</h2><p className="mt-2 text-sm text-text-secondary">{order.paymentMethod === "COD" ? "Cash on Delivery" : "Demo payment"} · <span className={`font-black capitalize ${order.paymentStatus === "paid" ? "text-success" : ""}`}>{order.paymentStatus}</span></p>{order.paymentReceivedAt && <p className="mt-2 text-xs text-text-secondary">Cash received {formatOrderTimestamp(order.paymentReceivedAt)}</p>}{order.paymentMethod === "COD" && order.paymentStatus === "pending" && order.orderStatus !== "cancelled" && (order.orderStatus === "delivered" ? <><p className="mt-3 text-xs text-text-secondary">Confirm only after you have collected ₹{order.total} in cash.</p><button type="button" onClick={confirmCashReceived} disabled={savingPayment} className="mt-3 min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-black text-white disabled:opacity-50">{savingPayment ? "Saving…" : "Confirm cash received"}</button></> : <p className="mt-3 text-xs text-text-secondary">Mark the order as delivered before confirming cash received.</p>)}{paymentMessage && <p className="mt-3 text-xs font-bold text-text-secondary" role="status">{paymentMessage}</p>}</section>
         </aside>
       </div>
     </>

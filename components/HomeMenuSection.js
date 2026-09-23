@@ -38,7 +38,7 @@ function HomeMealCard({ meal, orderingDisabled, unavailableReason }) {
         />
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
           {meal.badges.slice(0, 2).map((badge) => (
-            <Badge key={badge} tone={badge === "Limited" || badge.includes("Left") ? "warning" : badge === "Non-Veg" ? "terracotta" : "green"}>
+            <Badge key={badge} onImage tone={badge === "Limited" || badge.includes("Left") ? "warning" : badge === "Non-Veg" ? "terracotta" : "green"}>
               {badge}
             </Badge>
           ))}

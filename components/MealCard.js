@@ -43,8 +43,8 @@ export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderi
           sizes="(max-width: 640px) 88vw, (max-width: 1024px) 50vw, 33vw"
           className={`object-cover transition duration-300 group-hover:scale-[1.03] ${soldOut ? "grayscale-[35%]" : ""}`}
         />
-        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-          {meal.badges.slice(0, 2).map((badge) => <Badge key={badge} tone={badge === "Limited" ? "warning" : "green"}>{badge}</Badge>)}
+        <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1.5">
+          {meal.badges.slice(0, 2).map((badge) => <Badge key={badge} onImage tone={badge === "Limited" ? "warning" : "green"}>{badge}</Badge>)}
         </div>
         {soldOut && <div className="absolute inset-0 grid place-items-center bg-text-primary/55"><span className="rounded-full bg-white px-4 py-2 text-sm font-black text-text-primary">{orderingDisabled ? "Ordering Closed" : "Sold Out"}</span></div>}
       </Link>
