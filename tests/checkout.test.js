@@ -6,12 +6,13 @@ const authState = vi.hoisted(() => ({ id: null, role: "customer" }));
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: authState.id, role: authState.role } }) }));
 vi.mock("@/lib/delivery", () => ({ checkDelivery: async () => ({ serviceable: true }), validLocation: (location) => typeof location?.lat === "number" && typeof location?.lon === "number" && Math.abs(location.lat) <= 90 && Math.abs(location.lon) <= 180 }));
 
-let replica, mongoose, Meal, DailyMenu, DailyCapacity, Order, Subscription, SubscriptionPlan, KitchenSettings, DemoPayment, PromoCode;
+let replica, mongoose, Meal, DailyMenu, DailyCapacity, Order, Subscription, SubscriptionPlan, KitchenSettings, DemoPayment, PromoCode, User;
 let getMenu, seedCatalog, kolkataDate, createOrder, updateOrderStatus, markCodPaymentReceived, purchaseSubscription, setSubscriptionStatus;
 let createDemoPayment, completeDemoPayment, submitPaymentProof, signPaymentProof, verifyPayment, getPaymentScreenshot, signedProofDownloadUrl;
 let patchOrder;
 let getPublicPaymentSettings, patchAdminPaymentSettings;
 let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, updateAdminPromo, deleteAdminPromo, validateCustomerPromo;
+let getAdminAvatar, uploadAdminAvatar;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
@@ -33,6 +34,7 @@ beforeAll(async () => {
   ({ default: KitchenSettings } = await import("@/models/KitchenSettings"));
   ({ default: DemoPayment } = await import("@/models/DemoPayment"));
   ({ default: PromoCode } = await import("@/models/PromoCode"));
+  ({ default: User } = await import("@/models/User"));
   ({ getMenu, seedCatalog } = await import("@/lib/catalog"));
   ({ kolkataDate } = await import("@/lib/dates"));
   ({ createOrder, updateOrderStatus, markCodPaymentReceived } = await import("@/lib/order-service"));
@@ -49,6 +51,7 @@ beforeAll(async () => {
   ({ PATCH: patchAdminSettings } = await import("@/app/api/admin/settings/route"));
   ({ GET: getAdminPromos, POST: createAdminPromo, PATCH: updateAdminPromo, DELETE: deleteAdminPromo } = await import("@/app/api/admin/promos/route"));
   ({ POST: validateCustomerPromo } = await import("@/app/api/promos/validate/route"));
+  ({ GET: getAdminAvatar, POST: uploadAdminAvatar } = await import("@/app/api/admin/avatar/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
   await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init(), PromoCode.init()]);
@@ -481,6 +484,40 @@ describe("manual online payment", () => {
       authState.role = "admin";
       authState.id = String(user());
       expect((await retrieve()).status).toBe(200);
+    } finally {
+      vi.unstubAllGlobals();
+      for (const [envKey, value] of [["CLOUDINARY_CLOUD_NAME", previous.cloud], ["CLOUDINARY_API_KEY", previous.key], ["CLOUDINARY_API_SECRET", previous.secret]]) { if (value === undefined) delete process.env[envKey]; else process.env[envKey] = value; }
+    }
+  });
+});
+
+describe("owner profile photo", () => {
+  it("keeps the initials fallback until an owner uploads a valid photo", async () => {
+    const owner = await User.create({ name: "Test Owner", email: "owner@example.com", phone: "9876543211", passwordHash: "test", role: "admin" });
+    authState.id = String(owner._id);
+    authState.role = "admin";
+    expect((await getAdminAvatar()).status).toBe(200);
+    expect((await (await getAdminAvatar()).json()).avatarUrl).toBe("");
+
+    const previous = { cloud: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY, secret: process.env.CLOUDINARY_API_SECRET };
+    process.env.CLOUDINARY_CLOUD_NAME = "testcloud";
+    process.env.CLOUDINARY_API_KEY = "testkey";
+    process.env.CLOUDINARY_API_SECRET = "testsecret";
+    const photoUrl = `https://res.cloudinary.com/testcloud/image/upload/v1/gharkabite/avatars/${owner._id}.png`;
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ public_id: `gharkabite/avatars/${owner._id}`, secure_url: photoUrl })));
+    const upload = (file) => { const form = new FormData(); form.set("file", file); return uploadAdminAvatar(new Request("http://localhost/api/admin/avatar", { method: "POST", body: form })); };
+    try {
+      const invalid = new File(["not an image"], "photo.png", { type: "image/png" });
+      expect((await upload(invalid)).status).toBe(400);
+      expect(await User.findById(owner._id).then((record) => record.avatarUrl)).toBe("");
+
+      const valid = new File([Uint8Array.from([137,80,78,71,13,10,26,10,1])], "photo.png", { type: "image/png" });
+      expect((await upload(valid)).status).toBe(200);
+      expect((await (await getAdminAvatar()).json()).avatarUrl).toBe(photoUrl);
+      expect(await User.findById(owner._id).then((record) => record.avatarUrl)).toBe(photoUrl);
+      authState.role = "customer";
+      expect((await getAdminAvatar()).status).toBe(403);
+      expect((await upload(valid)).status).toBe(403);
     } finally {
       vi.unstubAllGlobals();
       for (const [envKey, value] of [["CLOUDINARY_CLOUD_NAME", previous.cloud], ["CLOUDINARY_API_KEY", previous.key], ["CLOUDINARY_API_SECRET", previous.secret]]) { if (value === undefined) delete process.env[envKey]; else process.env[envKey] = value; }
