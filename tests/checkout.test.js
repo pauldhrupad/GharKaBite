@@ -15,6 +15,7 @@ let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, upd
 let getAdminAvatar, uploadAdminAvatar;
 let getCustomerProfile, uploadCustomerAvatar;
 let createAdminThali;
+let getAdminOrderAlerts;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
@@ -57,6 +58,7 @@ beforeAll(async () => {
   ({ GET: getCustomerProfile } = await import("@/app/api/profile/route"));
   ({ POST: uploadCustomerAvatar } = await import("@/app/api/profile/avatar/route"));
   ({ POST: createAdminThali } = await import("@/app/api/admin/meals/route"));
+  ({ GET: getAdminOrderAlerts } = await import("@/app/api/admin/order-alerts/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
   await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init(), PromoCode.init()]);
@@ -65,6 +67,23 @@ afterAll(async () => { if (mongoose?.connection?.readyState) await mongoose.disc
 beforeEach(async () => { authState.role = "customer"; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
 
 describe("daily menu and checkout", () => {
+  it("alerts admins only to orders awaiting a first action", async () => {
+    expect((await getAdminOrderAlerts()).status).toBe(403);
+    const order = await createOrder(user(), request(), "COD", { verifyDelivery: delivery });
+    authState.role = "admin";
+    const alerts = await getAdminOrderAlerts();
+    expect(alerts.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await alerts.json()).toEqual({ count: 1 });
+
+    await updateOrderStatus(order.orderNumber, "cooking");
+    expect(await (await getAdminOrderAlerts()).json()).toEqual({ count: 0 });
+
+    await Order.updateOne({ orderNumber: order.orderNumber }, { $set: { orderStatus: "payment_pending", paymentStatus: "verification_pending" } });
+    expect(await (await getAdminOrderAlerts()).json()).toEqual({ count: 1 });
+    await Order.updateOne({ orderNumber: order.orderNumber }, { $set: { orderStatus: "delivered", paymentStatus: "paid" } });
+    expect(await (await getAdminOrderAlerts()).json()).toEqual({ count: 0 });
+  });
+
   it("migrates to four configurable Thalis without the old duplicate meals", async () => {
     const menu = await getMenu(kolkataDate(1));
     expect(menu.map((item) => item.name).sort()).toEqual(["Chicken Thali", "Egg Thali", "Fish Thali", "Veg Thali"]);
