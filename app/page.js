@@ -86,8 +86,8 @@ export default async function Home() {
           <div className="relative lg:pl-4">
             <div className="relative aspect-[4/3] overflow-hidden rounded-[1.75rem] border-[6px] border-surface shadow-[0_30px_80px_rgba(56,45,31,0.17)]">
               <Image
-                src="/images/home-table.jpg"
-                alt="A warm table filled with freshly prepared home-cooked meals"
+                src="/images/kolkata-home-meal.png"
+                alt="Bengali home lunch with rice, dal, aloo bhaja, vegetables and fish curry"
                 fill
                 priority
                 sizes="(max-width: 1024px) 100vw, 48vw"

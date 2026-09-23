@@ -6,7 +6,7 @@ import CustomSelect from "@/components/CustomSelect";
 
 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const badges = ["Popular", "Low Oil", "Limited", "Today's Special"];
-const images = ["bengali-thali", "veg-meal", "dal-rice", "chicken-meal", "home-table"].map((name) => `/images/${name}.jpg`);
+const images = ["bengali-thali", "veg-meal", "dal-rice", "chicken-meal"].map((name) => `/images/${name}.jpg`).concat("/images/kolkata-home-meal.png");
 const blank = { name: "", shortDescription: "", description: "", price: 119, category: "Veg", mealType: "Rice Meal", contents: "", slots: ["Lunch", "Dinner"], availableDays: [0, 1, 2, 3, 4, 5, 6], stockLimit: 10, active: true, featured: false, badges: [], image: images[0] };
 function dateAt(offset = 0) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(Date.now() + offset * 86400000));
