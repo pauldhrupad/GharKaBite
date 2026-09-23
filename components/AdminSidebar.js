@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CalendarRange, ChefHat, LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShoppingBag, Users, X } from "lucide-react";
+import { ArrowUpRight, CalendarRange, ChefHat, House, LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShoppingBag, Users, X } from "lucide-react";
 import BrandMark from "./BrandMark";
 
 const links = [
@@ -19,7 +19,10 @@ function Navigation({ pathname, collapsed = false, onNavigate }) {
   return <nav className="p-3" aria-label="Admin navigation">{links.map(({ href, label, icon: Icon }) => {
     const active = pathname.startsWith(href);
     return <Link key={href} href={href} onClick={onNavigate} aria-label={collapsed ? label : undefined} aria-current={active ? "page" : undefined} title={collapsed ? label : undefined} className={`mb-1 flex items-center rounded-xl py-3 text-sm font-extrabold transition ${collapsed ? "justify-center px-2" : "gap-3 px-3"} ${active ? "bg-white text-primary" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><Icon className="size-5 shrink-0" aria-hidden="true" />{!collapsed && <span>{label}</span>}</Link>;
-  })}</nav>;
+  })}<div className="mt-4 border-t border-white/15 pt-4">
+    {!collapsed && <p className="mb-2 px-3 text-[11px] font-extrabold uppercase tracking-[0.16em] text-white/50">Customer view</p>}
+    <Link href="/" target="_blank" rel="noopener noreferrer" onClick={onNavigate} aria-label={collapsed ? "View storefront (opens new tab)" : undefined} title={collapsed ? "View storefront (opens new tab)" : undefined} className={`flex min-h-12 items-center rounded-xl text-sm font-extrabold text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${collapsed ? "justify-center px-2" : "gap-3 px-3"}`}><House className="size-5 shrink-0" aria-hidden="true" />{!collapsed && <><span className="flex-1">View storefront</span><ArrowUpRight className="size-4 shrink-0 text-white/70" aria-hidden="true" /><span className="sr-only">(opens new tab)</span></>}</Link>
+  </div></nav>;
 }
 
 export default function AdminSidebar() {
