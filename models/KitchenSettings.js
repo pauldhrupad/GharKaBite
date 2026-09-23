@@ -8,6 +8,7 @@ const kitchenSettingsSchema = new mongoose.Schema({
   dinnerMaximum: { type: Number, min: 1, default: defaultKitchenSettings.dinnerMaximum },
   lunchCutoff: { type: String, default: defaultKitchenSettings.lunchCutoff },
   dinnerCutoff: { type: String, default: defaultKitchenSettings.dinnerCutoff },
+  freeDeliveryThreshold: { type: Number, min: 0, max: 100000, default: defaultKitchenSettings.freeDeliveryThreshold },
   upiDisplayName: { type: String, trim: true, default: "" },
   upiId: { type: String, trim: true, lowercase: true, default: "" },
   upiPhoneNumber: { type: String, trim: true, default: "" },

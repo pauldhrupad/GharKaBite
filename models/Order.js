@@ -68,11 +68,13 @@ const orderSchema = new mongoose.Schema({
   subtotal: { type: Number, required: true, min: 0 },
   deliveryFee: { type: Number, required: true, min: 0 },
   discount: { type: Number, required: true, min: 0, default: 0 },
+  promoCode: { type: String, trim: true, uppercase: true, default: "" },
   total: { type: Number, required: true, min: 0 },
   notes: { type: String, trim: true, maxlength: 300, default: "" },
   statusHistory: { type: [statusHistorySchema], default: () => [{ status: "received", timestamp: new Date() }] },
 }, { timestamps: true });
 orderSchema.index({ user: 1, checkoutKey: 1 }, { unique: true, partialFilterExpression: { checkoutKey: { $exists: true } } });
+orderSchema.index({ user: 1, promoCode: 1 }, { unique: true, partialFilterExpression: { promoCode: { $type: "string", $gt: "" } } });
 orderSchema.index({ paymentReference: 1 }, { unique: true, partialFilterExpression: { paymentReference: { $type: "string", $gt: "" }, paymentStatus: { $in: ["verification_pending", "paid"] } } });
 
 export default mongoose.models.Order || mongoose.model("Order", orderSchema);

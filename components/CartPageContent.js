@@ -6,17 +6,19 @@ import { CheckCircle2, Minus, Plus, ShieldCheck, Tag, Trash2, Truck } from "luci
 import Button from "./Button";
 import EmptyState from "./EmptyState";
 import { useCart } from "@/context/CartContext";
+import { useKitchen } from "@/context/KitchenContext";
+import { usePromoQuote } from "@/lib/use-promo-quote";
 import {
-  FREE_DELIVERY_THRESHOLD,
   amountUntilFreeDelivery,
   calculateDeliveryFee,
-  validatePromoCode,
 } from "@/lib/cart-pricing";
 
 export default function CartPageContent() {
   const { items, hydrated, removeItem, updateQuantity, clearCart, subtotal, promoCode, setPromoCode } = useCart();
-  const [promoInput, setPromoInput] = useState("");
-  const [promoMessage, setPromoMessage] = useState("");
+  const { settings } = useKitchen();
+  const [promoInput, setPromoInput] = useState(promoCode);
+  const freeDeliveryThreshold = settings.freeDeliveryThreshold ?? 399;
+  const promo = usePromoQuote(promoCode, subtotal);
 
   if (!hydrated) {
     return (
@@ -39,19 +41,15 @@ export default function CartPageContent() {
     );
   }
 
-  const deliveryFee = calculateDeliveryFee(subtotal);
-  const freeDeliveryRemaining = amountUntilFreeDelivery(subtotal);
-  const freeDeliveryProgress = Math.min(100, (subtotal / FREE_DELIVERY_THRESHOLD) * 100);
-  const activePromo = promoCode ? validatePromoCode(promoCode, subtotal) : null;
-  const discount = activePromo?.valid ? activePromo.discount : 0;
+  const deliveryFee = calculateDeliveryFee(subtotal, freeDeliveryThreshold);
+  const freeDeliveryRemaining = amountUntilFreeDelivery(subtotal, freeDeliveryThreshold);
+  const freeDeliveryProgress = freeDeliveryThreshold === 0 ? 100 : Math.min(100, (subtotal / freeDeliveryThreshold) * 100);
+  const discount = promo.valid ? promo.discount : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
 
   function applyPromo(event) {
     event.preventDefault();
-    const result = validatePromoCode(promoInput, subtotal);
-    setPromoMessage(result.message);
-    setPromoCode(result.valid ? result.code : "");
-    if (result.valid) setPromoInput(result.code);
+    setPromoCode(promoInput.trim().toUpperCase());
   }
 
   return (
@@ -132,7 +130,7 @@ export default function CartPageContent() {
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-border" aria-hidden="true">
             <div className="h-full rounded-full bg-success transition-[width]" style={{ width: `${freeDeliveryProgress}%` }} />
           </div>
-          <p className="mt-2 text-xs font-semibold text-text-secondary">Free local delivery on orders of ₹{FREE_DELIVERY_THRESHOLD} or more.</p>
+          <p className="mt-2 text-xs font-semibold text-text-secondary">{freeDeliveryThreshold === 0 ? "Free local delivery on every order." : `Free local delivery on orders of ₹${freeDeliveryThreshold} or more.`}</p>
         </div>
 
         <form onSubmit={applyPromo} className="mt-5">
@@ -155,18 +153,18 @@ export default function CartPageContent() {
             </div>
             <button type="submit" className="min-h-12 rounded-xl border border-primary px-4 text-sm font-black text-primary hover:bg-primary/8">Apply</button>
           </div>
-          <p className={`mt-2 min-h-5 text-xs font-bold ${promoCode ? "text-success" : "text-text-secondary"}`} aria-live="polite">
-            {promoCode ? activePromo.message : (promoMessage || "Use WELCOME10 for 10% off, up to ₹100.")}
-          </p>
+          <p className={`mt-2 min-h-5 text-xs font-bold ${promo.valid ? "text-success" : "text-text-secondary"}`} aria-live="polite">{promoCode ? promo.message : "Enter a code shared by GharKaBite."}</p>
+          {promoCode && <button type="button" onClick={() => { setPromoCode(""); setPromoInput(""); }} className="mt-1 text-xs font-bold text-danger underline">Remove code</button>}
         </form>
 
         <div className="mt-5 space-y-3 border-t border-border pt-5 text-sm">
           <div className="flex justify-between text-text-secondary"><span>Subtotal</span><span>₹{subtotal}</span></div>
           <div className="flex justify-between text-text-secondary"><span>Local delivery</span><span className={deliveryFee === 0 ? "font-black text-success" : ""}>{deliveryFee === 0 ? "Free" : `₹${deliveryFee}`}</span></div>
-          {discount > 0 && <div className="flex justify-between font-bold text-success"><span>{activePromo.code}</span><span>−₹{discount}</span></div>}
+          {discount > 0 && <div className="flex justify-between font-bold text-success"><span>{promo.code}</span><span>−₹{discount}</span></div>}
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
         </div>
-        <Button href="/checkout" className="mt-5 w-full">Continue to checkout</Button>
+        {promoCode && !promo.valid ? <p className="mt-4 text-xs font-semibold text-warning">Remove or correct the promo code to continue.</p> : null}
+        {promoCode && !promo.valid ? <button type="button" disabled className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-black text-white opacity-50">Continue to checkout</button> : <Button href="/checkout" className="mt-5 w-full">Continue to checkout</Button>}
         <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 shrink-0 text-success" aria-hidden="true" /> Checkout offers manually verified Online Payment and Cash on Delivery when enabled.</p>
       </aside>
     </section>

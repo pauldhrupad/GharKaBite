@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ChefHat, Clock3, IndianRupee, ShoppingBag, Soup, UtensilsCrossed } from "lucide-react";
+import { ArrowRight, ChefHat, Clock3, IndianRupee, ShoppingBag, Soup, Tag, UtensilsCrossed } from "lucide-react";
 import { defaultKitchenSettings } from "@/lib/kitchen-operations";
 import { kolkataDate } from "@/lib/dates";
 import dbConnect from "@/lib/dbConnect";
@@ -39,6 +39,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <section className="mt-6 rounded-2xl border border-border bg-white p-5"><div className="flex items-center justify-between"><div><h2 className="font-black">Capacity today</h2><p className="text-xs text-text-secondary">Adjust limits from Kitchen Settings.</p></div><Link href="/admin/settings" className="text-sm font-black text-primary">Edit settings</Link></div><div className="mt-5 grid gap-5 md:grid-cols-3">{[["All orders", activeOrders.length, settings.dailyMaximum], ["Lunch", lunchOrders.length, settings.lunchMaximum], ["Dinner", dinnerOrders.length, settings.dinnerMaximum]].map(([label, value, maximum]) => <div key={label}><div className="mb-2 flex justify-between text-sm"><span className="font-bold">{label}</span><span className="text-text-secondary">{value}/{maximum}</span></div><div className="h-2 overflow-hidden rounded-full bg-surface-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (value / maximum) * 100)}%` }} /></div></div>)}</div></section>
+      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-white p-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-accent/10 text-accent"><Tag className="size-5" aria-hidden="true" /></span><div><h2 className="font-black">Offers & delivery</h2><p className="text-xs text-text-secondary">Free delivery from ₹{settings.freeDeliveryThreshold ?? defaultKitchenSettings.freeDeliveryThreshold}. Create and manage one-use-per-account promo codes.</p></div></div><Link href="/admin/settings#promotions" className="inline-flex min-h-10 items-center text-sm font-black text-primary">Manage promo codes <ArrowRight className="ml-1 size-4" aria-hidden="true" /></Link></section>
     </>
   );
 }

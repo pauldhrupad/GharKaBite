@@ -6,11 +6,12 @@ const authState = vi.hoisted(() => ({ id: null, role: "customer" }));
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: authState.id, role: authState.role } }) }));
 vi.mock("@/lib/delivery", () => ({ checkDelivery: async () => ({ serviceable: true }), validLocation: (location) => typeof location?.lat === "number" && typeof location?.lon === "number" && Math.abs(location.lat) <= 90 && Math.abs(location.lon) <= 180 }));
 
-let replica, mongoose, Meal, DailyMenu, DailyCapacity, Order, Subscription, SubscriptionPlan, KitchenSettings, DemoPayment;
+let replica, mongoose, Meal, DailyMenu, DailyCapacity, Order, Subscription, SubscriptionPlan, KitchenSettings, DemoPayment, PromoCode;
 let getMenu, seedCatalog, kolkataDate, createOrder, updateOrderStatus, markCodPaymentReceived, purchaseSubscription, setSubscriptionStatus;
 let createDemoPayment, completeDemoPayment, submitPaymentProof, signPaymentProof, verifyPayment, getPaymentScreenshot, signedProofDownloadUrl;
 let patchOrder;
 let getPublicPaymentSettings, patchAdminPaymentSettings;
+let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, updateAdminPromo, validateCustomerPromo;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
@@ -31,6 +32,7 @@ beforeAll(async () => {
   ({ default: SubscriptionPlan } = await import("@/models/SubscriptionPlan"));
   ({ default: KitchenSettings } = await import("@/models/KitchenSettings"));
   ({ default: DemoPayment } = await import("@/models/DemoPayment"));
+  ({ default: PromoCode } = await import("@/models/PromoCode"));
   ({ getMenu, seedCatalog } = await import("@/lib/catalog"));
   ({ kolkataDate } = await import("@/lib/dates"));
   ({ createOrder, updateOrderStatus, markCodPaymentReceived } = await import("@/lib/order-service"));
@@ -43,9 +45,13 @@ beforeAll(async () => {
   ({ GET: getPaymentScreenshot, signedProofDownloadUrl } = await import("@/app/api/orders/[orderId]/payment-screenshot/route"));
   ({ GET: getPublicPaymentSettings } = await import("@/app/api/payment-settings/route"));
   ({ PATCH: patchAdminPaymentSettings } = await import("@/app/api/admin/payment-settings/route"));
+  ({ GET: getPublicSettings } = await import("@/app/api/settings/route"));
+  ({ PATCH: patchAdminSettings } = await import("@/app/api/admin/settings/route"));
+  ({ GET: getAdminPromos, POST: createAdminPromo, PATCH: updateAdminPromo } = await import("@/app/api/admin/promos/route"));
+  ({ POST: validateCustomerPromo } = await import("@/app/api/promos/validate/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
-  await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init()]);
+  await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init(), PromoCode.init()]);
 });
 afterAll(async () => { if (mongoose?.connection?.readyState) await mongoose.disconnect(); if (replica) await replica.stop(); });
 beforeEach(async () => { authState.role = "customer"; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
@@ -214,6 +220,106 @@ describe("demo payment route", () => {
     expect((await complete(id, "success")).status).toBe(200);
     expect(await Subscription.countDocuments()).toBe(1);
     expect((await Subscription.findOne()).remainingMeals).toBe(7);
+  });
+});
+
+describe("owner delivery and promo controls", () => {
+  const jsonRequest = (path, method, body) => new Request(`http://localhost${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+  it("lets only the owner set the free-delivery minimum and uses it for actual orders", async () => {
+    const settings = { dailyMaximum: 45, lunchMaximum: 25, dinnerMaximum: 20, lunchCutoff: "11:00", dinnerCutoff: "18:00", freeDeliveryThreshold: 100 };
+    expect((await patchAdminSettings(jsonRequest("/api/admin/settings", "PATCH", settings))).status).toBe(403);
+    authState.role = "admin";
+    expect((await patchAdminSettings(jsonRequest("/api/admin/settings", "PATCH", { ...settings, freeDeliveryThreshold: -1 }))).status).toBe(400);
+    expect((await patchAdminSettings(jsonRequest("/api/admin/settings", "PATCH", settings))).status).toBe(200);
+    expect((await (await getPublicSettings()).json()).settings.freeDeliveryThreshold).toBe(100);
+    authState.role = "customer";
+    const free = await createOrder(user(), request(), "COD", { verifyDelivery: delivery });
+    expect(free.deliveryFee).toBe(0);
+    await KitchenSettings.updateOne({ key: "primary" }, { freeDeliveryThreshold: 1000 });
+    const paid = await createOrder(user(), request(), "COD", { verifyDelivery: delivery });
+    expect(paid.deliveryFee).toBe(20);
+  });
+
+  it("creates custom and random codes in admin, without revealing them publicly", async () => {
+    const form = { code: "LUNCH15", type: "percent", value: 15, maxDiscount: 50, minSubtotal: 100 };
+    expect((await createAdminPromo(jsonRequest("/api/admin/promos", "POST", form))).status).toBe(403);
+    authState.role = "admin";
+    expect((await createAdminPromo(jsonRequest("/api/admin/promos", "POST", form))).status).toBe(201);
+    expect((await createAdminPromo(jsonRequest("/api/admin/promos", "POST", form))).status).toBe(409);
+    const random = await createAdminPromo(jsonRequest("/api/admin/promos", "POST", { ...form, code: "", generateRandom: true }));
+    expect(random.status).toBe(201);
+    expect((await random.json()).promo.code).toMatch(/^GKB-[A-F0-9]{10}$/);
+    const listing = await getAdminPromos();
+    expect((await listing.json()).promos.map((item) => item.code)).toContain("LUNCH15");
+    authState.role = "customer";
+    expect((await getAdminPromos()).status).toBe(403);
+  });
+
+  it("validates a code per account, discounts once and preserves checkout retries", async () => {
+    authState.role = "admin";
+    await createAdminPromo(jsonRequest("/api/admin/promos", "POST", { code: "SAVE20", type: "fixed", value: 20, minSubtotal: 0 }));
+    authState.role = "customer";
+    const buyer = user(); authState.id = String(buyer);
+    const quote = await validateCustomerPromo(jsonRequest("/api/promos/validate", "POST", { code: "save20", subtotal: 119 }));
+    expect((await quote.json()).promo).toMatchObject({ valid: true, code: "SAVE20", discount: 20 });
+    const body = { ...request(), promoCode: "save20" };
+    const order = await createOrder(buyer, body, "COD", { verifyDelivery: delivery });
+    expect(order).toMatchObject({ promoCode: "SAVE20", discount: 20 });
+    expect((await createOrder(buyer, body, "COD", { verifyDelivery: delivery })).orderNumber).toBe(order.orderNumber);
+    const used = await validateCustomerPromo(jsonRequest("/api/promos/validate", "POST", { code: "SAVE20", subtotal: 119 }));
+    expect((await used.json()).promo).toMatchObject({ valid: false, discount: 0 });
+    await expect(createOrder(buyer, { ...request(), promoCode: "SAVE20" }, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 400 });
+    const another = await createOrder(user(), { ...request(), promoCode: "SAVE20" }, "COD", { verifyDelivery: delivery });
+    expect(another.discount).toBe(20);
+  });
+
+  it("rejects insufficient subtotal and a disabled code, while preserving WELCOME10", async () => {
+    authState.role = "admin";
+    await createAdminPromo(jsonRequest("/api/admin/promos", "POST", { code: "MIN200", type: "fixed", value: 50, minSubtotal: 200 }));
+    authState.role = "customer";
+    const buyer = user(); authState.id = String(buyer);
+    await expect(createOrder(buyer, { ...request(), promoCode: "MIN200" }, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 400 });
+    authState.role = "admin";
+    expect((await updateAdminPromo(jsonRequest("/api/admin/promos", "PATCH", { code: "MIN200", active: false }))).status).toBe(200);
+    authState.role = "customer";
+    expect((await (await validateCustomerPromo(jsonRequest("/api/promos/validate", "POST", { code: "MIN200", subtotal: 500 }))).json()).promo.valid).toBe(false);
+    const welcome = await createOrder(buyer, { ...request(), promoCode: "WELCOME10" }, "COD", { verifyDelivery: delivery });
+    expect(welcome.discount).toBeGreaterThan(0);
+  });
+
+  it("caps percentage discounts and reprices online orders on the server", async () => {
+    authState.role = "admin";
+    await createAdminPromo(jsonRequest("/api/admin/promos", "POST", { code: "HALFOFF", type: "percent", value: 50, maxDiscount: 25, minSubtotal: 0 }));
+    await KitchenSettings.create({ key: "primary", onlinePaymentEnabled: true, upiId: "kitchen@upi" });
+    authState.role = "customer";
+    const buyer = user(); authState.id = String(buyer);
+    const quote = await validateCustomerPromo(jsonRequest("/api/promos/validate", "POST", { code: "HALFOFF", subtotal: 119 }));
+    expect((await quote.json()).promo.discount).toBe(25);
+    const order = await createOrder(buyer, { ...request(), promoCode: "HALFOFF", paymentChannel: "upi_id" }, "manual_online", { verifyDelivery: delivery });
+    expect(order).toMatchObject({ promoCode: "HALFOFF", discount: 25, paymentStatus: "pending" });
+    expect(order.total).toBe(order.subtotal - order.discount + order.deliveryFee);
+  });
+
+  it("allows only one concurrent redemption of the same code by one account", async () => {
+    authState.role = "admin";
+    await createAdminPromo(jsonRequest("/api/admin/promos", "POST", { code: "RACE20", type: "fixed", value: 20, minSubtotal: 0 }));
+    authState.role = "customer";
+    const buyer = user();
+    const attempts = await Promise.allSettled([
+      createOrder(buyer, { ...request(), promoCode: "RACE20" }, "COD", { verifyDelivery: delivery }),
+      createOrder(buyer, { ...request(), promoCode: "RACE20" }, "COD", { verifyDelivery: delivery }),
+    ]);
+    expect(attempts.filter((item) => item.status === "fulfilled")).toHaveLength(1);
+    expect(await Order.countDocuments({ user: buyer, promoCode: "RACE20" })).toBe(1);
+  });
+
+  it("recognizes a WELCOME10 redemption from older orders without a saved promo code", async () => {
+    const buyer = user(); authState.id = String(buyer);
+    const oldOrder = await createOrder(buyer, request(), "COD", { verifyDelivery: delivery });
+    await Order.updateOne({ _id: oldOrder._id }, { $set: { discount: 12, total: oldOrder.total - 12 }, $unset: { promoCode: 1 } });
+    const quote = await validateCustomerPromo(jsonRequest("/api/promos/validate", "POST", { code: "WELCOME10", subtotal: 119 }));
+    expect((await quote.json()).promo).toMatchObject({ valid: false, message: "You have already used this promo code." });
   });
 });
 

@@ -13,7 +13,8 @@ import PaymentOptions, { availableChannels } from "./PaymentOptions";
 import { useCart } from "@/context/CartContext";
 import { useKitchen } from "@/context/KitchenContext";
 import { deliverySlotStart, kolkataDate } from "@/lib/dates";
-import { calculateDeliveryFee, validatePromoCode } from "@/lib/cart-pricing";
+import { calculateDeliveryFee } from "@/lib/cart-pricing";
+import { usePromoQuote } from "@/lib/use-promo-quote";
 
 const deliverySlots = {
   Lunch: ["12–1 PM", "1–2 PM"],
@@ -45,7 +46,7 @@ export default function CheckoutForm() {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
   const { items, hydrated, subtotal, cartPeriod, cartDate, clearCart, promoCode, setPromoCode } = useCart();
-  const { getAvailability } = useKitchen();
+  const { getAvailability, settings } = useKitchen();
   const [form, setForm] = useState(initialForm);
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState("custom");
@@ -81,8 +82,9 @@ export default function CheckoutForm() {
     return meal && selectedSubscription?.allowedMealTypes.includes(meal.mealType);
   });
   const coveredItem = eligibleItems.find((item) => item.mealId === coveredMealId);
-  const deliveryFee = selectedSubscription ? 0 : calculateDeliveryFee(subtotal);
-  const promo = promoCode ? validatePromoCode(promoCode, subtotal - (coveredItem?.price || 0)) : null;
+  const payableSubtotal = subtotal - (coveredItem?.price || 0);
+  const deliveryFee = selectedSubscription ? 0 : calculateDeliveryFee(subtotal, settings.freeDeliveryThreshold ?? 399);
+  const promo = usePromoQuote(promoCode, payableSubtotal);
   const total = Math.max(0, subtotal - (coveredItem?.price || 0) - (promo?.valid ? promo.discount : 0) + deliveryFee);
   const availability = serviceDate === kolkataDate() ? getAvailability(mealPeriod) : { available: true, reason: "" };
   const selectedAddress = savedAddresses.find((address, index) => addressKey(address, index) === selectedAddressId);
@@ -188,7 +190,7 @@ export default function CheckoutForm() {
   async function handleSubmit(event) {
     event.preventDefault();
     setSubmitError("");
-    if (!validate() || !availability.available) return;
+    if (!validate() || !availability.available || (promoCode.trim() && !promo.valid)) return;
     setSubmitting(true);
 
     const payload = {
@@ -315,13 +317,14 @@ export default function CheckoutForm() {
         <div className="mt-5 space-y-3 border-t border-border pt-5 text-sm">
           {coveredItem && <div className="flex justify-between text-success"><span>Plan meal</span><span>−₹{coveredItem.price}</span></div>}
           {promo?.valid && <div className="flex justify-between text-success"><span>{promo.code}</span><span>−₹{promo.discount}</span></div>}
-          <label className="block font-bold">Promo code<input name="promoCode" type="text" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Enter promo code" autoComplete="off" autoCapitalize="characters" spellCheck={false} className="input-field mt-1 uppercase" /></label>
+          <label className="block font-bold">Promo code<input name="promoCode" type="text" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Enter promo code" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} className="input-field mt-1 uppercase" /></label>
+          {promoCode.trim() && <p className={`text-xs font-bold ${promo.valid ? "text-success" : "text-warning"}`} role="status">{promo.message}</p>}
           <div className="flex justify-between text-text-secondary"><span>Subtotal</span><span>₹{subtotal}</span></div>
           <div className="flex justify-between text-text-secondary"><span>Delivery</span><span className={deliveryFee === 0 ? "font-black text-success" : ""}>{deliveryFee === 0 ? "Free" : `₹${deliveryFee}`}</span></div>
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
         </div>
         {submitError && <p className="mt-4 rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger" role="alert">{submitError}</p>}
-        <Button type="submit" disabled={submitting || !availability.available || !paymentMethod || (paymentMethod === "manual_online" && !paymentChannel)} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{submitting ? "Placing order…" : paymentMethod === "manual_online" ? "Place order & continue to payment" : "Place COD order"}</Button>
+        <Button type="submit" disabled={submitting || !availability.available || !paymentMethod || (paymentMethod === "manual_online" && !paymentChannel) || (Boolean(promoCode.trim()) && !promo.valid)} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{submitting ? "Placing order…" : paymentMethod === "manual_online" ? "Place order & continue to payment" : "Place COD order"}</Button>
         <p className="mt-5 flex items-center gap-2 text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 text-success" aria-hidden="true" /> Online orders are confirmed only after we verify payment.</p>
       </aside>
     </form>
