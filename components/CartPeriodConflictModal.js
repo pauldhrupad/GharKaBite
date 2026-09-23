@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import Button from "./Button";
 import { useCart } from "@/context/CartContext";
-import { useModalFocus } from "@/lib/use-modal-focus";
+import { dismissOnBackdrop, useModalFocus } from "@/lib/use-modal-focus";
 
 export default function CartPeriodConflictModal() {
   const { periodConflict, cancelPeriodSwitch, clearAndSwitchPeriod } = useCart();
@@ -14,7 +14,7 @@ export default function CartPeriodConflictModal() {
   if (!periodConflict) return null;
 
   return (
-    <div className="ui-modal-backdrop fixed inset-0 z-[70] grid place-items-center bg-text-primary/55 px-4 backdrop-blur-sm" role="presentation">
+    <div className="ui-modal-backdrop fixed inset-0 z-[70] grid place-items-center bg-text-primary/55 px-4 backdrop-blur-sm" role="presentation" onPointerDown={(event) => dismissOnBackdrop(event, cancelPeriodSwitch)}>
       <section
         ref={dialogRef}
         role="dialog"
