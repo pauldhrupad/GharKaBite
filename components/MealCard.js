@@ -19,14 +19,14 @@ export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderi
   const lowStock = meal.available && meal.stock > 0 && meal.stock <= 3;
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_14px_38px_rgba(56,45,31,0.07)]">
+    <article className={`meal-card group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_14px_38px_rgba(56,45,31,0.07)] ${soldOut ? "is-sold-out" : ""}`}>
       <Link href={`/menu/${meal.id}?date=${serviceDate}`} className="relative block aspect-[4/3] overflow-hidden bg-surface-muted" aria-label={`View ${meal.name}`}>
         <Image
           src={meal.image}
           alt={`${meal.name}: ${meal.contents.join(", ")}`}
           fill
           sizes="(max-width: 640px) 88vw, (max-width: 1024px) 50vw, 33vw"
-          className={`object-cover transition duration-300 group-hover:scale-[1.03] ${soldOut ? "grayscale-[35%]" : ""}`}
+          className={`meal-card-image object-cover ${soldOut ? "grayscale-[35%]" : ""}`}
         />
         <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1.5">
           {meal.badges.slice(0, 2).map((badge) => <Badge key={badge} onImage tone={badge === "Limited" ? "warning" : "green"}>{badge}</Badge>)}

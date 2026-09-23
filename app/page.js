@@ -199,7 +199,7 @@ export default async function Home() {
         <SectionHeading eyebrow="Common questions" title="Before you order" />
         <div className="mt-8 grid gap-3 lg:grid-cols-2">
           {faqs.map((item) => (
-            <details key={item.question} className="group rounded-2xl border border-border bg-surface px-5 py-4 open:shadow-[0_12px_35px_rgba(56,45,31,0.06)]">
+            <details key={item.question} className="faq-item group rounded-2xl border border-border bg-surface px-5 py-4 open:shadow-[0_12px_35px_rgba(56,45,31,0.06)]">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-black">
                 {item.question}
                 <ChevronDown className="size-5 shrink-0 text-primary transition group-open:rotate-180" aria-hidden="true" />

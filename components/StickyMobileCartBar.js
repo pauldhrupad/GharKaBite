@@ -16,7 +16,7 @@ export default function StickyMobileCartBar() {
     <>
       <div className="h-20 lg:hidden" aria-hidden="true" />
       <aside
-        className="fixed inset-x-0 z-40 px-3 lg:hidden"
+        className="ui-enter fixed inset-x-0 z-40 px-3 lg:hidden"
         style={{ bottom: "calc(4.65rem + env(safe-area-inset-bottom))" }}
         aria-label="Cart summary"
       >
@@ -27,7 +27,7 @@ export default function StickyMobileCartBar() {
             </span>
             <p className="truncate text-sm font-extrabold">{itemCount} {itemCount === 1 ? "item" : "items"} • ₹{subtotal}</p>
           </div>
-          <Link href="/cart" className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-xl bg-surface px-3.5 text-sm font-black text-primary">
+          <Link href="/cart" className="ui-action inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl bg-surface px-3.5 text-sm font-black text-primary">
             View Cart <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </div>

@@ -64,7 +64,7 @@ export default function CartPageContent() {
 
         <div className="space-y-4">
           {items.map((item) => (
-            <article key={item.key} className="card-surface flex gap-4 p-4">
+            <article key={item.key} className="ui-enter card-surface flex gap-4 p-4">
               <div className="relative size-24 shrink-0 overflow-hidden rounded-xl bg-surface-muted sm:size-28">
                 <Image src={item.image} alt={item.name} fill sizes="112px" className="object-cover" />
               </div>
@@ -82,7 +82,7 @@ export default function CartPageContent() {
                   <button
                     type="button"
                     onClick={() => removeItem(item.key)}
-                    className="grid size-10 shrink-0 place-items-center rounded-lg text-danger hover:bg-danger/8"
+                    className="grid size-11 shrink-0 place-items-center rounded-lg text-text-secondary hover:bg-danger/8 hover:text-danger"
                     aria-label={`Remove ${item.name} from cart`}
                   >
                     <Trash2 className="size-4" aria-hidden="true" />
@@ -97,7 +97,7 @@ export default function CartPageContent() {
                         type="button"
                         onClick={() => updateQuantity(item.key, item.quantity - 1)}
                         disabled={item.quantity <= 1}
-                        className="grid size-10 place-items-center rounded-l-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
+                        className="grid size-11 place-items-center rounded-l-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
                         aria-label={`Decrease ${item.name} quantity`}
                       >
                         <Minus className="size-3.5" aria-hidden="true" />
@@ -107,7 +107,7 @@ export default function CartPageContent() {
                         type="button"
                         onClick={() => updateQuantity(item.key, item.quantity + 1)}
                         disabled={item.quantity >= Math.min(10, item.maxThaliQuantity || 10)}
-                        className="grid size-10 place-items-center rounded-r-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
+                        className="grid size-11 place-items-center rounded-r-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
                         aria-label={`Increase ${item.name} quantity`}
                       >
                         <Plus className="size-3.5" aria-hidden="true" />
@@ -159,7 +159,7 @@ export default function CartPageContent() {
             </div>
             <button type="submit" className="min-h-12 rounded-xl border border-primary px-4 text-sm font-black text-primary hover:bg-primary/8">Apply</button>
           </div>
-          <p className={`mt-2 min-h-5 text-xs font-bold ${promo.valid ? "text-success" : "text-text-secondary"}`} aria-live="polite">{promoCode ? promo.message : "Enter a code shared by GharKaBite."}</p>
+          <p className={`mt-2 flex min-h-5 items-center gap-1.5 text-xs font-bold ${promo.valid ? "text-success" : "text-text-secondary"}`} role="status" aria-live="polite">{promo.valid && <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />}{promoCode ? promo.valid ? `Promo applied · ${promo.message}` : promo.message : "Enter a code shared by GharKaBite."}</p>
           {promoCode && <button type="button" onClick={() => { setPromoCode(""); setPromoInput(""); }} className="mt-1 text-xs font-bold text-danger underline">Remove code</button>}
         </form>
 

@@ -67,7 +67,7 @@ export default function OrderTracking({ orderId }) {
               return (
                 <li key={status.value} className="relative flex gap-4 pb-7 last:pb-0 md:block md:pb-0 md:text-center">
                   {index < orderStatuses.length - 1 && <span className={`absolute left-5 top-10 h-[calc(100%-1.5rem)] w-0.5 md:left-1/2 md:top-5 md:h-0.5 md:w-full ${index < currentIndex ? "bg-success" : "bg-border"}`} aria-hidden="true" />}
-                  <span className={`relative z-10 grid size-10 shrink-0 place-items-center rounded-full border-2 ${complete ? "border-success bg-success text-white" : "border-border bg-surface text-text-secondary"}`}>{complete ? <Check className="size-4" aria-hidden="true" /> : <Icon className="size-4" aria-hidden="true" />}</span>
+                  <span className={`relative z-10 grid size-10 shrink-0 place-items-center rounded-full border-2 ${index === currentIndex ? "ui-enter" : ""} ${complete ? "border-success bg-success text-white" : "border-border bg-surface text-text-secondary"}`}>{complete ? <Check className="size-4" aria-hidden="true" /> : <Icon className="size-4" aria-hidden="true" />}</span>
                   <div className="md:mt-3"><p className={`text-sm font-black ${complete ? "text-text-primary" : "text-text-secondary"}`}>{status.label}</p><p className="mt-1 text-xs text-text-secondary">{timestamp ? formatOrderTimestamp(timestamp) : "Pending"}</p></div>
                 </li>
               );

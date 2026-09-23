@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, SlidersHorizontal, UtensilsCrossed } from "lucide-react";
+import { Search, SlidersHorizontal, UtensilsCrossed, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import MealCard from "./MealCard";
 import { kolkataDate } from "@/lib/dates";
@@ -17,6 +17,7 @@ export default function MenuExplorer({ initialDate }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [date, setDate] = useState(initialDate || kolkataDate());
   const [meals, setMeals] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const { settings, hydrated: kitchenHydrated, getAvailability } = useKitchen();
   const periodAvailability = date === kolkataDate() && kitchenHydrated ? getAvailability(period) : { available: true, reason: "" };
@@ -26,8 +27,8 @@ export default function MenuExplorer({ initialDate }) {
     fetch(`/api/menu?date=${date}`).then(async (response) => {
       if (!response.ok) throw new Error("Menu is temporarily unavailable.");
       const result = await response.json();
-      if (active) { setMeals(result.meals || []); setLoadError(""); }
-    }).catch(() => { if (active) { setMeals([]); setLoadError("Menu is temporarily unavailable."); } });
+      if (active) { setMeals(result.meals || []); setLoadError(""); setLoading(false); }
+    }).catch(() => { if (active) { setMeals([]); setLoadError("Menu is temporarily unavailable."); setLoading(false); } });
     return () => { active = false; };
   }, [date]);
 
@@ -64,7 +65,7 @@ export default function MenuExplorer({ initialDate }) {
 
   return (
     <section className="container-shell py-9 md:py-12">
-      <div className="mb-5 flex gap-2" aria-label="Delivery date">{[0, 1].map((offset) => <button key={offset} type="button" onClick={() => setDate(kolkataDate(offset))} aria-pressed={date === kolkataDate(offset)} className={`rounded-xl px-5 py-2 text-sm font-bold ${date === kolkataDate(offset) ? "bg-primary text-white" : "border border-border bg-surface"}`}>{offset ? "Tomorrow" : "Today"}</button>)}</div>
+      <div className="mb-5 flex gap-2" aria-label="Delivery date">{[0, 1].map((offset) => <button key={offset} type="button" onClick={() => { if (date !== kolkataDate(offset)) { setLoading(true); setDate(kolkataDate(offset)); } }} aria-pressed={date === kolkataDate(offset)} className={`min-h-11 rounded-xl px-5 py-2 text-sm font-bold ${date === kolkataDate(offset) ? "bg-primary text-white" : "border border-border bg-surface hover:border-primary/40 hover:text-primary"}`}>{offset ? "Tomorrow" : "Today"}</button>)}</div>
       {loadError && <p role="alert" className="mb-4 text-sm font-bold text-danger">{loadError}</p>}
       <div className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-4 shadow-[0_12px_35px_rgba(56,45,31,0.05)] sm:p-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -85,19 +86,20 @@ export default function MenuExplorer({ initialDate }) {
           <p className={`mt-2 text-xs font-bold ${periodAvailability.available ? "text-text-secondary" : "text-danger"}`}>{periodAvailability.available ? `${period} orders close at ${formatCutoffTime(period === "Lunch" ? settings.lunchCutoff : settings.dinnerCutoff)}` : periodAvailability.reason}</p>
         </div>
 
-        <label className="relative block w-full lg:max-w-sm">
+        <label className="group relative block w-full lg:max-w-sm">
           <span className="sr-only">Search Thalis</span>
-          <Search className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-text-secondary group-focus-within:text-primary" aria-hidden="true" />
           <input
             type="search"
             name="mealSearch"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            className="input-field with-leading-icon"
+            className={`input-field with-leading-icon ${searchQuery ? "pr-12" : ""}`}
             placeholder="Search by Thali or ingredient"
             autoComplete="off"
             enterKeyHint="search"
           />
+          {searchQuery && <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear Thali search" className="absolute right-1 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-lg text-text-secondary hover:bg-surface-muted hover:text-primary"><X className="size-4" aria-hidden="true" /></button>}
         </label>
       </div>
 
@@ -109,7 +111,7 @@ export default function MenuExplorer({ initialDate }) {
             type="button"
             onClick={() => setCategory(option)}
             aria-pressed={category === option}
-            className={`min-h-10 shrink-0 rounded-full px-4 text-sm font-extrabold transition ${category === option ? "bg-primary text-white" : "border border-border bg-surface text-text-secondary hover:border-primary/40 hover:text-text-primary"}`}
+            className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-extrabold ${category === option ? "bg-primary text-white" : "border border-border bg-surface text-text-secondary hover:border-primary/40 hover:bg-primary/5 hover:text-primary"}`}
           >
             {option}
           </button>
@@ -117,11 +119,11 @@ export default function MenuExplorer({ initialDate }) {
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-4">
-        <p className="text-sm font-bold text-text-secondary">Showing {filteredMeals.length} {period.toLowerCase()} {filteredMeals.length === 1 ? "Thali" : "Thalis"}</p>
+        <p className="text-sm font-bold text-text-secondary" aria-live="polite">{loading ? "Loading Thalis…" : `Showing ${filteredMeals.length} ${period.toLowerCase()} ${filteredMeals.length === 1 ? "Thali" : "Thalis"}`}</p>
         <p className="hidden text-xs font-bold text-text-secondary sm:block">Availability reflects today&apos;s limited batches.</p>
       </div>
 
-      {filteredMeals.length > 0 ? (
+      {loading ? <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="status" aria-label="Loading Thalis">{[0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse bg-surface-muted" />)}</div> : filteredMeals.length > 0 ? (
         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredMeals.map((meal) => <MealCard key={meal.id} meal={meal} deliveryMealPeriod={period} serviceDate={date} orderingDisabled={!periodAvailability.available} unavailableReason={periodAvailability.reason} />)}
         </div>

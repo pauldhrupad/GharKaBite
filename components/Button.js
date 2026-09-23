@@ -8,7 +8,7 @@ const variants = {
 };
 
 export default function Button({ href, children, variant = "primary", className = "", ...props }) {
-  const classes = `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-extrabold transition ${variants[variant]} ${className}`;
+  const classes = `ui-action inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-extrabold disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`;
   if (href) return <Link href={href} className={classes} {...props}>{children}</Link>;
   return <button className={classes} {...props}>{children}</button>;
 }

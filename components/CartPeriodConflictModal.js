@@ -1,42 +1,27 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import Button from "./Button";
 import { useCart } from "@/context/CartContext";
+import { useModalFocus } from "@/lib/use-modal-focus";
 
 export default function CartPeriodConflictModal() {
   const { periodConflict, cancelPeriodSwitch, clearAndSwitchPeriod } = useCart();
   const cancelButtonRef = useRef(null);
-
-  useEffect(() => {
-    if (!periodConflict) return undefined;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    cancelButtonRef.current?.focus();
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") cancelPeriodSwitch();
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [periodConflict, cancelPeriodSwitch]);
+  const dialogRef = useModalFocus(Boolean(periodConflict), cancelPeriodSwitch, cancelButtonRef);
 
   if (!periodConflict) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-text-primary/55 px-4 backdrop-blur-sm" role="presentation">
+    <div className="ui-modal-backdrop fixed inset-0 z-[70] grid place-items-center bg-text-primary/55 px-4 backdrop-blur-sm" role="presentation">
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="cart-period-conflict-title"
         aria-describedby="cart-period-conflict-description"
-        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        className="ui-dialog w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
       >
         <span className="grid size-12 place-items-center rounded-xl bg-warning/12 text-warning">
           <AlertTriangle className="size-6" aria-hidden="true" />
