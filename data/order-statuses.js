@@ -8,6 +8,7 @@ export const orderStatuses = [
 ];
 
 export const adminStatusOptions = [
+  { value: "payment_pending", label: "Payment Pending" },
   ...orderStatuses,
   { value: "cancelled", label: "Cancelled" },
 ];

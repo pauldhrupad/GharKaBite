@@ -9,6 +9,7 @@ import { Banknote, Check, Clock3, CreditCard, MapPin, NotebookPen, ShieldCheck, 
 import Button from "./Button";
 import EmptyState from "./EmptyState";
 import LocationPicker from "./LocationPicker";
+import PaymentOptions, { availableChannels } from "./PaymentOptions";
 import { useCart } from "@/context/CartContext";
 import { useKitchen } from "@/context/KitchenContext";
 import { deliverySlotStart, kolkataDate } from "@/lib/dates";
@@ -52,7 +53,10 @@ export default function CheckoutForm() {
   const [editingAddress, setEditingAddress] = useState(true);
   const [profileState, setProfileState] = useState({ userId: "", status: "loading" });
   const [deliverySlot, setDeliverySlot] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("COD");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentSettings, setPaymentSettings] = useState(null);
+  const [paymentChannel, setPaymentChannel] = useState("");
+  const [paymentSettingsError, setPaymentSettingsError] = useState("");
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -63,7 +67,6 @@ export default function CheckoutForm() {
   const [addressQuery, setAddressQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [deliveryResult, setDeliveryResult] = useState(null);
-  const [intentId, setIntentId] = useState("");
   const checkoutKey = useRef(null);
   const checkoutSignature = useRef(null);
 
@@ -85,6 +88,10 @@ export default function CheckoutForm() {
   const selectedAddress = savedAddresses.find((address, index) => addressKey(address, index) === selectedAddressId);
   const profileReady = authStatus === "authenticated" && profileState.userId === session?.user?.id && profileState.status === "ready";
   const profileFailed = authStatus === "authenticated" && profileState.userId === session?.user?.id && profileState.status === "error";
+
+  useEffect(() => {
+    fetch("/api/payment-settings", { cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error("Payment options are unavailable. Please retry shortly."); return response.json(); }).then((data) => { setPaymentSettings(data.payment); setPaymentMethod(data.payment.onlinePaymentEnabled ? "manual_online" : data.payment.codEnabled ? "COD" : ""); setPaymentChannel(availableChannels(data.payment)[0] || ""); }).catch((error) => setPaymentSettingsError(error.message));
+  }, []);
 
   useEffect(() => {
     if (authStatus !== "authenticated" || !session?.user?.id) return undefined;
@@ -189,7 +196,7 @@ export default function CheckoutForm() {
       contact: { name: form.fullName.trim(), phone: form.mobile.replace(/\D/g, ""), email: form.email.trim() },
       deliveryAddress: { house: form.house.trim(), street: form.street.trim(), area: form.area.trim(), landmark: form.landmark.trim(), city: form.city.trim(), pinCode: form.pinCode, ...(form.location ? { location: form.location } : {}) },
       mealPeriod, serviceDate, deliverySlot, notes: form.notes.trim(), promoCode,
-      subscriptionId, coveredMealId,
+      subscriptionId, coveredMealId, paymentMethod, paymentChannel: paymentMethod === "manual_online" ? paymentChannel : null,
     };
     const signature = JSON.stringify({ payload, paymentMethod });
     if (checkoutSignature.current !== signature) {
@@ -199,12 +206,11 @@ export default function CheckoutForm() {
     payload.checkoutKey = checkoutKey.current;
 
     try {
-      const response = await fetch(paymentMethod === "COD" ? "/api/orders" : "/api/demo-payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(paymentMethod === "COD" ? payload : { kind: "order", key: checkoutKey.current, payload }) });
+      const response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json();
       if (response.status === 401) { router.push("/login?callbackUrl=/checkout"); return; }
       if (!response.ok) throw new Error(data.message || "Unable to place this order.");
-      if (paymentMethod === "COD") { clearCart(); router.push(`/orders/${data.order.orderNumber}`); }
-      else setIntentId(data.id);
+      clearCart(); router.push(paymentMethod === "manual_online" ? `/orders/${data.order.orderNumber}/payment` : `/orders/${data.order.orderNumber}`);
     } catch (error) {
       setSubmitError(error.message || "Unable to place this order.");
     } finally {
@@ -219,18 +225,6 @@ export default function CheckoutForm() {
       const response = await fetch("/api/delivery/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address }) });
       setDeliveryResult(await response.json());
     } catch { setDeliveryResult({ serviceable: false, reason: "We couldn't verify this address. Please contact us for delivery confirmation." }); }
-  }
-
-  async function completeDemo(outcome) {
-    setSubmitting(true); setSubmitError("");
-    try {
-      const response = await fetch(`/api/demo-payments/${intentId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ outcome }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.message);
-      setIntentId("");
-      if (outcome === "success") { clearCart(); router.push(`/orders/${data.result.orderNumber}`); }
-      else { checkoutKey.current = null; checkoutSignature.current = null; setSubmitError(data.message); }
-    } catch (error) { setSubmitError(error.message || "Demo payment failed."); }
-    finally { setSubmitting(false); }
   }
 
   if (!hydrated) return <section className="container-shell py-10"><div className="h-80 animate-pulse rounded-2xl bg-surface-muted" /></section>;
@@ -296,11 +290,13 @@ export default function CheckoutForm() {
           </fieldset>
         </CheckoutSection>
 
-        <CheckoutSection icon={CreditCard} number="4" title="Payment">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className={`cursor-pointer rounded-xl border p-4 ${paymentMethod === "COD" ? "border-primary bg-primary/8" : "border-border"}`}><input type="radio" name="payment" value="COD" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} className="sr-only" /><span className="flex items-center gap-3"><Banknote className="size-5 text-primary" aria-hidden="true" /><span><span className="block font-black">Cash on Delivery</span><span className="text-xs text-text-secondary">Pay when your meal arrives</span></span></span></label>
-            <label className={`cursor-pointer rounded-xl border p-4 ${paymentMethod === "DEMO" ? "border-primary bg-primary/8" : "border-border"}`}><input type="radio" name="payment" value="DEMO" checked={paymentMethod === "DEMO"} onChange={() => setPaymentMethod("DEMO")} className="sr-only" /><span className="flex items-center gap-3"><CreditCard className="size-5 text-primary" aria-hidden="true" /><span><span className="block font-black">Demo Payment</span><span className="text-xs text-text-secondary">Simulated; no money collected</span></span></span></label>
-          </div>
+        <CheckoutSection icon={CreditCard} number="4" title="Payment Method">
+          {paymentSettingsError && <p role="alert" className="text-sm font-bold text-danger">{paymentSettingsError}</p>}
+          {!paymentSettings && !paymentSettingsError && <p className="text-sm text-text-secondary">Loading payment options…</p>}
+          {paymentSettings && <><div className="grid gap-3 sm:grid-cols-2">
+            <label className={`cursor-pointer rounded-xl border p-4 ${paymentMethod === "manual_online" ? "border-primary bg-primary/8" : "border-border"} ${!paymentSettings.onlinePaymentEnabled ? "opacity-50" : ""}`}><input type="radio" name="payment" value="manual_online" checked={paymentMethod === "manual_online"} disabled={!paymentSettings.onlinePaymentEnabled} onChange={() => setPaymentMethod("manual_online")} className="sr-only" /><span className="flex items-center gap-3"><CreditCard className="size-5 text-primary" aria-hidden="true" /><span><span className="block font-black">Online Payment</span><span className="text-xs text-text-secondary">UPI · manually verified</span></span></span></label>
+            {paymentSettings.codEnabled && <label className={`cursor-pointer rounded-xl border p-4 ${paymentMethod === "COD" ? "border-primary bg-primary/8" : "border-border"}`}><input type="radio" name="payment" value="COD" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} className="sr-only" /><span className="flex items-center gap-3"><Banknote className="size-5 text-primary" aria-hidden="true" /><span><span className="block font-black">Cash on Delivery</span><span className="text-xs text-text-secondary">Pay when your meal arrives</span></span></span></label>}
+          </div>{!paymentSettings.onlinePaymentEnabled && <p className="mt-3 text-sm text-text-secondary">Online payment is temporarily unavailable. Please choose another payment method.</p>}{paymentMethod === "manual_online" && <div className="mt-5"><PaymentOptions payment={paymentSettings} channel={paymentChannel} onChange={setPaymentChannel} amount={total} /></div>}</>}
         </CheckoutSection>
 
         {availableSubscriptions.length > 0 && <CheckoutSection icon={Check} number="5" title="Use a meal plan"><label className="text-sm font-bold">Subscription<select value={subscriptionId} onChange={(event) => { setSubscriptionId(event.target.value); setCoveredMealId(""); }} className="input-field mt-2"><option value="">Pay without a plan credit</option>{availableSubscriptions.map((item) => <option key={item._id} value={item._id}>{item.planName} · {item.remainingMeals} left</option>)}</select></label>{subscriptionId && <label className="mt-3 block text-sm font-bold">Cover one meal unit<select value={coveredMealId} onChange={(event) => setCoveredMealId(event.target.value)} className="input-field mt-2"><option value="">Choose a meal</option>{eligibleItems.map((item) => <option key={item.mealId} value={item.mealId}>{item.name} · ₹{item.price} covered</option>)}</select>{errors.coveredMealId && <span className="text-xs text-danger">{errors.coveredMealId}</span>}</label>}<p className="mt-3 text-xs text-text-secondary">Using a plan credit makes delivery free for this order.</p></CheckoutSection>}
@@ -325,10 +321,9 @@ export default function CheckoutForm() {
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
         </div>
         {submitError && <p className="mt-4 rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger" role="alert">{submitError}</p>}
-        <Button type="submit" disabled={submitting || !availability.available} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{submitting ? "Placing order…" : paymentMethod === "DEMO" ? "Continue to demo payment" : "Place COD order"}</Button>
-        <p className="mt-5 flex items-center gap-2 text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 text-success" aria-hidden="true" /> Demo payment collects no money or card details.</p>
+        <Button type="submit" disabled={submitting || !availability.available || !paymentMethod || (paymentMethod === "manual_online" && !paymentChannel)} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{submitting ? "Placing order…" : paymentMethod === "manual_online" ? "Place order & continue to payment" : "Place COD order"}</Button>
+        <p className="mt-5 flex items-center gap-2 text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 text-success" aria-hidden="true" /> Online orders are confirmed only after we verify payment.</p>
       </aside>
-      {intentId && <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4"><div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl bg-white p-6"><h2 className="text-xl font-black">Demo payment</h2><p className="mt-2 text-sm text-text-secondary">Simulate a payment result. No money is collected.</p><div className="mt-6 flex gap-3"><button type="button" disabled={submitting} onClick={() => completeDemo("success")} className="rounded-xl bg-primary px-4 py-3 font-bold text-white">Simulate success</button><button type="button" disabled={submitting} onClick={() => completeDemo("failure")} className="rounded-xl border border-border px-4 py-3 font-bold">Simulate failure</button></div></div></div>}
     </form>
   );
 }

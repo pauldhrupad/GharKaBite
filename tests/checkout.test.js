@@ -8,8 +8,9 @@ vi.mock("@/lib/delivery", () => ({ checkDelivery: async () => ({ serviceable: tr
 
 let replica, mongoose, Meal, DailyMenu, DailyCapacity, Order, Subscription, SubscriptionPlan, KitchenSettings, DemoPayment;
 let getMenu, seedCatalog, kolkataDate, createOrder, updateOrderStatus, markCodPaymentReceived, purchaseSubscription, setSubscriptionStatus;
-let createDemoPayment, completeDemoPayment;
+let createDemoPayment, completeDemoPayment, submitPaymentProof, signPaymentProof, verifyPayment, getPaymentScreenshot, signedProofDownloadUrl;
 let patchOrder;
+let getPublicPaymentSettings, patchAdminPaymentSettings;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
@@ -37,6 +38,11 @@ beforeAll(async () => {
   ({ purchaseSubscription, setSubscriptionStatus } = await import("@/lib/subscription-service"));
   ({ POST: createDemoPayment } = await import("@/app/api/demo-payments/route"));
   ({ POST: completeDemoPayment } = await import("@/app/api/demo-payments/[id]/route"));
+  ({ POST: submitPaymentProof, GET: signPaymentProof } = await import("@/app/api/orders/[orderId]/payment-proof/route"));
+  ({ PATCH: verifyPayment } = await import("@/app/api/orders/[orderId]/payment-verification/route"));
+  ({ GET: getPaymentScreenshot, signedProofDownloadUrl } = await import("@/app/api/orders/[orderId]/payment-screenshot/route"));
+  ({ GET: getPublicPaymentSettings } = await import("@/app/api/payment-settings/route"));
+  ({ PATCH: patchAdminPaymentSettings } = await import("@/app/api/admin/payment-settings/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
   await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init()]);
@@ -193,22 +199,12 @@ describe("demo payment route", () => {
   async function complete(id, outcome) {
     return completeDemoPayment(new Request(`http://localhost/api/demo-payments/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ outcome }) }), { params: Promise.resolve({ id }) });
   }
-  it("creates nothing when demo payment fails", async () => {
+  it("refuses the legacy demo route for food orders", async () => {
     authState.id = String(user());
-    const id = await start("order", request());
-    const response = await complete(id, "failure");
-    expect(response.status).toBe(200);
+    const payload = request();
+    const response = await createDemoPayment(new Request("http://localhost/api/demo-payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "order", key: payload.checkoutKey, payload }) }));
+    expect(response.status).toBe(400);
     expect(await Order.countDocuments()).toBe(0);
-    expect(await DailyMenu.countDocuments()).toBe(0);
-    expect((await DemoPayment.findById(id)).status).toBe("failed");
-  });
-  it("creates one order for a successful payment and replays it", async () => {
-    authState.id = String(user());
-    const id = await start("order", request());
-    expect((await complete(id, "success")).status).toBe(200);
-    expect((await complete(id, "success")).status).toBe(200);
-    expect(await Order.countDocuments()).toBe(1);
-    expect((await DemoPayment.findById(id)).status).toBe("paid");
   });
   it("purchases a plan once after successful demo payment", async () => {
     authState.id = String(user());
@@ -218,5 +214,135 @@ describe("demo payment route", () => {
     expect((await complete(id, "success")).status).toBe(200);
     expect(await Subscription.countDocuments()).toBe(1);
     expect((await Subscription.findOne()).remainingMeals).toBe(7);
+  });
+});
+
+describe("manual online payment", () => {
+  async function setupOrder() {
+    const buyer = user(); authState.id = String(buyer);
+    await KitchenSettings.create({ key: "primary", onlinePaymentEnabled: true, upiId: "kitchen@upi", businessWhatsApp: "919876543210", codEnabled: true });
+    const order = await createOrder(buyer, { ...request(), paymentChannel: "upi_id" }, "manual_online", { verifyDelivery: delivery });
+    return order;
+  }
+  function proof(orderNumber, method = "whatsapp") {
+    return submitPaymentProof(new Request(`http://localhost/api/orders/${orderNumber}/payment-proof`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method }) }), { params: Promise.resolve({ orderId: orderNumber }) });
+  }
+  function verify(orderNumber, action, reason) {
+    return verifyPayment(new Request(`http://localhost/api/orders/${orderNumber}/payment-verification`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, reason }) }), { params: Promise.resolve({ orderId: orderNumber }) });
+  }
+  it("creates an unpaid order and blocks kitchen progress until admin verification", async () => {
+    const order = await setupOrder();
+    expect(order).toMatchObject({ paymentMethod: "manual_online", paymentStatus: "pending", orderStatus: "payment_pending", paymentChannel: "upi_id", paymentDetails: { upiId: "kitchen@upi" } });
+    await expect(updateOrderStatus(order.orderNumber, "confirmed")).rejects.toMatchObject({ status: 409 });
+    expect((await proof(order.orderNumber)).status).toBe(200);
+    expect((await Order.findById(order._id)).paymentStatus).toBe("verification_pending");
+    expect((await verify(order.orderNumber, "confirm")).status).toBe(403);
+    authState.role = "admin";
+    const confirmed = await verify(order.orderNumber, "confirm");
+    expect(confirmed.status).toBe(200);
+    expect((await Order.findById(order._id)).toObject()).toMatchObject({ paymentStatus: "paid", orderStatus: "confirmed", paymentProofMethod: "whatsapp" });
+    expect((await verify(order.orderNumber, "confirm")).status).toBe(409);
+  });
+  it("lets a rejected payment be resubmitted on the same order", async () => {
+    const order = await setupOrder();
+    await proof(order.orderNumber);
+    authState.role = "admin";
+    expect((await verify(order.orderNumber, "reject", "Transaction not found")).status).toBe(200);
+    expect((await Order.findById(order._id)).paymentStatus).toBe("rejected");
+    authState.role = "customer";
+    expect((await proof(order.orderNumber)).status).toBe(200);
+    expect((await Order.findById(order._id)).paymentStatus).toBe("verification_pending");
+    expect(await Order.countDocuments()).toBe(1);
+  });
+  it("rejects an unavailable online method and disabled COD", async () => {
+    const buyer = user();
+    await KitchenSettings.create({ key: "primary", onlinePaymentEnabled: false, codEnabled: false });
+    await expect(createOrder(buyer, { ...request(), paymentChannel: "qr" }, "manual_online", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+    await expect(createOrder(buyer, request(), "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+  });
+  it("restricts payment configuration to admins and exposes only checkout fields", async () => {
+    authState.id = String(user());
+    const body = { upiDisplayName: "GharKaBite", upiId: "kitchen@upi", upiPhoneNumber: "9876543210", businessWhatsApp: "919876543210", onlinePaymentEnabled: true, codEnabled: true };
+    const save = () => patchAdminPaymentSettings(new Request("http://localhost/api/admin/payment-settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
+    expect((await save()).status).toBe(403);
+    authState.role = "admin";
+    expect((await save()).status).toBe(200);
+    const payment = (await (await getPublicPaymentSettings()).json()).payment;
+    expect(payment).toMatchObject({ upiDisplayName: "GharKaBite", upiId: "kitchen@upi", upiPhoneNumber: "9876543210", onlinePaymentEnabled: true, codEnabled: true });
+    expect(payment).not.toHaveProperty("dailyMaximum");
+    expect(payment).not.toHaveProperty("_id");
+  });
+  it("accepts website proof only with a screenshot and rejects a reused UTR", async () => {
+    const first = await setupOrder();
+    const second = await createOrder(new mongoose.Types.ObjectId(authState.id), { ...request(), paymentChannel: "upi_id" }, "manual_online", { verifyDelivery: delivery });
+    const previous = { cloud: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY, secret: process.env.CLOUDINARY_API_SECRET };
+    process.env.CLOUDINARY_CLOUD_NAME = "testcloud"; process.env.CLOUDINARY_API_KEY = "testkey"; process.env.CLOUDINARY_API_SECRET = "testsecret";
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ secure_url: "https://res.cloudinary.com/testcloud/image/authenticated/v1/gharkabite/payment-proofs/proof.png" })));
+    const makeProof = (orderNumber, reference) => {
+      const form = new FormData(); form.set("paymentReference", reference); form.set("screenshot", new File([Uint8Array.from([137,80,78,71,13,10,26,10])], "proof.png", { type: "image/png" }));
+      return submitPaymentProof(new Request(`http://localhost/api/orders/${orderNumber}/payment-proof`, { method: "POST", body: form }), { params: Promise.resolve({ orderId: orderNumber }) });
+    };
+    try {
+      expect((await makeProof(first.orderNumber, "UTR123456")).status).toBe(200);
+      expect((await Order.findById(first._id)).paymentScreenshotUrl).toContain("payment-proofs");
+      const duplicate = await makeProof(second.orderNumber, "UTR123456");
+      expect(duplicate.status).toBe(409);
+      expect((await duplicate.json()).message).toMatch(/already associated/);
+      expect((await Order.findById(second._id)).paymentStatus).toBe("pending");
+    } finally {
+      vi.unstubAllGlobals();
+      for (const [envKey, value] of [["CLOUDINARY_CLOUD_NAME", previous.cloud], ["CLOUDINARY_API_KEY", previous.key], ["CLOUDINARY_API_SECRET", previous.secret]]) { if (value === undefined) delete process.env[envKey]; else process.env[envKey] = value; }
+    }
+  });
+  it("issues an order-bound authenticated upload signature and accepts its resulting URL", async () => {
+    const order = await setupOrder();
+    const previous = { cloud: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY, secret: process.env.CLOUDINARY_API_SECRET };
+    process.env.CLOUDINARY_CLOUD_NAME = "testcloud"; process.env.CLOUDINARY_API_KEY = "testkey"; process.env.CLOUDINARY_API_SECRET = "testsecret";
+    try {
+      const context = { params: Promise.resolve({ orderId: order.orderNumber }) };
+      const signedResponse = await signPaymentProof(new Request(`http://localhost/api/orders/${order.orderNumber}/payment-proof`), context);
+      expect(signedResponse.status).toBe(200);
+      const signed = await signedResponse.json();
+      expect(signed.publicId).toContain(String(order._id));
+      expect(signed.type).toBe("authenticated");
+      expect(signed).not.toHaveProperty("secret");
+      const screenshotUrl = `https://res.cloudinary.com/testcloud/image/authenticated/v1/${signed.publicId}.png`;
+      let metadataBytes = 5 * 1024 * 1024 + 1;
+      vi.stubGlobal("fetch", vi.fn(async () => Response.json({ secure_url: screenshotUrl, bytes: metadataBytes, format: "png" })));
+      const submit = (url) => submitPaymentProof(new Request(`http://localhost/api/orders/${order.orderNumber}/payment-proof`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "website", paymentReference: "UTR987654", screenshotUrl: url }) }), context);
+      expect((await submit("https://evil.example/proof.png")).status).toBe(400);
+      expect((await submit(screenshotUrl)).status).toBe(400);
+      metadataBytes = 1024;
+      expect((await submit(screenshotUrl)).status).toBe(200);
+      expect((await Order.findById(order._id)).paymentScreenshotUrl).toBe(screenshotUrl);
+    } finally {
+      vi.unstubAllGlobals();
+      for (const [envKey, value] of [["CLOUDINARY_CLOUD_NAME", previous.cloud], ["CLOUDINARY_API_KEY", previous.key], ["CLOUDINARY_API_SECRET", previous.secret]]) { if (value === undefined) delete process.env[envKey]; else process.env[envKey] = value; }
+    }
+  });
+  it("serves authenticated proof only to the order owner or admin", async () => {
+    const order = await setupOrder();
+    const proofUrl = "https://res.cloudinary.com/testcloud/image/authenticated/v1/gharkabite/payment-proofs/proof.png";
+    await Order.updateOne({ _id: order._id }, { paymentScreenshotUrl: proofUrl });
+    const signedUrl = signedProofDownloadUrl(proofUrl, { cloud: "testcloud", key: "testkey", secret: "testsecret", timestamp: 1000 });
+    expect(signedUrl).toContain("/image/download?");
+    expect(signedUrl).toContain("type=authenticated");
+    expect(signedUrl).not.toContain("testsecret");
+    const previous = { cloud: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY, secret: process.env.CLOUDINARY_API_SECRET };
+    process.env.CLOUDINARY_CLOUD_NAME = "testcloud"; process.env.CLOUDINARY_API_KEY = "testkey"; process.env.CLOUDINARY_API_SECRET = "testsecret";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(Uint8Array.from([137,80,78,71,13,10,26,10]), { headers: { "content-type": "image/png" } })));
+    const retrieve = () => getPaymentScreenshot(new Request(`http://localhost/api/orders/${order.orderNumber}/payment-screenshot`), { params: Promise.resolve({ orderId: order.orderNumber }) });
+    try {
+      authState.id = String(user());
+      expect((await retrieve()).status).toBe(404);
+      authState.id = String(order.user);
+      expect((await retrieve()).status).toBe(200);
+      authState.role = "admin";
+      authState.id = String(user());
+      expect((await retrieve()).status).toBe(200);
+    } finally {
+      vi.unstubAllGlobals();
+      for (const [envKey, value] of [["CLOUDINARY_CLOUD_NAME", previous.cloud], ["CLOUDINARY_API_KEY", previous.key], ["CLOUDINARY_API_SECRET", previous.secret]]) { if (value === undefined) delete process.env[envKey]; else process.env[envKey] = value; }
+    }
   });
 });

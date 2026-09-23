@@ -9,7 +9,7 @@ export async function GET(_request, { params }) {
   const { orderId } = await params;
   try {
     await dbConnect();
-    const order = await Order.findOne(session.user.role === "admin" ? { orderNumber: orderId } : { orderNumber: orderId, user: session.user.id }).lean();
+    const order = await Order.findOne(session.user.role === "admin" ? { orderNumber: orderId } : { orderNumber: orderId, user: session.user.id }).select("-paymentScreenshotUrl").lean();
     if (!order) return Response.json({ message: "Order not found." }, { status: 404 });
     return Response.json({ order });
   } catch { return Response.json({ message: "Order details are temporarily unavailable." }, { status: 503 }); }

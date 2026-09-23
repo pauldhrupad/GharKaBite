@@ -9,7 +9,7 @@ export async function GET() {
     await dbConnect();
     const settings = await KitchenSettings.findOne({ key: "primary" }).lean();
     const counts = await DailyCapacity.findOne({ date: kolkataDate() }).lean();
-    return Response.json({ settings: { ...(settings || defaultKitchenSettings), currentCounts: { daily: counts?.daily || 0, lunch: counts?.lunch || 0, dinner: counts?.dinner || 0 } } });
+    return Response.json({ settings: { dailyMaximum: settings?.dailyMaximum || defaultKitchenSettings.dailyMaximum, lunchMaximum: settings?.lunchMaximum || defaultKitchenSettings.lunchMaximum, dinnerMaximum: settings?.dinnerMaximum || defaultKitchenSettings.dinnerMaximum, lunchCutoff: settings?.lunchCutoff || defaultKitchenSettings.lunchCutoff, dinnerCutoff: settings?.dinnerCutoff || defaultKitchenSettings.dinnerCutoff, currentCounts: { daily: counts?.daily || 0, lunch: counts?.lunch || 0, dinner: counts?.dinner || 0 } } });
   } catch {
     return Response.json({ message: "Kitchen availability is temporarily unavailable." }, { status: 503 });
   }

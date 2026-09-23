@@ -25,6 +25,14 @@ const statusHistorySchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
 }, { _id: false });
 
+const paymentDetailsSchema = new mongoose.Schema({
+  upiDisplayName: { type: String, default: "" },
+  upiId: { type: String, default: "" },
+  upiPhoneNumber: { type: String, default: "" },
+  upiQrImage: { type: String, default: "" },
+  businessWhatsApp: { type: String, default: "" },
+}, { _id: false });
+
 const orderSchema = new mongoose.Schema({
   orderNumber: { type: String, required: true, unique: true, index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
@@ -43,10 +51,20 @@ const orderSchema = new mongoose.Schema({
   subscription: { type: mongoose.Schema.Types.ObjectId, ref: "Subscription", default: null },
   coveredMealId: { type: String, default: "" },
   reservationsReturned: { type: Boolean, default: false },
-  paymentMethod: { type: String, enum: ["COD", "DEMO"], required: true },
-  paymentStatus: { type: String, enum: ["pending", "paid", "failed", "refunded"], default: "pending" },
+  paymentMethod: { type: String, enum: ["COD", "DEMO", "manual_online"], required: true },
+  paymentChannel: { type: String, enum: ["qr", "upi_id", "phone", null], default: null },
+  paymentDetails: { type: paymentDetailsSchema, default: undefined },
+  paymentStatus: { type: String, enum: ["pending", "verification_pending", "paid", "rejected", "failed", "refunded"], default: "pending" },
   paymentReceivedAt: { type: Date, default: null },
-  orderStatus: { type: String, enum: ["received", "confirmed", "cooking", "packed", "out_for_delivery", "delivered", "cancelled"], default: "received" },
+  paymentReference: { type: String, trim: true, default: null },
+  paymentScreenshotUrl: { type: String, default: "" },
+  paymentProofMethod: { type: String, enum: ["website", "whatsapp", null], default: null },
+  paymentSubmittedAt: { type: Date, default: null },
+  paymentVerifiedAt: { type: Date, default: null },
+  paymentVerifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  paymentRejectionReason: { type: String, default: "" },
+  paymentNote: { type: String, maxlength: 500, default: "" },
+  orderStatus: { type: String, enum: ["payment_pending", "received", "confirmed", "cooking", "packed", "out_for_delivery", "delivered", "cancelled"], default: "received" },
   subtotal: { type: Number, required: true, min: 0 },
   deliveryFee: { type: Number, required: true, min: 0 },
   discount: { type: Number, required: true, min: 0, default: 0 },
@@ -55,5 +73,6 @@ const orderSchema = new mongoose.Schema({
   statusHistory: { type: [statusHistorySchema], default: () => [{ status: "received", timestamp: new Date() }] },
 }, { timestamps: true });
 orderSchema.index({ user: 1, checkoutKey: 1 }, { unique: true, partialFilterExpression: { checkoutKey: { $exists: true } } });
+orderSchema.index({ paymentReference: 1 }, { unique: true, partialFilterExpression: { paymentReference: { $type: "string", $gt: "" }, paymentStatus: { $in: ["verification_pending", "paid"] } } });
 
 export default mongoose.models.Order || mongoose.model("Order", orderSchema);

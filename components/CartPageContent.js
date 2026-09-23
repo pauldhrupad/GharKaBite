@@ -167,7 +167,7 @@ export default function CartPageContent() {
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
         </div>
         <Button href="/checkout" className="mt-5 w-full">Continue to checkout</Button>
-        <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 shrink-0 text-success" aria-hidden="true" /> Checkout supports COD and a no-money demo payment.</p>
+        <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 shrink-0 text-success" aria-hidden="true" /> Checkout offers manually verified Online Payment and Cash on Delivery when enabled.</p>
       </aside>
     </section>
   );

@@ -14,8 +14,9 @@ export default async function AdminDashboardPage() {
   const activeOrders = orders;
   const lunchOrders = activeOrders.filter((order) => order.mealPeriod === "Lunch");
   const dinnerOrders = activeOrders.filter((order) => order.mealPeriod === "Dinner");
-  const pendingOrders = activeOrders.filter((order) => !["delivered", "cancelled"].includes(order.orderStatus));
-  const revenue = activeOrders.reduce((sum, order) => sum + order.total, 0);
+  const pendingOrders = activeOrders.filter((order) => !["payment_pending", "delivered", "cancelled"].includes(order.orderStatus));
+  const paymentsToVerify = await Order.countDocuments({ paymentMethod: "manual_online", paymentStatus: "verification_pending", orderStatus: "payment_pending" });
+  const revenue = activeOrders.filter((order) => order.paymentMethod === "COD" || order.paymentStatus === "paid").reduce((sum, order) => sum + order.total, 0);
   const categories = ["Veg", "Egg", "Chicken", "Fish"].map((category) => ({ category, quantity: activeOrders.flatMap((order) => order.items).filter((item) => item.category === category).reduce((sum, item) => sum + item.quantity, 0) }));
   const metrics = [
     { label: "Total Orders", value: activeOrders.length, note: "Accepted today", icon: ShoppingBag },
@@ -29,7 +30,7 @@ export default async function AdminDashboardPage() {
     <>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="eyebrow">Today’s operations</p><h1 className="mt-1 text-3xl font-black tracking-tight">Kitchen overview</h1><p className="mt-1 text-sm text-text-secondary">Orders, preparation quantities and delivery workload in one place.</p></div><span className="inline-flex self-start rounded-full bg-success/10 px-3 py-1.5 text-xs font-black text-success">Kitchen accepting orders</span></div>
 
-      <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-5" aria-label="Today’s metrics">{metrics.map(({ label, value, note, icon: Icon }) => <article key={label} className="rounded-2xl border border-border bg-white p-5"><Icon className="size-5 text-primary" aria-hidden="true" /><p className="mt-5 text-2xl font-black">{value}</p><p className="text-sm font-black">{label}</p><p className="mt-1 text-xs text-text-secondary">{note}</p></article>)}</section>
+      <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Today’s metrics">{metrics.map(({ label, value, note, icon: Icon }) => <article key={label} className="rounded-2xl border border-border bg-white p-5"><Icon className="size-5 text-primary" aria-hidden="true" /><p className="mt-5 text-2xl font-black">{value}</p><p className="text-sm font-black">{label}</p><p className="mt-1 text-xs text-text-secondary">{note}</p></article>)}<Link href="/admin/orders?paymentStatus=verification_pending" className="rounded-2xl border border-warning/40 bg-warning/10 p-5 hover:border-primary"><Clock3 className="size-5 text-warning" aria-hidden="true" /><p className="mt-5 text-2xl font-black">{paymentsToVerify}</p><p className="text-sm font-black">Payments to Verify</p><p className="mt-1 text-xs text-text-secondary">Open verification queue</p></Link></section>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
         <section className="rounded-2xl border border-border bg-white p-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-accent/10 text-accent"><ChefHat className="size-5" aria-hidden="true" /></span><div><h2 className="font-black">Kitchen preparation summary</h2><p className="text-xs text-text-secondary">Total portions required today</p></div></div><div className="mt-5 grid grid-cols-2 gap-3">{categories.map(({ category, quantity }) => <div key={category} className="rounded-xl bg-surface-muted p-4"><p className="text-2xl font-black">{quantity}</p><p className="text-sm font-bold text-text-secondary">{category} Meals</p></div>)}</div></section>

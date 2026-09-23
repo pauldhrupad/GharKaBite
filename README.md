@@ -2,7 +2,7 @@
 
 Live prototype: https://gharkabite.vercel.app · Source: https://github.com/pauldhrupad/GharKaBite
 
-Next.js 16 app for a local meal kitchen. Meals, daily menus, subscriptions and orders are stored in MongoDB. Checkout offers cash on delivery and a **demo payment simulator**. The simulator does not take card details or move money; never present it as a real gateway.
+Next.js 16 app for a local meal kitchen. Meals, daily menus, subscriptions and orders are stored in MongoDB. Food checkout offers manually verified UPI Online Payment and, when enabled, Cash on Delivery. There is no automatic payment gateway. Meal-plan purchases remain a separate no-money preview.
 
 ## Run locally
 
@@ -32,7 +32,8 @@ Production values for Cloudinary, Geoapify and the private kitchen center are co
 - `/admin/meals` edits the catalogue and today/tomorrow overrides. Daily stock is shared across lunch and dinner. Archived meals disappear from future menus while past order snapshots remain intact.
 - `/admin/subscriptions` lists customers and lets the owner edit plan offerings and pause, resume or cancel active subscriptions. A pause extends expiry on resume.
 - Customers can select today or tomorrow in `/menu`, add meals to one-date, one-period carts, use one eligible plan credit per order, and track database orders. Using a plan credit makes delivery free.
-- COD orders are created immediately. Demo payment lets testers choose success or failure. A failed attempt creates no order or subscription. Prices, stock, capacity, plan use and delivery are rechecked server-side; MongoDB transactions and idempotency keys guard duplicate submissions.
+- Configure UPI name, ID, phone, QR, Business WhatsApp, and method availability at `/admin/settings`. Online orders are created as `payment_pending`; customers pay the stored server-calculated total and submit screenshot + UTR or report WhatsApp proof. Only an admin can verify payment and confirm the order. COD orders are confirmed at creation and can be marked paid after delivery. Prices, stock, capacity, plan use and delivery are rechecked server-side; MongoDB transactions and idempotency keys guard duplicate submissions.
+- Payment screenshots are uploaded to Cloudinary and retrieved through an authenticated order endpoint. Do not share their Cloudinary URLs. QR upload and website proof submission require Cloudinary credentials; WhatsApp proof requires a configured Business WhatsApp number. The current meal-plan purchase preview still collects no money.
 - The homepage, profile and checkout offer an optional map pin or current-location picker. Browser permission is requested only when the user clicks the current-location button. A pin must resolve to a full street and PIN; the customer still enters their house/flat. Manual typing remains available if location access or the map is unavailable. Both paths are rechecked at order placement. Kitchen coordinates never appear in API responses or structured data.
 
 ## Vercel deployment preparation
@@ -40,11 +41,11 @@ Production values for Cloudinary, Geoapify and the private kitchen center are co
 1. Create a MongoDB Atlas replica-set cluster, database user and network access rules. Give Vercel access without exposing the URI in code. Use a separate test database for integration tests.
 2. Create free-tier Cloudinary and Geoapify accounts, add their credentials in Vercel environment settings, and set the private kitchen coordinates. Create a separate Geoapify browser key restricted to your production and localhost origins for `NEXT_PUBLIC_GEOAPIFY_MAPS_KEY`. Redeploy after setting it: public variables are embedded at build time. Cloudinary images likewise require a redeploy after setting its cloud name because Next/Image remote patterns are built from it.
 3. Set `SITE_URL` and `NEXTAUTH_URL` to the final HTTPS domain, generate a fresh `AUTH_SECRET`, connect the repository to Vercel, and run `npm run build` before release. Configure a custom domain in Vercel and add the DNS records it shows; then verify the canonical URL, sitemap and robots output.
-4. Keep the demo gateway visibly labeled. Before collecting real money, replace it with Razorpay server-created orders, server-verified signatures and webhooks; add `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `NEXT_PUBLIC_RAZORPAY_KEY_ID` only then. If replacing Geoapify with Google Maps later, restrict browser keys by domain and API, server keys by API and service account context, and review usage and billing limits. Neither provider is used for real payment or Google Maps in this prototype.
+4. Before enabling Online Payment, enter and double-check your actual UPI details and QR in `/admin/settings`. Make a small controlled test payment, verify the bank/UPI statement, submit proof, and test admin confirmation and rejection. Never treat a screenshot or UTR alone as proof that money arrived. Set a real Business WhatsApp number if you offer that option. This is manual verification, not a gateway; there are no gateway credentials or webhooks. If replacing Geoapify with Google Maps later, restrict browser and server keys appropriately.
 5. Have the privacy, terms and refund text reviewed before commercial launch. Supply a real contact channel and verify food-business information and claims.
 
 The prototype is deployed on Vercel with GitHub connected to the `main` branch. The canonical URL is `https://gharkabite.vercel.app`. To move to a custom domain, add it in Vercel, follow the DNS instructions there, then update `SITE_URL` and `NEXTAUTH_URL` for Production and redeploy. No live payment gateway is enabled.
 
 ## Checks
 
-Run `npm run lint`, `npm run build`, and `npm test`. With provider credentials and an isolated database, exercise homepage delivery checks, today/tomorrow menus, filters, cart totals, login, COD, demo success/failure, order tracking, admin status, stock, kitchen capacity, plan purchase/use, reorder and mobile layouts. Tests should verify concurrent stock and idempotency behavior, not just UI labels.
+Run `npm run lint`, `npm run build`, and `npm test`. With provider credentials and an isolated database, exercise homepage delivery checks, today/tomorrow menus, filters, cart totals, login, COD, all three UPI methods, QR upload, screenshot proof, WhatsApp proof, rejection and resubmission, admin verification, order tracking, stock, kitchen capacity, plan preview/use, reorder and mobile layouts. Tests should verify concurrent stock and idempotency behavior, not just UI labels.
