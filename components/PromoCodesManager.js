@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Tag } from "lucide-react";
+import CustomSelect from "./CustomSelect";
 
 const initialForm = { code: "", type: "percent", value: 10, maxDiscount: 100, minSubtotal: 0, expiresAt: "" };
 
@@ -69,7 +70,7 @@ export default function PromoCodesManager() {
     <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-accent/10 text-accent"><Tag className="size-5" /></span><div><h2 className="text-lg font-black">Promo codes</h2><p className="text-xs text-text-secondary">Create a private code. Each account can use each code once.</p></div></div>
     <form onSubmit={(event) => create(event)} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <label className="text-sm font-bold">Your custom code<input className="input-field mt-2 uppercase" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} placeholder="e.g. LUNCH15" maxLength={20} pattern="[A-Za-z0-9-]{4,20}" required /><span className="mt-1 block text-xs font-normal text-text-secondary">Enter 4–20 letters, numbers or hyphens to create your own code.</span></label>
-      <label className="text-sm font-bold">Discount type<select className="input-field mt-2" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}><option value="percent">Percentage</option><option value="fixed">Fixed amount</option></select></label>
+      <label className="text-sm font-bold">Discount type<CustomSelect className="input-field mt-2" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}><option value="percent">Percentage</option><option value="fixed">Fixed amount</option></CustomSelect></label>
       <label className="text-sm font-bold">{form.type === "percent" ? "Discount (%)" : "Discount (₹)"}<input className="input-field mt-2" type="number" min="1" max={form.type === "percent" ? "100" : "100000"} value={form.value} onChange={(event) => setForm({ ...form, value: Number(event.target.value) })} required /></label>
       {form.type === "percent" && <label className="text-sm font-bold">Maximum discount (₹)<input className="input-field mt-2" type="number" min="1" max="100000" value={form.maxDiscount} onChange={(event) => setForm({ ...form, maxDiscount: Number(event.target.value) })} required /></label>}
       <label className="text-sm font-bold">Minimum meal subtotal (₹)<input className="input-field mt-2" type="number" min="0" max="100000" value={form.minSubtotal} onChange={(event) => setForm({ ...form, minSubtotal: Number(event.target.value) })} required /></label>
