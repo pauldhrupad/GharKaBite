@@ -45,9 +45,9 @@ export default function RegisterForm() {
       <h1 className="mt-2 text-3xl font-black tracking-tight">Create your account</h1>
       <p className="mt-2 text-sm leading-6 text-text-secondary">Save time on repeat orders and manage delivery details.</p>
       <form onSubmit={handleSubmit} className="mt-7 grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-bold">Full name<input className="input-field mt-2" name="name" type="text" value={form.name} onChange={updateField} autoComplete="name" placeholder="e.g. Meera Roy" required /></label>
-        <label className="text-sm font-bold">Phone<input className="input-field mt-2" name="phone" type="tel" value={form.phone} onChange={updateField} autoComplete="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} placeholder="e.g. 9123456789" required /></label>
-        <label className="text-sm font-bold sm:col-span-2">Email<input className="input-field mt-2" name="email" value={form.email} onChange={updateField} type="email" autoComplete="email" placeholder="e.g. meera.roy@example.com" required /></label>
+        <label className="text-sm font-bold">Full name<input className="input-field mt-2" name="name" type="text" value={form.name} onChange={updateField} autoComplete="name"  required /></label>
+        <label className="text-sm font-bold">Phone<input className="input-field mt-2" name="phone" type="tel" value={form.phone} onChange={updateField} autoComplete="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10}  required /></label>
+        <label className="text-sm font-bold sm:col-span-2">Email<input className="input-field mt-2" name="email" value={form.email} onChange={updateField} type="email" autoComplete="email" placeholder="e.g. abc@example.com" required /></label>
         <label className="text-sm font-bold sm:col-span-2">Password<input className="input-field mt-2" name="password" value={form.password} onChange={updateField} type="password" autoComplete="new-password" placeholder="Create a password" minLength={8} aria-describedby="password-hint" required /><span id="password-hint" className="mt-1.5 block text-xs font-normal text-text-secondary">Use at least 8 characters.</span></label>
         {error && <p className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger sm:col-span-2" role="alert">{error}</p>}
         <Button type="submit" disabled={submitting} className="sm:col-span-2 disabled:opacity-55">{submitting ? "Creating account…" : <>Create account <ArrowRight className="size-4" aria-hidden="true" /></>}</Button>
