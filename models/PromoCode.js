@@ -7,6 +7,7 @@ const promoCodeSchema = new mongoose.Schema({
   maxDiscount: { type: Number, required: true, min: 1 },
   minSubtotal: { type: Number, required: true, min: 0, default: 0 },
   active: { type: Boolean, default: true },
+  deletedAt: { type: Date, default: null },
   expiresAt: { type: Date, default: null },
 }, { timestamps: true });
 

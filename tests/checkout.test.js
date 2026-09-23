@@ -11,7 +11,7 @@ let getMenu, seedCatalog, kolkataDate, createOrder, updateOrderStatus, markCodPa
 let createDemoPayment, completeDemoPayment, submitPaymentProof, signPaymentProof, verifyPayment, getPaymentScreenshot, signedProofDownloadUrl;
 let patchOrder;
 let getPublicPaymentSettings, patchAdminPaymentSettings;
-let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, updateAdminPromo, validateCustomerPromo;
+let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, updateAdminPromo, deleteAdminPromo, validateCustomerPromo;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
@@ -47,7 +47,7 @@ beforeAll(async () => {
   ({ PATCH: patchAdminPaymentSettings } = await import("@/app/api/admin/payment-settings/route"));
   ({ GET: getPublicSettings } = await import("@/app/api/settings/route"));
   ({ PATCH: patchAdminSettings } = await import("@/app/api/admin/settings/route"));
-  ({ GET: getAdminPromos, POST: createAdminPromo, PATCH: updateAdminPromo } = await import("@/app/api/admin/promos/route"));
+  ({ GET: getAdminPromos, POST: createAdminPromo, PATCH: updateAdminPromo, DELETE: deleteAdminPromo } = await import("@/app/api/admin/promos/route"));
   ({ POST: validateCustomerPromo } = await import("@/app/api/promos/validate/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
@@ -320,6 +320,41 @@ describe("owner delivery and promo controls", () => {
     await Order.updateOne({ _id: oldOrder._id }, { $set: { discount: 12, total: oldOrder.total - 12 }, $unset: { promoCode: 1 } });
     const quote = await validateCustomerPromo(jsonRequest("/api/promos/validate", "POST", { code: "WELCOME10", subtotal: 119 }));
     expect((await quote.json()).promo).toMatchObject({ valid: false, message: "You have already used this promo code." });
+  });
+
+  it("lets only the owner delete a code without losing order history or allowing reuse", async () => {
+    authState.role = "admin";
+    const form = { code: "DELETE20", type: "fixed", value: 20, minSubtotal: 0 };
+    expect((await createAdminPromo(jsonRequest("/api/admin/promos", "POST", form))).status).toBe(201);
+    authState.role = "customer";
+    const buyer = user(); authState.id = String(buyer);
+    const order = await createOrder(buyer, { ...request(), promoCode: "DELETE20" }, "COD", { verifyDelivery: delivery });
+    const remove = () => deleteAdminPromo(jsonRequest("/api/admin/promos", "DELETE", { code: "DELETE20" }));
+    expect((await remove()).status).toBe(403);
+    authState.role = "admin";
+    expect((await remove()).status).toBe(200);
+    expect((await remove()).status).toBe(404);
+    const stored = await PromoCode.findOne({ code: "DELETE20" });
+    expect(stored).toMatchObject({ active: false });
+    expect(stored.deletedAt).toBeTruthy();
+    expect((await (await getAdminPromos()).json()).promos.map((item) => item.code)).not.toContain("DELETE20");
+    expect((await createAdminPromo(jsonRequest("/api/admin/promos", "POST", form))).status).toBe(409);
+    expect((await Order.findById(order._id)).promoCode).toBe("DELETE20");
+    authState.role = "customer";
+    expect((await (await validateCustomerPromo(jsonRequest("/api/promos/validate", "POST", { code: "DELETE20", subtotal: 119 }))).json()).promo.valid).toBe(false);
+    await expect(createOrder(user(), { ...request(), promoCode: "DELETE20" }, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("does not recreate a deleted WELCOME10 code", async () => {
+    authState.role = "admin";
+    expect((await getAdminPromos()).status).toBe(200);
+    expect((await deleteAdminPromo(jsonRequest("/api/admin/promos", "DELETE", { code: "WELCOME10" }))).status).toBe(200);
+    const listed = await getAdminPromos();
+    expect((await listed.json()).promos.map((item) => item.code)).not.toContain("WELCOME10");
+    authState.role = "customer";
+    authState.id = String(user());
+    const quote = await validateCustomerPromo(jsonRequest("/api/promos/validate", "POST", { code: "WELCOME10", subtotal: 119 }));
+    expect((await quote.json()).promo.valid).toBe(false);
   });
 });
 

@@ -15,7 +15,7 @@ export async function GET() {
   try {
     await dbConnect();
     await ensureWelcomePromo();
-    const [promos, uses] = await Promise.all([PromoCode.find().sort({ createdAt: -1 }).lean(), Order.aggregate([{ $match: { promoCode: { $type: "string", $gt: "" } } }, { $group: { _id: "$promoCode", count: { $sum: 1 } } }])]);
+    const [promos, uses] = await Promise.all([PromoCode.find({ deletedAt: null }).sort({ createdAt: -1 }).lean(), Order.aggregate([{ $match: { promoCode: { $type: "string", $gt: "" } } }, { $group: { _id: "$promoCode", count: { $sum: 1 } } }])]);
     const counts = new Map(uses.map((item) => [item._id, item.count]));
     return Response.json({ promos: promos.map((promo) => ({ ...promo, uses: counts.get(promo.code) || 0 })) }, { headers: { "Cache-Control": "no-store" } });
   } catch { return Response.json({ message: "Unable to load promo codes." }, { status: 503 }); }
@@ -42,7 +42,7 @@ export async function POST(request) {
         return Response.json({ promo }, { status: 201 });
       } catch (error) {
         if (error.code !== 11000) throw error;
-        if (!body.generateRandom) return Response.json({ message: "That promo code already exists." }, { status: 409 });
+        if (!body.generateRandom) return Response.json({ message: "That code already exists or was previously deleted. Choose another code." }, { status: 409 });
       }
     }
     return Response.json({ message: "Could not generate a unique code. Please try again." }, { status: 503 });
@@ -56,8 +56,21 @@ export async function PATCH(request) {
     const code = normalizePromoCode(body.code);
     if (!/^[A-Z0-9-]{4,20}$/.test(code) || typeof body.active !== "boolean") return Response.json({ message: "Invalid promo update." }, { status: 400 });
     await dbConnect();
-    const promo = await PromoCode.findOneAndUpdate({ code }, { $set: { active: body.active } }, { returnDocument: "after", runValidators: true }).lean();
+    const promo = await PromoCode.findOneAndUpdate({ code, deletedAt: null }, { $set: { active: body.active } }, { returnDocument: "after", runValidators: true }).lean();
     if (!promo) return Response.json({ message: "Promo code not found." }, { status: 404 });
     return Response.json({ promo });
   } catch { return Response.json({ message: "Unable to update promo code." }, { status: 503 }); }
+}
+
+export async function DELETE(request) {
+  if (!await isAdmin()) return Response.json({ message: "Forbidden" }, { status: 403 });
+  try {
+    const body = await request.json();
+    const code = normalizePromoCode(body.code);
+    if (!/^[A-Z0-9-]{4,20}$/.test(code)) return Response.json({ message: "Invalid promo code." }, { status: 400 });
+    await dbConnect();
+    const promo = await PromoCode.findOneAndUpdate({ code, deletedAt: null }, { $set: { active: false, deletedAt: new Date() } }, { returnDocument: "after", runValidators: true }).lean();
+    if (!promo) return Response.json({ message: "Promo code not found." }, { status: 404 });
+    return Response.json({ message: `${code} deleted. Past order records are preserved.` });
+  } catch { return Response.json({ message: "Unable to delete promo code." }, { status: 503 }); }
 }
