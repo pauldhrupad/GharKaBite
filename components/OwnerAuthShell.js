@@ -7,7 +7,7 @@ export default function OwnerAuthShell({ children }) {
     <main data-owner-auth className="min-h-screen bg-[#f1f3ee] px-4 py-5 text-[#24342c] sm:px-6 sm:py-10">
       <div className="mx-auto max-w-5xl">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="inline-flex items-center gap-2 font-black tracking-tight"><BrandMark className="size-9" />GharKaBite <span className="rounded-md bg-[#e3eae1] px-2 py-1 text-[10px] font-extrabold uppercase tracking-widest text-[#365944]">Owner</span></Link>
+          <Link href="/" className="inline-flex items-center gap-2 font-black tracking-tight" aria-label="GharKaBite home"><BrandMark className="size-16" /><span className="rounded-md bg-[#e3eae1] px-2 py-1 text-[10px] font-extrabold uppercase tracking-widest text-[#365944]">Owner</span></Link>
           <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-bold text-[#52665a] hover:text-[#244b32]"><ArrowLeft className="size-4" aria-hidden="true" /> Customer site</Link>
         </div>
         <div className="grid overflow-hidden rounded-[1.75rem] border border-[#d8e0d8] bg-white shadow-[0_24px_70px_rgba(28,55,38,0.12)] lg:min-h-[38rem] lg:grid-cols-[0.9fr_1.1fr]">

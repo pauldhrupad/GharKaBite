@@ -16,7 +16,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/88 backdrop-blur-xl">
       <nav className="container-shell flex h-17 items-center justify-between" aria-label="Primary navigation">
-        <Link href="/" className="flex shrink-0 items-center gap-1.5" aria-label="GharKaBite home"><BrandMark className="size-10 shrink-0" /><span className="text-lg font-black tracking-[-0.04em]">GharKa<span className="text-accent">Bite</span></span></Link>
+        <Link href="/" className="flex shrink-0 items-center" aria-label="GharKaBite home"><BrandMark className="size-15 shrink-0" /></Link>
         <div className="hidden items-center gap-1 lg:flex">
           {links.map((link) => { const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href); return <Link key={link.href} href={link.href} className={`rounded-lg px-3.5 py-2 text-sm font-bold transition ${active ? "bg-primary/9 text-primary" : "text-text-secondary hover:bg-surface-muted hover:text-text-primary"}`}>{link.label}</Link>; })}
         </div>
