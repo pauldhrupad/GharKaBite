@@ -13,11 +13,12 @@ let patchOrder;
 let getPublicPaymentSettings, patchAdminPaymentSettings;
 let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, updateAdminPromo, deleteAdminPromo, validateCustomerPromo;
 let getAdminAvatar, uploadAdminAvatar;
+let createAdminThali;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
   return { checkoutKey: key, serviceDate: kolkataDate(1), mealPeriod: "Lunch", deliverySlot: "12–1 PM",
-    items: [{ mealId, quantity: 1 }], contact: { name: "Test Customer", phone: "9876543210", email: "" },
+    items: [{ mealId, quantity: 1, selectedChoices: mealId === "fish-curry-meal" ? {} : { base: ["rice"] }, selectedAddOns: {} }], contact: { name: "Test Customer", phone: "9876543210", email: "" },
     deliveryAddress: { house: "12", street: "Test Street", area: "Behala", city: "Kolkata", pinCode: "700034" } };
 }
 
@@ -52,6 +53,7 @@ beforeAll(async () => {
   ({ GET: getAdminPromos, POST: createAdminPromo, PATCH: updateAdminPromo, DELETE: deleteAdminPromo } = await import("@/app/api/admin/promos/route"));
   ({ POST: validateCustomerPromo } = await import("@/app/api/promos/validate/route"));
   ({ GET: getAdminAvatar, POST: uploadAdminAvatar } = await import("@/app/api/admin/avatar/route"));
+  ({ POST: createAdminThali } = await import("@/app/api/admin/meals/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
   await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init(), PromoCode.init()]);
@@ -60,6 +62,84 @@ afterAll(async () => { if (mongoose?.connection?.readyState) await mongoose.disc
 beforeEach(async () => { authState.role = "customer"; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
 
 describe("daily menu and checkout", () => {
+  it("migrates to four configurable Thalis without the old duplicate meals", async () => {
+    const menu = await getMenu(kolkataDate(1));
+    expect(menu.map((item) => item.name).sort()).toEqual(["Chicken Thali", "Egg Thali", "Fish Thali", "Veg Thali"]);
+    expect(menu.find((item) => item.category === "Fish").choiceGroups).toHaveLength(0);
+    expect(menu.find((item) => item.category === "Fish").fixedItems.map((item) => item.name)).toContain("Rice");
+    expect(menu.find((item) => item.category === "Chicken").choiceGroups[0].options.map((item) => item.name)).toEqual(["Rice", "Roti"]);
+  });
+
+  it("rejects missing, forged and excessive choices on the server", async () => {
+    const buyer = user();
+    await expect(createOrder(buyer, { ...request(), items: [{ mealId: "veg-home-meal", quantity: 1 }] }, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+    await expect(createOrder(buyer, { ...request(), items: [{ mealId: "veg-home-meal", quantity: 1, selectedChoices: { base: ["invented"] } }] }, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+    await expect(createOrder(buyer, { ...request(), items: [{ mealId: "veg-home-meal", quantity: 1, selectedChoices: { base: ["rice", "roti"] } }] }, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("prices two variants separately and keeps their snapshots after an admin edit", async () => {
+    const body = request("egg-curry-meal");
+    body.items = [
+      { mealId: "egg-curry-meal", quantity: 1, selectedChoices: { base: ["rice"] }, selectedAddOns: {} },
+      { mealId: "egg-curry-meal", quantity: 2, selectedChoices: { base: ["roti"] }, selectedAddOns: { "extra-egg": 1, "extra-roti": 2 } },
+    ];
+    const order = await createOrder(user(), body, "COD", { verifyDelivery: delivery });
+    expect(order.items).toHaveLength(2);
+    expect(order.items[0].price).toBe(139);
+    expect(order.items[1].price).toBe(179);
+    expect(order.subtotal).toBe(497);
+    expect(order.items[1].selectedAddOns.map((item) => [item.name, item.quantity])).toEqual([["Extra Egg", 1], ["Extra Roti", 2]]);
+    await Meal.updateOne({ slug: "egg-curry-meal" }, { $set: { price: 299, name: "Changed Thali" } });
+    const saved = await Order.findById(order._id).lean();
+    expect(saved.items[1].name).toBe("Egg Thali");
+    expect(saved.items[1].price).toBe(179);
+  });
+
+  it("limits add-on stock and returns it on early cancellation", async () => {
+    await Meal.updateOne({ slug: "egg-curry-meal", "addOns.id": "extra-egg" }, { $set: { "addOns.$.stock": 1 } });
+    const body = request("egg-curry-meal");
+    body.items[0].selectedAddOns = { "extra-egg": 2 };
+    await expect(createOrder(user(), body, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+    body.checkoutKey = crypto.randomUUID(); body.items[0].selectedAddOns = { "extra-egg": 1 };
+    const order = await createOrder(user(), body, "COD", { verifyDelivery: delivery });
+    expect((await Meal.findOne({ slug: "egg-curry-meal" })).addOns.find((item) => item.id === "extra-egg").stock).toBe(0);
+    await updateOrderStatus(order.orderNumber, "cancelled");
+    expect((await Meal.findOne({ slug: "egg-curry-meal" })).addOns.find((item) => item.id === "extra-egg").stock).toBe(1);
+  });
+
+  it("charges paid add-ons when a subscription covers the base Thali", async () => {
+    const buyer = user(); const plan = await SubscriptionPlan.findOne({ slug: "trial" });
+    const subscription = await purchaseSubscription(buyer, { planId: String(plan._id), mode: "Mixed", purchaseKey: crypto.randomUUID() });
+    const body = { ...request("egg-curry-meal"), subscriptionId: String(subscription._id), coveredMealId: "egg-curry-meal" };
+    body.items[0].selectedAddOns = { "extra-egg": 1 };
+    const order = await createOrder(buyer, body, "COD", { verifyDelivery: delivery });
+    expect(order.subtotal).toBe(159);
+    expect(order.discount).toBe(139);
+    expect(order.total).toBe(20);
+  });
+
+  it("lets admin create a custom Thali with two OR groups and a multi-choice group", async () => {
+    authState.role = "admin";
+    const source = (await Meal.findOne({ slug: "veg-home-meal" })).toObject();
+    const payload = { ...source, slug: "test-special-thali", name: "Test Special Thali", category: "Special", price: 199,
+      fixedItems: [{ name: "Dal" }, { name: "Sabzi" }],
+      choiceGroups: [
+        { id: "base", name: "Choose base", minSelections: 1, maxSelections: 1, options: [{ id: "rice", name: "Rice", priceAdjustment: 0 }, { id: "roti", name: "Roti", priceAdjustment: 10 }] },
+        { id: "dal", name: "Choose dal", minSelections: 1, maxSelections: 1, options: [{ id: "masoor", name: "Masoor Dal", priceAdjustment: 0 }, { id: "moong", name: "Moong Dal", priceAdjustment: 5 }] },
+        { id: "sides", name: "Choose sides", minSelections: 0, maxSelections: 2, options: [{ id: "salad", name: "Salad", priceAdjustment: 0 }, { id: "papad", name: "Papad", priceAdjustment: 0 }, { id: "chutney", name: "Chutney", priceAdjustment: 0 }] },
+      ], addOns: [{ id: "dessert", name: "Dessert", price: 30, maxQuantity: 2, stock: 10 }] };
+    const response = await createAdminThali(new Request("http://localhost/api/admin/meals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }));
+    expect(response.status).toBe(201);
+    const custom = (await getMenu(kolkataDate(1))).find((item) => item.id === payload.slug);
+    expect(custom.choiceGroups).toHaveLength(3);
+    authState.role = "customer";
+    const body = request(payload.slug);
+    body.items[0].selectedChoices = { base: ["roti"], dal: ["moong"], sides: ["salad", "papad"] };
+    body.items[0].selectedAddOns = { dessert: 2 };
+    const order = await createOrder(user(), body, "COD", { verifyDelivery: delivery });
+    expect(order.items[0].price).toBe(274);
+    expect(order.items[0].selectedChoices[1].options[0].name).toBe("Moong Dal");
+  });
   it("applies a daily override without changing the weekly schedule", async () => {
     const date = kolkataDate(1);
     const meal = await Meal.findOne({ slug: "veg-home-meal" });
@@ -75,7 +155,7 @@ describe("daily menu and checkout", () => {
     expect(await Order.countDocuments()).toBe(1);
     expect((await DailyMenu.findOne({ date: kolkataDate(1) })).remaining).toBe(0);
     await KitchenSettings.create({ key: "primary", dailyMaximum: 1, lunchMaximum: 1, dinnerMaximum: 1 });
-    const next = await createOrder(user(), request("veg-roti-meal"), "COD", { verifyDelivery: delivery }).catch((error) => error);
+    const next = await createOrder(user(), request("egg-curry-meal"), "COD", { verifyDelivery: delivery }).catch((error) => error);
     expect(next.status).toBe(409);
   });
 
@@ -92,7 +172,7 @@ describe("daily menu and checkout", () => {
     await KitchenSettings.create({ key: "primary", dailyMaximum: 1, lunchMaximum: 1, dinnerMaximum: 1 });
     const attempts = await Promise.allSettled([
       createOrder(user(), request("veg-home-meal"), "COD", { verifyDelivery: delivery }),
-      createOrder(user(), request("veg-roti-meal"), "COD", { verifyDelivery: delivery }),
+      createOrder(user(), request("egg-curry-meal"), "COD", { verifyDelivery: delivery }),
     ]);
     expect(attempts.filter((item) => item.status === "fulfilled")).toHaveLength(1);
     expect(await Order.countDocuments()).toBe(1);

@@ -7,6 +7,7 @@ import { Check, ChefHat, CircleCheckBig, Clock3, CookingPot, House, MapPin, Pack
 import Badge from "./Badge";
 import Button from "./Button";
 import EmptyState from "./EmptyState";
+import ThaliOrderDetails from "./ThaliOrderDetails";
 import { orderStatuses } from "@/data/order-statuses";
 import { formatOrderTimestamp, getStatusIndex } from "@/lib/order-utils";
 
@@ -78,7 +79,7 @@ export default function OrderTracking({ orderId }) {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_22rem]">
         <section className="card-surface p-5 md:p-6">
           <h2 className="text-xl font-black">Order details</h2>
-          <div className="mt-5 divide-y divide-border">{order.items.map((item) => <div key={item.mealId} className="flex items-center justify-between gap-4 py-4 first:pt-0"><div><p className="font-black">{item.name}</p><p className="text-xs text-text-secondary">Quantity {item.quantity} · ₹{item.price} each</p></div><p className="font-black">₹{item.price * item.quantity}</p></div>)}</div>
+          <div className="mt-5 divide-y divide-border">{order.items.map((item, index) => <div key={`${item.mealId}-${index}`} className="flex items-start justify-between gap-4 py-4 first:pt-0"><div><p className="font-black">{item.name}</p><p className="text-xs text-text-secondary">Quantity {item.quantity} · ₹{item.price} each</p><ThaliOrderDetails item={item} /></div><p className="shrink-0 font-black">₹{item.price * item.quantity}</p></div>)}</div>
           {order.notes && <div className="mt-5 rounded-xl bg-surface-muted p-4"><p className="text-xs font-extrabold uppercase tracking-wide text-text-secondary">Order note</p><p className="mt-1 text-sm font-semibold">{order.notes}</p></div>}
         </section>
 

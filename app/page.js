@@ -77,7 +77,7 @@ export default async function Home() {
               Fresh lunch and dinner prepared in our home kitchen and delivered locally. Simple food, balanced spices and familiar flavours.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Button href="#todays-menu">View Today&apos;s Menu <ArrowRight className="size-4" aria-hidden="true" /></Button>
+              <Button href="#todays-menu">View Menu <ArrowRight className="size-4" aria-hidden="true" /></Button>
               <Button href="/plans" variant="secondary">Explore Meal Plans</Button>
             </div>
             <DeliveryChecker />

@@ -3,25 +3,39 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { CART_STORAGE_KEY } from "@/lib/constants";
 import { kolkataDate, allowedOrderDate } from "@/lib/dates";
+import { calculateThaliPrice, customizationSignature } from "@/lib/thali";
 
 const CartContext = createContext(null);
 const MIN_QUANTITY = 1;
 const MAX_QUANTITY = 10;
 
-function itemKey(mealId, deliveryMealPeriod) {
-  return `${mealId}::${deliveryMealPeriod}`;
+function itemKey(mealId, deliveryMealPeriod, choices = {}, addOns = {}) {
+  return `${mealId}::${deliveryMealPeriod}::${customizationSignature(choices, addOns)}`;
 }
 
 function clampQuantity(quantity) {
   return Math.min(MAX_QUANTITY, Math.max(MIN_QUANTITY, Number(quantity) || MIN_QUANTITY));
 }
 
-function createCartItem(meal, deliveryMealPeriod, quantity, serviceDate) {
+function createCartItem(meal, deliveryMealPeriod, quantity, serviceDate, customization = {}) {
+  const selectedChoices = customization.selectedChoices || {};
+  const selectedAddOns = customization.selectedAddOns || {};
+  const priced = calculateThaliPrice(meal, selectedChoices, selectedAddOns, clampQuantity(quantity));
+  const limits = [meal.stock || 10, ...priced.selectedChoices.flatMap((group) => group.options.map((option) => meal.choiceGroups.find((entry) => entry.id === group.groupId)?.options.find((entry) => entry.id === option.id)?.stock ?? 10)), ...priced.selectedAddOns.map((addOn) => { const stock = meal.addOns.find((entry) => entry.id === addOn.id)?.stock; return stock == null ? 10 : Math.floor(stock / addOn.quantity); })];
   return {
+    key: itemKey(meal.id, deliveryMealPeriod, selectedChoices, selectedAddOns),
     mealId: meal.id,
     name: meal.name,
     image: meal.image,
-    price: meal.price,
+    price: priced.unitTotal,
+    basePrice: priced.basePrice,
+    fixedItems: priced.fixedItems,
+    selectedChoices,
+    selectedAddOns,
+    choiceSummary: priced.selectedChoices,
+    addOnSummary: priced.selectedAddOns,
+    maxThaliQuantity: Math.min(10, ...limits),
+    needsReview: false,
     quantity: clampQuantity(quantity),
     deliveryMealPeriod,
     serviceDate,
@@ -44,7 +58,7 @@ function sanitizeSavedCart(savedItems) {
 
   return validItems
     .filter((item) => item.deliveryMealPeriod === savedPeriod && (item.serviceDate || savedDate) === savedDate && allowedOrderDate(savedDate))
-    .map((item) => ({ ...item, serviceDate: savedDate, quantity: clampQuantity(item.quantity) }));
+    .map((item) => ({ ...item, key: item.key || itemKey(item.mealId, item.deliveryMealPeriod, item.selectedChoices || {}, item.selectedAddOns || {}), basePrice: item.basePrice ?? item.price, selectedChoices: item.selectedChoices || {}, selectedAddOns: item.selectedAddOns || {}, choiceSummary: item.choiceSummary || [], addOnSummary: item.addOnSummary || [], needsReview: item.needsReview || !Object.hasOwn(item, "selectedChoices"), serviceDate: savedDate, quantity: clampQuantity(item.quantity) }));
 }
 
 export function CartProvider({ children }) {
@@ -76,8 +90,8 @@ export function CartProvider({ children }) {
     window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
   }, [hydrated, items]);
 
-  function addItem(meal, deliveryMealPeriod, quantity = 1, serviceDate = kolkataDate()) {
-    const newItem = createCartItem(meal, deliveryMealPeriod, quantity, serviceDate);
+  function addItem(meal, deliveryMealPeriod, quantity = 1, serviceDate = kolkataDate(), customization = {}, editKey = null) {
+    const newItem = createCartItem(meal, deliveryMealPeriod, quantity, serviceDate, customization);
     const cartPeriod = items[0]?.deliveryMealPeriod;
     const cartDate = items[0]?.serviceDate;
 
@@ -93,14 +107,15 @@ export function CartProvider({ children }) {
     }
 
     setItems((currentItems) => {
-      const key = itemKey(meal.id, deliveryMealPeriod);
-      const existingItem = currentItems.find((item) => itemKey(item.mealId, item.deliveryMealPeriod) === key);
+      const remaining = editKey ? currentItems.filter((item) => item.key !== editKey) : currentItems;
+      const key = newItem.key;
+      const existingItem = remaining.find((item) => item.key === key);
 
-      if (!existingItem) return [...currentItems, newItem];
+      if (!existingItem) return [...remaining, newItem];
 
-      return currentItems.map((item) =>
-        itemKey(item.mealId, item.deliveryMealPeriod) === key
-          ? { ...item, quantity: clampQuantity(item.quantity + newItem.quantity) }
+      return remaining.map((item) =>
+        item.key === key
+          ? { ...item, quantity: Math.min(item.maxThaliQuantity || 10, clampQuantity(item.quantity + newItem.quantity)) }
           : item,
       );
     });
@@ -109,7 +124,7 @@ export function CartProvider({ children }) {
   }
 
   function addOrderItems(mealSelections, deliveryMealPeriod, serviceDate = kolkataDate()) {
-    const newItems = mealSelections.map(({ meal, quantity }) => createCartItem(meal, deliveryMealPeriod, quantity, serviceDate));
+    const newItems = mealSelections.map(({ meal, quantity, customization }) => createCartItem(meal, deliveryMealPeriod, quantity, serviceDate, customization));
     if (!newItems.length) return { status: "empty" };
     const cartPeriod = items[0]?.deliveryMealPeriod;
     if (cartPeriod && (cartPeriod !== deliveryMealPeriod || items[0]?.serviceDate !== serviceDate)) {
@@ -120,23 +135,23 @@ export function CartProvider({ children }) {
     setItems((currentItems) => {
       const mergedItems = [...currentItems];
       newItems.forEach((newItem) => {
-        const index = mergedItems.findIndex((item) => itemKey(item.mealId, item.deliveryMealPeriod) === itemKey(newItem.mealId, newItem.deliveryMealPeriod));
+        const index = mergedItems.findIndex((item) => item.key === newItem.key);
         if (index === -1) mergedItems.push(newItem);
-        else mergedItems[index] = { ...mergedItems[index], quantity: clampQuantity(mergedItems[index].quantity + newItem.quantity) };
+        else mergedItems[index] = { ...mergedItems[index], quantity: Math.min(mergedItems[index].maxThaliQuantity || 10, clampQuantity(mergedItems[index].quantity + newItem.quantity)) };
       });
       return mergedItems;
     });
     return { status: "added" };
   }
 
-  function removeItem(mealId, deliveryMealPeriod) {
-    setItems((currentItems) => currentItems.filter((item) => itemKey(item.mealId, item.deliveryMealPeriod) !== itemKey(mealId, deliveryMealPeriod)));
+  function removeItem(key) {
+    setItems((currentItems) => currentItems.filter((item) => item.key !== key));
   }
 
-  function updateQuantity(mealId, deliveryMealPeriod, quantity) {
+  function updateQuantity(key, quantity) {
     setItems((currentItems) => currentItems.map((item) =>
-      itemKey(item.mealId, item.deliveryMealPeriod) === itemKey(mealId, deliveryMealPeriod)
-        ? { ...item, quantity: clampQuantity(quantity) }
+      item.key === key
+        ? { ...item, quantity: Math.min(item.maxThaliQuantity || 10, clampQuantity(quantity)) }
         : item,
     ));
   }

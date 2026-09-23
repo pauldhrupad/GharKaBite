@@ -19,7 +19,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${manrope.variable} antialiased`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${manrope.variable} antialiased`}>
       <body><Providers><AppChrome>{children}</AppChrome></Providers></body>
     </html>
   );

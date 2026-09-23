@@ -51,7 +51,7 @@ export default function MenuExplorer({ initialDate }) {
     return meals.filter((meal) => {
       const matchesPeriod = meal.slots.includes(period);
       const matchesCategory = category === "All" || meal.category === category;
-      const searchableText = `${meal.name} ${meal.contents.join(" ")}`.toLowerCase();
+      const searchableText = `${meal.name} ${meal.contents.join(" ")} ${meal.choiceGroups.flatMap((group) => group.options.map((option) => option.name)).join(" ")} ${meal.addOns.map((item) => item.name).join(" ")}`.toLowerCase();
       const matchesSearch = !normalizedSearch || searchableText.includes(normalizedSearch);
       return matchesPeriod && matchesCategory && matchesSearch;
     });
@@ -86,7 +86,7 @@ export default function MenuExplorer({ initialDate }) {
         </div>
 
         <label className="relative block w-full lg:max-w-sm">
-          <span className="sr-only">Search meals</span>
+          <span className="sr-only">Search Thalis</span>
           <Search className="absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
           <input
             type="search"
@@ -94,14 +94,14 @@ export default function MenuExplorer({ initialDate }) {
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             className="input-field with-leading-icon"
-            placeholder="Search by meal or ingredient"
+            placeholder="Search by Thali or ingredient"
             autoComplete="off"
             enterKeyHint="search"
           />
         </label>
       </div>
 
-      <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none]" aria-label="Filter meals by category">
+      <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none]" aria-label="Filter Thalis by category">
         <span className="mr-1 inline-flex shrink-0 items-center gap-2 text-sm font-black"><SlidersHorizontal className="size-4" aria-hidden="true" /> Categories</span>
         {categories.map((option) => (
           <button
@@ -117,7 +117,7 @@ export default function MenuExplorer({ initialDate }) {
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-4">
-        <p className="text-sm font-bold text-text-secondary">Showing {filteredMeals.length} {period.toLowerCase()} {filteredMeals.length === 1 ? "meal" : "meals"}</p>
+        <p className="text-sm font-bold text-text-secondary">Showing {filteredMeals.length} {period.toLowerCase()} {filteredMeals.length === 1 ? "Thali" : "Thalis"}</p>
         <p className="hidden text-xs font-bold text-text-secondary sm:block">Availability reflects today&apos;s limited batches.</p>
       </div>
 
@@ -128,7 +128,7 @@ export default function MenuExplorer({ initialDate }) {
       ) : (
         <div className="card-surface mt-6 px-6 py-14 text-center">
           <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary"><UtensilsCrossed className="size-6" aria-hidden="true" /></span>
-          <h2 className="mt-5 text-xl font-black">No matching meals</h2>
+          <h2 className="mt-5 text-xl font-black">No matching Thalis</h2>
           <p className="mt-2 text-sm text-text-secondary">Try another category, meal period or search term.</p>
           <button type="button" onClick={clearFilters} className="mt-5 min-h-10 rounded-xl bg-primary px-5 text-sm font-extrabold text-white hover:bg-primary-hover">Clear filters</button>
         </div>

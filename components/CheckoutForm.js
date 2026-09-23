@@ -81,12 +81,12 @@ export default function CheckoutForm() {
   const eligibleItems = items.filter((item) => {
     const meal = menu.find((entry) => entry.id === item.mealId);
     return meal && selectedSubscription?.allowedMealTypes.includes(meal.mealType);
-  });
+  }).filter((item, index, eligible) => eligible.findIndex((candidate) => candidate.mealId === item.mealId) === index);
   const coveredItem = eligibleItems.find((item) => item.mealId === coveredMealId);
-  const payableSubtotal = subtotal - (coveredItem?.price || 0);
+  const payableSubtotal = subtotal - (coveredItem?.basePrice || 0);
   const deliveryFee = selectedSubscription ? 0 : calculateDeliveryFee(subtotal, settings.freeDeliveryThreshold ?? 399);
   const promo = usePromoQuote(promoCode, payableSubtotal);
-  const total = Math.max(0, subtotal - (coveredItem?.price || 0) - (promo?.valid ? promo.discount : 0) + deliveryFee);
+  const total = Math.max(0, subtotal - (coveredItem?.basePrice || 0) - (promo?.valid ? promo.discount : 0) + deliveryFee);
   const availability = serviceDate === kolkataDate() ? getAvailability(mealPeriod) : { available: true, reason: "" };
   const selectedAddress = savedAddresses.find((address, index) => addressKey(address, index) === selectedAddressId);
   const profileReady = authStatus === "authenticated" && profileState.userId === session?.user?.id && profileState.status === "ready";
@@ -195,7 +195,7 @@ export default function CheckoutForm() {
     setSubmitting(true);
 
     const payload = {
-      items: items.map((item) => ({ mealId: item.mealId, quantity: item.quantity })),
+        items: items.map((item) => ({ mealId: item.mealId, quantity: item.quantity, selectedChoices: item.selectedChoices, selectedAddOns: item.selectedAddOns })),
       contact: { name: form.fullName.trim(), phone: form.mobile.replace(/\D/g, ""), email: form.email.trim() },
       deliveryAddress: { house: form.house.trim(), street: form.street.trim(), area: form.area.trim(), landmark: form.landmark.trim(), city: form.city.trim(), pinCode: form.pinCode, ...(form.location ? { location: form.location } : {}) },
       mealPeriod, serviceDate, deliverySlot, notes: form.notes.trim(), promoCode,
@@ -231,7 +231,7 @@ export default function CheckoutForm() {
   }
 
   if (!hydrated) return <section className="container-shell py-10"><div className="h-80 animate-pulse rounded-2xl bg-surface-muted" /></section>;
-  if (!items.length) return <section className="container-shell py-12"><EmptyState title="Your tiffin box is empty." description="Add a lunch or dinner meal before continuing to checkout." actionLabel="Browse Today’s Menu" /></section>;
+  if (!items.length) return <section className="container-shell py-12"><EmptyState title="Your tiffin box is empty." description="Add a lunch or dinner meal before continuing to checkout." actionLabel="Browse Menu" /></section>;
   if (authStatus === "loading" || (authStatus === "authenticated" && !profileReady && !profileFailed)) return <section className="container-shell py-10"><div className="card-surface h-44 animate-pulse bg-surface-muted" aria-label="Loading your checkout details" /></section>;
   if (authStatus === "unauthenticated") return <section className="container-shell py-10"><div className="card-surface max-w-xl p-6 md:p-8"><h2 className="text-2xl font-black">Sign in to finish your order</h2><p className="mt-2 text-sm leading-6 text-text-secondary">Your saved contact details and delivery addresses will be filled in automatically. Your cart will be waiting when you return.</p><div className="mt-5 flex flex-wrap gap-3"><Button href="/login?callbackUrl=/checkout">Sign in and continue</Button><Button href="/register" variant="secondary">Create an account</Button></div></div></section>;
 
@@ -302,7 +302,7 @@ export default function CheckoutForm() {
           </div>{!paymentSettings.onlinePaymentEnabled && <p className="mt-3 text-sm text-text-secondary">Online payment is temporarily unavailable. Please choose another payment method.</p>}{paymentMethod === "manual_online" && <div className="mt-5"><PaymentOptions payment={paymentSettings} channel={paymentChannel} onChange={setPaymentChannel} amount={total} /></div>}</>}
         </CheckoutSection>
 
-        {availableSubscriptions.length > 0 && <CheckoutSection icon={Check} number="5" title="Use a meal plan"><label className="text-sm font-bold">Subscription<CustomSelect value={subscriptionId} onChange={(event) => { setSubscriptionId(event.target.value); setCoveredMealId(""); }} className="input-field mt-2"><option value="">Pay without a plan credit</option>{availableSubscriptions.map((item) => <option key={item._id} value={item._id}>{item.planName} · {item.remainingMeals} left</option>)}</CustomSelect></label>{subscriptionId && <label className="mt-3 block text-sm font-bold">Cover one meal unit<CustomSelect value={coveredMealId} onChange={(event) => setCoveredMealId(event.target.value)} className="input-field mt-2"><option value="">Choose a meal</option>{eligibleItems.map((item) => <option key={item.mealId} value={item.mealId}>{item.name} · ₹{item.price} covered</option>)}</CustomSelect>{errors.coveredMealId && <span className="text-xs text-danger">{errors.coveredMealId}</span>}</label>}<p className="mt-3 text-xs text-text-secondary">Using a plan credit makes delivery free for this order.</p></CheckoutSection>}
+        {availableSubscriptions.length > 0 && <CheckoutSection icon={Check} number="5" title="Use a meal plan"><label className="text-sm font-bold">Subscription<CustomSelect value={subscriptionId} onChange={(event) => { setSubscriptionId(event.target.value); setCoveredMealId(""); }} className="input-field mt-2"><option value="">Pay without a plan credit</option>{availableSubscriptions.map((item) => <option key={item._id} value={item._id}>{item.planName} · {item.remainingMeals} left</option>)}</CustomSelect></label>{subscriptionId && <label className="mt-3 block text-sm font-bold">Cover one Thali base<CustomSelect value={coveredMealId} onChange={(event) => setCoveredMealId(event.target.value)} className="input-field mt-2"><option value="">Choose a Thali</option>{eligibleItems.map((item) => <option key={item.key} value={item.mealId}>{item.name} · ₹{item.basePrice} base covered</option>)}</CustomSelect>{errors.coveredMealId && <span className="text-xs text-danger">{errors.coveredMealId}</span>}</label>}<p className="mt-3 text-xs text-text-secondary">Your plan covers one eligible base Thali and delivery. Paid choices and add-ons remain payable.</p></CheckoutSection>}
 
         <CheckoutSection icon={NotebookPen} number="6" title="Order Notes">
           <label className="block text-sm font-bold">Cooking or delivery instructions <span className="font-normal text-text-secondary">(optional)</span><textarea name="notes" value={form.notes} onChange={updateField} className="input-field mt-2 min-h-24 resize-y" placeholder="e.g. Please make it mildly spicy" maxLength={300} /></label>
@@ -313,10 +313,10 @@ export default function CheckoutForm() {
       <aside className="card-surface p-5 lg:sticky lg:top-24">
         <h2 className="text-xl font-black">Order Summary</h2>
         <div className="mt-5 space-y-4">
-          {items.map((item) => <div key={`${item.mealId}-${item.deliveryMealPeriod}`} className="flex gap-3"><div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-surface-muted"><Image src={item.image} alt="" fill sizes="56px" className="object-cover" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-black">{item.name}</p><p className="text-xs text-text-secondary">{item.quantity} × ₹{item.price}</p></div><p className="text-sm font-black">₹{item.quantity * item.price}</p></div>)}
+          {items.map((item) => <div key={item.key} className="flex gap-3"><div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-surface-muted"><Image src={item.image} alt="" fill sizes="56px" className="object-cover" /></div><div className="min-w-0 flex-1"><p className="text-sm font-black">{item.name}</p><p className="text-xs text-text-secondary">{item.quantity} × ₹{item.price}</p>{item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}{item.addOnSummary?.map((addOn) => <p key={addOn.id} className="text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per Thali</p>)}</div><p className="text-sm font-black">₹{item.quantity * item.price}</p></div>)}
         </div>
         <div className="mt-5 space-y-3 border-t border-border pt-5 text-sm">
-          {coveredItem && <div className="flex justify-between text-success"><span>Plan meal</span><span>−₹{coveredItem.price}</span></div>}
+          {coveredItem && <div className="flex justify-between text-success"><span>Plan Thali base</span><span>−₹{coveredItem.basePrice}</span></div>}
           {promo?.valid && <div className="flex justify-between text-success"><span>{promo.code}</span><span>−₹{promo.discount}</span></div>}
           <label className="block font-bold">Promo code<input name="promoCode" type="text" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Enter promo code" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} className="input-field mt-1 uppercase" /></label>
           {promoCode.trim() && <p className={`text-xs font-bold ${promo.valid ? "text-success" : "text-warning"}`} role="status">{promo.message}</p>}

@@ -1,7 +1,7 @@
 import { ShoppingBag } from "lucide-react";
 import Button from "./Button";
 
-export default function EmptyState({ title, description, actionLabel = "Browse today's menu", href = "/menu" }) {
+export default function EmptyState({ title, description, actionLabel = "Browse Menu", href = "/menu" }) {
   return (
     <div className="card-surface mx-auto max-w-xl px-6 py-14 text-center">
       <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary"><ShoppingBag className="size-7" aria-hidden="true" /></div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import { CheckCircle2, Minus, Plus, ShieldCheck, Tag, Trash2, Truck } from "lucide-react";
 import Button from "./Button";
@@ -35,7 +36,7 @@ export default function CartPageContent() {
         <EmptyState
           title="Your tiffin box is empty."
           description="Pick a freshly prepared lunch or dinner and it will be saved here for you."
-          actionLabel="Browse Today’s Menu"
+          actionLabel="Browse Menu"
         />
       </section>
     );
@@ -46,6 +47,7 @@ export default function CartPageContent() {
   const freeDeliveryProgress = freeDeliveryThreshold === 0 ? 100 : Math.min(100, (subtotal / freeDeliveryThreshold) * 100);
   const discount = promo.valid ? promo.discount : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
+  const needsReview = items.some((item) => item.needsReview);
 
   function applyPromo(event) {
     event.preventDefault();
@@ -56,15 +58,15 @@ export default function CartPageContent() {
     <section className="container-shell grid gap-7 py-10 lg:grid-cols-[1fr_22rem] lg:items-start">
       <div>
         <div className="mb-4 flex items-center justify-between gap-4">
-          <p className="text-sm font-bold text-text-secondary">{items.length} {items.length === 1 ? "meal selection" : "meal selections"}</p>
+          <p className="text-sm font-bold text-text-secondary">{items.length} {items.length === 1 ? "Thali selection" : "Thali selections"}</p>
           <button type="button" onClick={clearCart} className="min-h-10 rounded-lg px-2 text-sm font-black text-danger hover:bg-danger/8">Clear cart</button>
         </div>
 
         <div className="space-y-4">
           {items.map((item) => (
-            <article key={`${item.mealId}-${item.deliveryMealPeriod}`} className="card-surface flex gap-4 p-4">
+            <article key={item.key} className="card-surface flex gap-4 p-4">
               <div className="relative size-24 shrink-0 overflow-hidden rounded-xl bg-surface-muted sm:size-28">
-                <Image src={item.image} alt={`${item.name} meal`} fill sizes="112px" className="object-cover" />
+                <Image src={item.image} alt={item.name} fill sizes="112px" className="object-cover" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
@@ -72,10 +74,14 @@ export default function CartPageContent() {
                     <h2 className="font-black sm:text-lg">{item.name}</h2>
                     <p className="mt-1 text-xs font-bold text-text-secondary">{item.deliveryMealPeriod} · {item.serviceDate}</p>
                     <p className="mt-2 text-sm font-extrabold">₹{item.price} each</p>
+                    {item.needsReview && <p className="mt-2 text-xs font-bold text-warning">Please review this older selection before checkout.</p>}
+                    {item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="mt-1 text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}
+                    {item.addOnSummary?.map((addOn) => <p key={addOn.id} className="mt-1 text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per Thali</p>)}
+                    <Link href={`/menu/${item.mealId}?date=${item.serviceDate}&edit=${encodeURIComponent(item.key)}`} className="mt-2 inline-block text-sm font-bold text-primary underline underline-offset-4">Edit customization</Link>
                   </div>
                   <button
                     type="button"
-                    onClick={() => removeItem(item.mealId, item.deliveryMealPeriod)}
+                    onClick={() => removeItem(item.key)}
                     className="grid size-10 shrink-0 place-items-center rounded-lg text-danger hover:bg-danger/8"
                     aria-label={`Remove ${item.name} from cart`}
                   >
@@ -89,7 +95,7 @@ export default function CartPageContent() {
                     <div className="flex items-center rounded-lg border border-border bg-surface">
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.mealId, item.deliveryMealPeriod, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.key, item.quantity - 1)}
                         disabled={item.quantity <= 1}
                         className="grid size-10 place-items-center rounded-l-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
                         aria-label={`Decrease ${item.name} quantity`}
@@ -99,8 +105,8 @@ export default function CartPageContent() {
                       <span className="min-w-9 text-center text-sm font-black" aria-live="polite">{item.quantity}</span>
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.mealId, item.deliveryMealPeriod, item.quantity + 1)}
-                        disabled={item.quantity >= 10}
+                        onClick={() => updateQuantity(item.key, item.quantity + 1)}
+                        disabled={item.quantity >= Math.min(10, item.maxThaliQuantity || 10)}
                         className="grid size-10 place-items-center rounded-r-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
                         aria-label={`Increase ${item.name} quantity`}
                       >
@@ -164,7 +170,8 @@ export default function CartPageContent() {
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
         </div>
         {promoCode && !promo.valid ? <p className="mt-4 text-xs font-semibold text-warning">Remove or correct the promo code to continue.</p> : null}
-        {promoCode && !promo.valid ? <button type="button" disabled className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-black text-white opacity-50">Continue to checkout</button> : <Button href="/checkout" className="mt-5 w-full">Continue to checkout</Button>}
+        {needsReview && <p className="mt-4 text-xs font-semibold text-warning">Edit the older cart selection to choose its Thali options.</p>}
+        {(needsReview || promoCode && !promo.valid) ? <button type="button" disabled className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-black text-white opacity-50">Continue to checkout</button> : <Button href="/checkout" className="mt-5 w-full">Continue to checkout</Button>}
         <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 shrink-0 text-success" aria-hidden="true" /> Checkout offers manually verified Online Payment and Cash on Delivery when enabled.</p>
       </aside>
     </section>

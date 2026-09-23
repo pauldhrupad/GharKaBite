@@ -7,7 +7,7 @@ import Button from "./Button";
 import BrandMark from "./BrandMark";
 import { useCart } from "@/context/CartContext";
 
-const links = [{ href: "/", label: "Home" }, { href: "/menu", label: "Today's Menu" }, { href: "/plans", label: "Meal Plans" }, { href: "/subscriptions", label: "My Plans" }, { href: "/orders", label: "My Orders" }];
+const links = [{ href: "/", label: "Home" }, { href: "/menu", label: "Menu" }, { href: "/plans", label: "Meal Plans" }, { href: "/subscriptions", label: "My Plans" }, { href: "/orders", label: "My Orders" }];
 
 export default function Navbar() {
   const pathname = usePathname();

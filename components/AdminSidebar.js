@@ -9,10 +9,10 @@ import BrandMark from "./BrandMark";
 const links = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
-  { href: "/admin/meals", label: "Meals", icon: ChefHat },
+  { href: "/admin/meals", label: "Thalis", icon: ChefHat },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: CalendarRange },
-  { href: "/admin/settings", label: "Kitchen Settings", icon: Settings },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 function Navigation({ pathname, collapsed = false, onNavigate }) {

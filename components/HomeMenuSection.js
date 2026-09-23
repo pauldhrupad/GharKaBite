@@ -1,30 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
-import { Check, Clock3, Plus } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { ArrowRight, Clock3 } from "lucide-react";
 import Badge from "./Badge";
 import { kolkataDate } from "@/lib/dates";
-import { useCart } from "@/context/CartContext";
 import { MEAL_PERIOD_STORAGE_KEY } from "@/lib/constants";
 import { useKitchen } from "@/context/KitchenContext";
 import { formatCutoffTime } from "@/lib/kitchen-operations";
 
 function HomeMealCard({ meal, orderingDisabled, unavailableReason }) {
-  const [added, setAdded] = useState(false);
-  const timerRef = useRef(null);
-  const { addItem } = useCart();
-
-  useEffect(() => () => clearTimeout(timerRef.current), []);
-
-  function addMeal() {
-    if (orderingDisabled) return;
-    const result = addItem(meal, meal.deliveryMealPeriod, 1);
-    if (result.status !== "added") return;
-    setAdded(true);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setAdded(false), 1400);
-  }
 
   return (
     <article className="group snap-start overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_14px_38px_rgba(56,45,31,0.07)]">
@@ -48,16 +34,8 @@ function HomeMealCard({ meal, orderingDisabled, unavailableReason }) {
         <h3 className="text-lg font-black tracking-tight">{meal.name}</h3>
         <p className="mt-1 min-h-11 text-sm leading-5 text-text-secondary">{meal.description}</p>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
-          <p className="text-xl font-black">₹{meal.price}</p>
-          <button
-            type="button"
-            onClick={addMeal}
-            disabled={orderingDisabled}
-            className={`inline-flex min-h-10 min-w-24 items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-extrabold transition ${orderingDisabled ? "cursor-not-allowed bg-surface-muted text-text-secondary" : added ? "bg-success text-white" : "bg-primary text-white hover:bg-primary-hover"}`}
-            aria-label={`Add ${meal.name} to cart`}
-          >
-            {orderingDisabled ? "Closed" : added ? <><Check className="size-4" aria-hidden="true" /> Added</> : <>Add <Plus className="size-4" aria-hidden="true" /></>}
-          </button>
+          <p className="text-xl font-black">From ₹{meal.price}</p>
+          {orderingDisabled ? <span className="rounded-xl bg-surface-muted px-4 py-2 text-sm font-extrabold text-text-secondary">Closed</span> : <Link href={`/menu/${meal.id}?date=${kolkataDate()}`} className="inline-flex min-h-10 items-center gap-1 rounded-xl bg-primary px-4 text-sm font-extrabold text-white">Customize <ArrowRight className="size-4" aria-hidden="true" /></Link>}
         </div>
         {orderingDisabled && <p className="mt-3 text-xs font-bold text-danger">{unavailableReason}</p>}
       </div>
@@ -92,8 +70,8 @@ export default function HomeMenuSection() {
     <section id="todays-menu" className="container-shell py-14 md:py-20">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="eyebrow">Today&apos;s menu</p>
-          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">What&apos;s Cooking Today?</h2>
+          <p className="eyebrow">Today&apos;s Thalis</p>
+          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Build Your Thali</h2>
           <p className="mt-1 font-bold text-accent">আজকের রান্না</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
