@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+.map-picker-pin { display: block; width: 26px; height: 26px; border: 4px solid white; border-radius: 50% 50% 50% 0; background: #27633d; box-shadow: 0 2px 8px #0008; transform: rotate(-45deg); }
 
 :root {
   --background: #fbf8f1;

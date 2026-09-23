@@ -4,7 +4,7 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 
 const authState = vi.hoisted(() => ({ id: null }));
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: authState.id, role: "customer" } }) }));
-vi.mock("@/lib/delivery", () => ({ checkDelivery: async () => ({ serviceable: true }) }));
+vi.mock("@/lib/delivery", () => ({ checkDelivery: async () => ({ serviceable: true }), validLocation: (location) => typeof location?.lat === "number" && typeof location?.lon === "number" && Math.abs(location.lat) <= 90 && Math.abs(location.lon) <= 180 }));
 
 let replica, mongoose, Meal, DailyMenu, DailyCapacity, Order, Subscription, SubscriptionPlan, KitchenSettings, DemoPayment;
 let getMenu, seedCatalog, kolkataDate, createOrder, updateOrderStatus, purchaseSubscription, setSubscriptionStatus;
@@ -108,6 +108,28 @@ describe("daily menu and checkout", () => {
 
   it("rejects unverified delivery without creating an order", async () => {
     await expect(createOrder(user(), request(), "COD", { verifyDelivery: async () => ({ serviceable: false, reason: "Unverified" }) })).rejects.toMatchObject({ status: 422 });
+    expect(await Order.countDocuments()).toBe(0);
+  });
+
+  it("rechecks and stores a map pin, while rejecting invalid coordinates", async () => {
+    const point = { lat: 22.501, lon: 88.301 };
+    const body = request();
+    body.deliveryAddress.location = point;
+    const verifyDelivery = vi.fn(async () => ({ serviceable: true }));
+    const order = await createOrder(user(), body, "COD", { verifyDelivery });
+    expect(verifyDelivery).toHaveBeenCalledWith(expect.objectContaining({ location: point }));
+    expect((await Order.findById(order._id)).deliveryAddress.location.toObject()).toMatchObject(point);
+    const invalid = request();
+    invalid.deliveryAddress.location = { lat: 999, lon: 88.301 };
+    await expect(createOrder(user(), invalid, "COD", { verifyDelivery })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("rechecks a map pin for demo payment before creating an order", async () => {
+    const body = request();
+    body.deliveryAddress.location = { lat: 22.501, lon: 88.301 };
+    const verifyDelivery = vi.fn(async () => ({ serviceable: false, reason: "Outside delivery area" }));
+    await expect(createOrder(user(), body, "DEMO", { verifyDelivery })).rejects.toMatchObject({ status: 422 });
+    expect(verifyDelivery).toHaveBeenCalledWith(expect.objectContaining({ location: body.deliveryAddress.location }));
     expect(await Order.countDocuments()).toBe(0);
   });
 

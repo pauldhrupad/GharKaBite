@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import { Banknote, Check, Clock3, CreditCard, MapPin, NotebookPen, ShieldCheck, UserRound } from "lucide-react";
 import Button from "./Button";
 import EmptyState from "./EmptyState";
+import LocationPicker from "./LocationPicker";
 import { useCart } from "@/context/CartContext";
 import { useKitchen } from "@/context/KitchenContext";
 import { deliverySlotStart, kolkataDate } from "@/lib/dates";
@@ -19,7 +20,7 @@ const deliverySlots = {
 };
 
 const initialForm = {
-  fullName: "", mobile: "", email: "", house: "", street: "", area: "", landmark: "", city: "Kolkata", pinCode: "", notes: "",
+  fullName: "", mobile: "", email: "", house: "", street: "", area: "", landmark: "", city: "Kolkata", pinCode: "", location: null, notes: "",
 };
 const addressFields = ["house", "street", "area", "landmark", "city", "pinCode"];
 
@@ -35,6 +36,7 @@ function addressValues(address) {
     landmark: address.landmark || "",
     city: address.city || "Kolkata",
     pinCode: address.pinCode || "",
+    location: address.location || null,
   };
 }
 
@@ -141,7 +143,7 @@ export default function CheckoutForm() {
 
   function updateField(event) {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => ({ ...current, [name]: value, ...(["street", "area", "city", "pinCode"].includes(name) ? { location: null } : {}) }));
     setErrors((current) => ({ ...current, [name]: "" }));
     if (addressFields.includes(name)) {
       setSelectedAddressId("custom");
@@ -185,7 +187,7 @@ export default function CheckoutForm() {
     const payload = {
       items: items.map((item) => ({ mealId: item.mealId, quantity: item.quantity })),
       contact: { name: form.fullName.trim(), phone: form.mobile.replace(/\D/g, ""), email: form.email.trim() },
-      deliveryAddress: { house: form.house.trim(), street: form.street.trim(), area: form.area.trim(), landmark: form.landmark.trim(), city: form.city.trim(), pinCode: form.pinCode },
+      deliveryAddress: { house: form.house.trim(), street: form.street.trim(), area: form.area.trim(), landmark: form.landmark.trim(), city: form.city.trim(), pinCode: form.pinCode, ...(form.location ? { location: form.location } : {}) },
       mealPeriod, serviceDate, deliverySlot, notes: form.notes.trim(), promoCode,
       subscriptionId, coveredMealId,
     };
@@ -213,7 +215,7 @@ export default function CheckoutForm() {
   async function checkAddress() {
     setDeliveryResult({ serviceable: false, reason: "Checking address…" });
     try {
-      const address = { house: form.house, street: form.street, area: form.area, city: form.city, pinCode: form.pinCode };
+      const address = { house: form.house, street: form.street, area: form.area, city: form.city, pinCode: form.pinCode, ...(form.location ? { location: form.location } : {}) };
       const response = await fetch("/api/delivery/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address }) });
       setDeliveryResult(await response.json());
     } catch { setDeliveryResult({ serviceable: false, reason: "We couldn't verify this address. Please contact us for delivery confirmation." }); }
@@ -257,6 +259,7 @@ export default function CheckoutForm() {
 
         <CheckoutSection icon={MapPin} number="2" title="Delivery Address">
           {savedAddresses.length > 0 && <label className="mb-4 block text-sm font-bold">Deliver to<select value={selectedAddressId} onChange={selectAddress} className="input-field mt-2"><option value="custom">Use another address</option>{savedAddresses.map((address, index) => <option key={addressKey(address, index)} value={addressKey(address, index)}>{address.label || `Address ${index + 1}`} · {address.area}, {address.city}</option>)}</select></label>}
+          <div className="mb-4"><LocationPicker location={form.location} onSelect={(choice) => { setForm((current) => ({ ...current, ...choice.address, location: choice.location })); setSelectedAddressId("custom"); setEditingAddress(true); setDeliveryResult(choice.result); setAddressQuery(""); setSuggestions([]); }} /></div>
           {selectedAddress && !editingAddress ? (
             <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-border bg-surface-muted p-4">
               <div className="min-w-0 text-sm leading-6"><p className="font-black">{selectedAddress.label || "Saved address"}</p><p>{[form.house, form.street, form.area].filter(Boolean).join(", ")}</p>{form.landmark && <p>{form.landmark}</p>}<p>{form.city} · {form.pinCode}</p></div>
@@ -265,7 +268,7 @@ export default function CheckoutForm() {
           ) : (
             <>
               <label className="mb-4 block text-sm font-bold">Search address<input type="search" name="addressSearch" value={addressQuery} onChange={(event) => setAddressQuery(event.target.value)} className="input-field mt-2" placeholder="Search by street, area or PIN" autoComplete="off" enterKeyHint="search" /></label>
-              {suggestions.length > 0 && <div className="mb-4 max-h-40 overflow-y-auto rounded-xl border border-border bg-white">{suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { setAddressQuery(suggestion); setSuggestions([]); setSelectedAddressId("custom"); setForm((current) => ({ ...current, street: suggestion })); setDeliveryResult(null); }} className="block w-full border-b border-border p-2 text-left text-xs hover:bg-surface-muted">{suggestion}</button>)}</div>}
+              {suggestions.length > 0 && <div className="mb-4 max-h-40 overflow-y-auto rounded-xl border border-border bg-white">{suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { setAddressQuery(suggestion); setSuggestions([]); setSelectedAddressId("custom"); setForm((current) => ({ ...current, street: suggestion, location: null })); setDeliveryResult(null); }} className="block w-full border-b border-border p-2 text-left text-xs hover:bg-surface-muted">{suggestion}</button>)}</div>}
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="House / flat" name="house" value={form.house} onChange={updateField} error={errors.house} autoComplete="address-line1" placeholder="e.g. Flat 3B" />
                 <Field label="Building / street" name="street" value={form.street} onChange={updateField} error={errors.street} autoComplete="address-line2" placeholder="e.g. 21 Lake Road" />

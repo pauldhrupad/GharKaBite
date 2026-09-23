@@ -21,6 +21,7 @@ The first menu request seeds eight example meals and the Trial, Weekly and Month
 | `CONTACT_EMAIL` | Optional public support email. Leave blank until a real address exists. |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Free-tier Cloudinary account for admin image uploads. Secrets remain server-side. |
 | `GEOAPIFY_API_KEY` | Free-tier Geoapify key for address suggestions and geocoding. The app proxies requests server-side. |
+| `NEXT_PUBLIC_GEOAPIFY_MAPS_KEY` | Separate browser-visible Geoapify key for map tiles. Restrict it to `http://localhost:3000` and the deployed domain in Geoapify. Set it before building or redeploying. Never use the private server key here. |
 | `KITCHEN_LATITUDE`, `KITCHEN_LONGITUDE` | Private center of the delivery radius. Never use `NEXT_PUBLIC_` for these. |
 | `MAX_DELIVERY_RADIUS_KM` | Straight-line limit, default `5`. |
 
@@ -32,12 +33,12 @@ Production values for Cloudinary, Geoapify and the private kitchen center are co
 - `/admin/subscriptions` lists customers and lets the owner edit plan offerings and pause, resume or cancel active subscriptions. A pause extends expiry on resume.
 - Customers can select today or tomorrow in `/menu`, add meals to one-date, one-period carts, use one eligible plan credit per order, and track database orders. Using a plan credit makes delivery free.
 - COD orders are created immediately. Demo payment lets testers choose success or failure. A failed attempt creates no order or subscription. Prices, stock, capacity, plan use and delivery are rechecked server-side; MongoDB transactions and idempotency keys guard duplicate submissions.
-- The homepage checker needs a sufficiently specific address. Ambiguous geocoding results are rejected. Kitchen coordinates never appear in API responses or structured data.
+- The homepage, profile and checkout offer an optional map pin or current-location picker. Browser permission is requested only when the user clicks the current-location button. A pin must resolve to a full street and PIN; the customer still enters their house/flat. Manual typing remains available if location access or the map is unavailable. Both paths are rechecked at order placement. Kitchen coordinates never appear in API responses or structured data.
 
 ## Vercel deployment preparation
 
 1. Create a MongoDB Atlas replica-set cluster, database user and network access rules. Give Vercel access without exposing the URI in code. Use a separate test database for integration tests.
-2. Create free-tier Cloudinary and Geoapify accounts, add their credentials in Vercel environment settings, and set the private kitchen coordinates. Cloudinary images require a redeploy after setting its cloud name because Next/Image remote patterns are built from it.
+2. Create free-tier Cloudinary and Geoapify accounts, add their credentials in Vercel environment settings, and set the private kitchen coordinates. Create a separate Geoapify browser key restricted to your production and localhost origins for `NEXT_PUBLIC_GEOAPIFY_MAPS_KEY`. Redeploy after setting it: public variables are embedded at build time. Cloudinary images likewise require a redeploy after setting its cloud name because Next/Image remote patterns are built from it.
 3. Set `SITE_URL` and `NEXTAUTH_URL` to the final HTTPS domain, generate a fresh `AUTH_SECRET`, connect the repository to Vercel, and run `npm run build` before release. Configure a custom domain in Vercel and add the DNS records it shows; then verify the canonical URL, sitemap and robots output.
 4. Keep the demo gateway visibly labeled. Before collecting real money, replace it with Razorpay server-created orders, server-verified signatures and webhooks; add `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `NEXT_PUBLIC_RAZORPAY_KEY_ID` only then. If replacing Geoapify with Google Maps later, restrict browser keys by domain and API, server keys by API and service account context, and review usage and billing limits. Neither provider is used for real payment or Google Maps in this prototype.
 5. Have the privacy, terms and refund text reviewed before commercial launch. Supply a real contact channel and verify food-business information and claims.

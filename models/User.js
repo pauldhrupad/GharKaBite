@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { locationSchema } from "./Location";
 
 const addressSchema = new mongoose.Schema({
   label: { type: String, trim: true, default: "Home" },
@@ -8,6 +9,7 @@ const addressSchema = new mongoose.Schema({
   landmark: { type: String, trim: true, default: "" },
   city: { type: String, trim: true, default: "Kolkata" },
   pinCode: { type: String, trim: true, required: true },
+  location: { type: locationSchema, default: undefined },
 }, { _id: true });
 
 const userSchema = new mongoose.Schema({

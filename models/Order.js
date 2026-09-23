@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { locationSchema } from "./Location";
 
 const orderItemSchema = new mongoose.Schema({
   mealId: { type: String, required: true },
@@ -16,6 +17,7 @@ const addressSchema = new mongoose.Schema({
   landmark: { type: String, trim: true, default: "" },
   city: { type: String, required: true, trim: true },
   pinCode: { type: String, required: true, trim: true },
+  location: { type: locationSchema, default: undefined },
 }, { _id: false });
 
 const statusHistorySchema = new mongoose.Schema({

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
+import { validLocation } from "@/lib/delivery";
 
 const indianMobilePattern = /^[6-9]\d{9}$/;
 
@@ -27,6 +28,7 @@ export async function PATCH(request) {
     const name = String(body.name || "").trim();
     const phone = String(body.phone || "").replace(/\D/g, "");
     const addresses = Array.isArray(body.addresses) ? body.addresses.slice(0, 5) : [];
+    if (addresses.some((address) => address.location != null && !validLocation(address.location))) return Response.json({ message: "A saved map pin is invalid." }, { status: 400 });
     if (name.length < 2) return Response.json({ message: "Please enter a valid name." }, { status: 400 });
     if (!indianMobilePattern.test(phone)) return Response.json({ message: "Please enter a valid Indian mobile number." }, { status: 400 });
 
