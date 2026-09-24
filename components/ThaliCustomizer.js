@@ -66,7 +66,7 @@ export default function ThaliCustomizer({ meal, serviceDate, editKey = "", resto
     } catch (cause) { setError(cause.message); }
   }
 
-  return <div className="mt-5 space-y-4 border-t border-border pt-5">
+  return <div className="mt-4 space-y-4 border-t border-border pt-4 md:mt-5 md:pt-5">
     <fieldset><legend className="text-sm font-black">Delivery period</legend><div className={`mt-3 grid w-full rounded-xl border border-border bg-surface-alt p-1 sm:inline-grid sm:w-auto ${meal.slots.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>{meal.slots.map((slot) => <label key={slot} className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-5 py-2.5 text-sm font-extrabold transition-colors focus-within:outline-2 focus-within:outline-primary active:scale-[0.99] ${period === slot ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-surface hover:text-primary"}`}><input type="radio" name="thaliPeriod" checked={period === slot} onChange={() => setPeriod(slot)} className="sr-only" />{slot}</label>)}</div></fieldset>
     {!availability.available && <p className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger">{availability.reason}</p>}
     {meal.choiceGroups.map((group) => {

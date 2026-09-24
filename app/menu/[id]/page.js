@@ -34,9 +34,9 @@ export default async function MealDetailPage({ params, searchParams }) {
 
   return (
     <>
-      <section className="container-shell py-7 md:py-10">
-        <Button href="/menu" variant="ghost" className="-ml-3 mb-4"><ArrowLeft className="size-4" aria-hidden="true" /> Back to menu</Button>
-        <div className="grid gap-5 lg:grid-cols-2 lg:items-start lg:gap-8">
+      <section className="container-shell py-5 md:py-10">
+        <Button href="/menu" variant="ghost" className="-ml-3 mb-2 min-h-11 md:mb-4 md:min-h-12"><ArrowLeft className="size-4" aria-hidden="true" /> Back to menu</Button>
+        <div className="grid gap-4 md:gap-5 lg:grid-cols-2 lg:items-start lg:gap-8">
           <div className="lg:sticky lg:top-24"><div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-surface-muted">
             <Image src={meal.image} alt={`${meal.name}: ${meal.contents.join(", ")}`} fill priority sizes="(max-width: 1024px) 100vw, 50vw" className={`object-cover ${unavailable ? "grayscale-[35%]" : ""}`} />
             {unavailable && <div className="absolute inset-0 grid place-items-center bg-text-primary/55"><span className="rounded-full bg-white px-5 py-2.5 font-black">Currently unavailable</span></div>}
@@ -47,20 +47,20 @@ export default async function MealDetailPage({ params, searchParams }) {
               <Badge tone={meal.category === "Veg" ? "green" : "terracotta"}>{meal.category}</Badge>
               {meal.badges.filter((badge) => badge !== "Limited").map((badge) => <Badge key={badge} tone="muted">{badge}</Badge>)}
             </div>
-            <h1 className="mt-4 text-4xl font-black tracking-[-0.045em] md:text-5xl">{meal.name}</h1>
+            <h1 className="mt-3 text-4xl font-black tracking-[-0.045em] md:mt-4 md:text-5xl">{meal.name}</h1>
             {meal.choiceUnavailable && <p className="mt-3 rounded-xl bg-warning/10 p-3 text-sm font-bold text-warning">A required choice is currently unavailable, so this item cannot be ordered.</p>}
-            <p className="mt-3 text-lg font-bold text-accent">{meal.shortDescription}</p>
-            <p className="mt-3 text-base leading-7 text-text-secondary">{meal.description}</p>
+            <p className="mt-2 text-lg font-bold text-accent md:mt-3">{meal.shortDescription}</p>
+            <p className="mt-2 text-base leading-6 text-text-secondary md:mt-3 md:leading-7">{meal.description}</p>
 
-            <div className="mt-5 grid gap-2 sm:grid-cols-3">
-              <div className="rounded-xl bg-surface-muted p-4"><Layers3 className="size-5 text-primary" aria-hidden="true" /><p className="mt-2 text-xs font-bold text-text-secondary">{meal.kind === "dish" ? "Dish category" : "Thali type"}</p><p className="font-black">{meal.category}</p></div>
-              <div className="rounded-xl bg-surface-muted p-4"><Clock3 className="size-5 text-primary" aria-hidden="true" /><p className="mt-2 text-xs font-bold text-text-secondary">Available for</p><p className="font-black">{meal.slots.join(" & ")}</p></div>
-              <div className="rounded-xl bg-surface-muted p-4"><PackageCheck className="size-5 text-primary" aria-hidden="true" /><p className="mt-2 text-xs font-bold text-text-secondary">Availability</p><p className={`font-black ${unavailable ? "text-danger" : "text-success"}`}>{unavailable ? "Currently unavailable" : "Available"}</p></div>
+            <div className="mt-4 grid gap-2 sm:mt-5 sm:grid-cols-3">
+              <div className="flex items-center gap-3 rounded-xl bg-surface-muted p-3 sm:block sm:p-4"><Layers3 className="size-5 shrink-0 text-primary" aria-hidden="true" /><div><p className="text-xs font-bold text-text-secondary sm:mt-2">{meal.kind === "dish" ? "Dish category" : "Thali type"}</p><p className="font-black">{meal.category}</p></div></div>
+              <div className="flex items-center gap-3 rounded-xl bg-surface-muted p-3 sm:block sm:p-4"><Clock3 className="size-5 shrink-0 text-primary" aria-hidden="true" /><div><p className="text-xs font-bold text-text-secondary sm:mt-2">Available for</p><p className="font-black">{meal.slots.join(" & ")}</p></div></div>
+              <div className="flex items-center gap-3 rounded-xl bg-surface-muted p-3 sm:block sm:p-4"><PackageCheck className="size-5 shrink-0 text-primary" aria-hidden="true" /><div><p className="text-xs font-bold text-text-secondary sm:mt-2">Availability</p><p className={`font-black ${unavailable ? "text-danger" : "text-success"}`}>{unavailable ? "Currently unavailable" : "Available"}</p></div></div>
             </div>
 
-            {meal.kind !== "dish" && <div className="mt-5 rounded-2xl border border-border bg-surface p-4 md:p-5">
+            {meal.kind !== "dish" && <div className="mt-4 rounded-2xl border border-border bg-surface p-4 md:mt-5 md:p-5">
               <h2 className="text-sm font-black uppercase tracking-wide text-text-secondary">Included in your Thali</h2>
-              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              <ul className="mt-3 grid gap-2 sm:mt-4 sm:grid-cols-2 sm:gap-3">
                 {meal.fixedItems.map((item) => <li key={item.name} className="flex items-center gap-2 text-sm font-bold"><span className="grid size-5 place-items-center rounded-full bg-success/10"><Check className="size-3 text-success" aria-hidden="true" /></span>{item.name}</li>)}
               </ul>
             </div>}
