@@ -117,16 +117,16 @@ describe("daily menu and checkout", () => {
     expect(saved.items[1].price).toBe(179);
   });
 
-  it("limits add-on stock and returns it on early cancellation", async () => {
-    await Meal.updateOne({ slug: "egg-curry-meal", "addOns.id": "extra-egg" }, { $set: { "addOns.$.stock": 1 } });
+  it("ignores legacy add-on stock while retaining per-Thali add-on limits", async () => {
+    await Meal.updateOne({ slug: "egg-curry-meal", "addOns.id": "extra-egg" }, { $set: { "addOns.$.stock": 0 } });
     const body = request("egg-curry-meal");
     body.items[0].selectedAddOns = { "extra-egg": 2 };
-    await expect(createOrder(user(), body, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
-    body.checkoutKey = crypto.randomUUID(); body.items[0].selectedAddOns = { "extra-egg": 1 };
     const order = await createOrder(user(), body, "COD", { verifyDelivery: delivery });
     expect((await Meal.findOne({ slug: "egg-curry-meal" })).addOns.find((item) => item.id === "extra-egg").stock).toBe(0);
     await updateOrderStatus(order.orderNumber, "cancelled");
-    expect((await Meal.findOne({ slug: "egg-curry-meal" })).addOns.find((item) => item.id === "extra-egg").stock).toBe(1);
+    expect((await Meal.findOne({ slug: "egg-curry-meal" })).addOns.find((item) => item.id === "extra-egg").stock).toBe(0);
+    body.checkoutKey = crypto.randomUUID(); body.items[0].selectedAddOns = { "extra-egg": 99 };
+    await expect(createOrder(user(), body, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
   });
 
   it("charges paid add-ons when a subscription covers the base Thali", async () => {
@@ -188,39 +188,59 @@ describe("daily menu and checkout", () => {
     const date = kolkataDate(1);
     const meal = await Meal.findOne({ slug: "veg-home-meal" });
     expect((await getMenu(date)).find((entry) => entry.id === meal.slug).available).toBe(true);
-    await DailyMenu.create({ meal: meal._id, date, availableOverride: false, remaining: meal.stockLimit, stockLimitSnapshot: meal.stockLimit });
+    await DailyMenu.create({ meal: meal._id, date, availableOverride: false });
     expect((await getMenu(date)).find((entry) => entry.id === meal.slug).available).toBe(false);
   });
 
-  it("prevents overselling and capacity overruns under concurrent requests", async () => {
-    await Meal.updateOne({ slug: "veg-home-meal" }, { stockLimit: 1 });
-    const attempts = await Promise.allSettled([createOrder(user(), request(), "COD", { verifyDelivery: delivery }), createOrder(user(), request(), "COD", { verifyDelivery: delivery })]);
-    expect(attempts.filter((item) => item.status === "fulfilled")).toHaveLength(1);
-    expect(await Order.countDocuments()).toBe(1);
-    expect((await DailyMenu.findOne({ date: kolkataDate(1) })).remaining).toBe(0);
-    await KitchenSettings.create({ key: "primary", dailyMaximum: 1, lunchMaximum: 1, dinnerMaximum: 1 });
-    const next = await createOrder(user(), request("egg-curry-meal"), "COD", { verifyDelivery: delivery }).catch((error) => error);
-    expect(next.status).toBe(409);
+  it("rejects a checkout submitted after today's server cutoff", async () => {
+    await KitchenSettings.create({ key: "primary", lunchCutoff: "00:00" });
+    const body = { ...request(), serviceDate: kolkataDate() };
+    await expect(createOrder(user(), body, "COD", { verifyDelivery: delivery })).rejects.toMatchObject({
+      status: 409,
+      message: "Ordering for this meal period has just closed. Please choose another available meal period.",
+    });
+    expect(await Order.countDocuments()).toBe(0);
   });
 
-  it("replays an identical checkout key without a second deduction", async () => {
+  it("honors manual period and item availability without stock fields", async () => {
+    await KitchenSettings.create({ key: "primary", lunchEnabled: false });
+    await expect(createOrder(user(), request(), "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+    await KitchenSettings.updateOne({ key: "primary" }, { lunchEnabled: true });
+    const meal = await Meal.findOne({ slug: "veg-home-meal" });
+    await DailyMenu.create({ meal: meal._id, date: kolkataDate(1), availableOverride: false });
+    await expect(createOrder(user(), request(), "COD", { verifyDelivery: delivery })).rejects.toMatchObject({ status: 409 });
+    await DailyMenu.updateOne({ meal: meal._id, date: kolkataDate(1) }, { availableOverride: true });
+    expect((await createOrder(user(), request(), "COD", { verifyDelivery: delivery })).orderStatus).toBe("confirmed");
+  });
+
+  it("accepts concurrent orders without applying legacy stock or capacity limits", async () => {
+    await Meal.updateOne({ slug: "veg-home-meal" }, { stockLimit: 1 });
+    await KitchenSettings.create({ key: "primary", dailyMaximum: 1, lunchMaximum: 1, dinnerMaximum: 1 });
+    const attempts = await Promise.allSettled([createOrder(user(), request(), "COD", { verifyDelivery: delivery }), createOrder(user(), request(), "COD", { verifyDelivery: delivery })]);
+    expect(attempts.filter((item) => item.status === "fulfilled")).toHaveLength(2);
+    expect(await Order.countDocuments()).toBe(2);
+    expect(await DailyMenu.countDocuments()).toBe(0);
+    expect(await DailyCapacity.countDocuments()).toBe(0);
+  });
+
+  it("replays an identical checkout key without creating a second order", async () => {
     const buyer = user(); const body = request();
     const first = await createOrder(buyer, body, "COD", { verifyDelivery: delivery });
     const repeated = await createOrder(buyer, body, "COD", { verifyDelivery: delivery });
     expect(String(first._id)).toBe(String(repeated._id));
     expect(await Order.countDocuments()).toBe(1);
-    expect((await DailyCapacity.findOne({ date: body.serviceDate })).daily).toBe(1);
+    expect(await DailyCapacity.countDocuments()).toBe(0);
   });
 
-  it("admits only one order when two meals race for the final kitchen slot", async () => {
+  it("accepts different meals even when historical capacity fields contain low values", async () => {
     await KitchenSettings.create({ key: "primary", dailyMaximum: 1, lunchMaximum: 1, dinnerMaximum: 1 });
     const attempts = await Promise.allSettled([
       createOrder(user(), request("veg-home-meal"), "COD", { verifyDelivery: delivery }),
       createOrder(user(), request("egg-curry-meal"), "COD", { verifyDelivery: delivery }),
     ]);
-    expect(attempts.filter((item) => item.status === "fulfilled")).toHaveLength(1);
-    expect(await Order.countDocuments()).toBe(1);
-    expect((await DailyCapacity.findOne({ date: kolkataDate(1) })).daily).toBe(1);
+    expect(attempts.filter((item) => item.status === "fulfilled")).toHaveLength(2);
+    expect(await Order.countDocuments()).toBe(2);
+    expect(await DailyCapacity.countDocuments()).toBe(0);
   });
 
   it("deducts one plan credit and restores it once on early cancellation", async () => {
@@ -234,7 +254,7 @@ describe("daily menu and checkout", () => {
     await updateOrderStatus(order.orderNumber, "cancelled");
     await updateOrderStatus(order.orderNumber, "cancelled");
     expect((await Subscription.findById(subscription._id)).remainingMeals).toBe(3);
-    expect((await DailyCapacity.findOne({ date: body.serviceDate })).daily).toBe(0);
+    expect(await DailyCapacity.countDocuments()).toBe(0);
   });
 
   it("extends expiry when a paused plan resumes", async () => {
@@ -354,7 +374,7 @@ describe("owner delivery and promo controls", () => {
   const jsonRequest = (path, method, body) => new Request(`http://localhost${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
   it("lets only the owner set the free-delivery minimum and uses it for actual orders", async () => {
-    const settings = { dailyMaximum: 45, lunchMaximum: 25, dinnerMaximum: 20, lunchCutoff: "11:00", dinnerCutoff: "18:00", freeDeliveryThreshold: 100 };
+    const settings = { acceptingOrders: true, lunchEnabled: true, dinnerEnabled: true, lunchCutoff: "11:00", dinnerCutoff: "18:00", freeDeliveryThreshold: 100 };
     expect((await patchAdminSettings(jsonRequest("/api/admin/settings", "PATCH", settings))).status).toBe(403);
     authState.role = "admin";
     expect((await patchAdminSettings(jsonRequest("/api/admin/settings", "PATCH", { ...settings, freeDeliveryThreshold: -1 }))).status).toBe(400);

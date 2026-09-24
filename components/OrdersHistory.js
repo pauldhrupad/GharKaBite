@@ -10,10 +10,12 @@ import { useCart } from "@/context/CartContext";
 import { formatOrderTimestamp } from "@/lib/order-utils";
 import { kolkataDate } from "@/lib/dates";
 import { calculateThaliPrice } from "@/lib/thali";
+import { useKitchen } from "@/context/KitchenContext";
 
 export default function OrdersHistory() {
   const router = useRouter();
   const { addOrderItems } = useCart();
+  const { getAvailability } = useKitchen();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -37,6 +39,8 @@ export default function OrdersHistory() {
   }, []);
 
   async function reorder(order) {
+    const availability = getAvailability(order.mealPeriod, kolkataDate());
+    if (!availability.available) { setMessage(availability.reason); return; }
     const response = await fetch(`/api/menu?date=${kolkataDate()}`);
     if (!response.ok) { setMessage("Today's menu is unavailable. Try again shortly."); return; }
     const meals = (await response.json()).meals || [];

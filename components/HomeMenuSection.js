@@ -23,8 +23,8 @@ function HomeMealCard({ meal, orderingDisabled, unavailableReason }) {
           className="meal-card-image object-cover"
         />
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-          {meal.badges.slice(0, 2).map((badge) => (
-            <Badge key={badge} onImage tone={badge === "Limited" || badge.includes("Left") ? "warning" : badge === "Non-Veg" ? "terracotta" : "green"}>
+          {meal.badges.filter((badge) => badge !== "Limited" && !badge.includes("Left")).slice(0, 2).map((badge) => (
+            <Badge key={badge} onImage tone={badge === "Non-Veg" ? "terracotta" : "green"}>
               {badge}
             </Badge>
           ))}
@@ -77,7 +77,7 @@ export default function HomeMenuSection() {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <p className="inline-flex items-center gap-2 text-sm font-bold text-text-secondary">
-            <Clock3 className="size-4 text-accent" aria-hidden="true" /> {selectedPeriod} orders close at {formatCutoffTime(mealTime === "lunch" ? settings.lunchCutoff : settings.dinnerCutoff)}
+            <Clock3 className="size-4 text-accent" aria-hidden="true" /> {periodAvailability.available ? `${selectedPeriod} orders close at ${formatCutoffTime(mealTime === "lunch" ? settings.lunchCutoff : settings.dinnerCutoff)}` : periodAvailability.reason}
           </p>
           <div className="inline-grid grid-cols-2 rounded-xl border border-border bg-surface-muted p-1" role="group" aria-label="Choose meal time">
             {["lunch", "dinner"].map((option) => (
@@ -97,7 +97,7 @@ export default function HomeMenuSection() {
 
       <div className="-mx-4 mt-8 grid auto-cols-[82%] grid-flow-col gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:mx-0 sm:grid-flow-row sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4">
         {loading && [0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse snap-start bg-surface-muted" aria-hidden="true" />)}
-        {meals.map((meal) => <HomeMealCard key={meal.id} meal={meal} orderingDisabled={!periodAvailability.available || !meal.available} unavailableReason={!meal.available ? "Sold out or unavailable today" : periodAvailability.reason} />)}
+        {meals.map((meal) => <HomeMealCard key={meal.id} meal={meal} orderingDisabled={!periodAvailability.available || !meal.available} unavailableReason={!meal.available ? "Currently unavailable" : periodAvailability.reason} />)}
       </div>
     </section>
   );

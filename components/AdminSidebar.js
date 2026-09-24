@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, CalendarRange, ChefHat, House, LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShoppingBag, Users, X } from "lucide-react";
+import { ArrowUpRight, CalendarRange, ChefHat, ClipboardList, House, LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShoppingBag, Users, X } from "lucide-react";
 import BrandMark from "./BrandMark";
 import { useModalFocus } from "@/lib/use-modal-focus";
 
 const links = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/admin/preparation", label: "Preparation", icon: ClipboardList },
   { href: "/admin/meals", label: "Menu items", icon: ChefHat },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: CalendarRange },

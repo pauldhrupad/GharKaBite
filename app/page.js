@@ -26,13 +26,13 @@ import SubscriptionPlan from "@/models/SubscriptionPlan";
 const trustIndicators = [
   { label: "Fresh Ingredients", icon: Leaf },
   { label: "Home Kitchen", icon: House },
-  { label: "Limited Daily Batches", icon: Clock3 },
+  { label: "Cooked to Order", icon: Clock3 },
   { label: "Local Delivery", icon: MapPin },
 ];
 
 const benefits = [
   { title: "Home-Cooked Everyday", description: "Familiar meals made for regular eating.", icon: House },
-  { title: "Freshly Prepared", description: "Cooked in small batches for the day.", icon: CookingPot },
+  { title: "Freshly Prepared", description: "Cooked to match confirmed orders before cutoff.", icon: CookingPot },
   { title: "Balanced Cooking", description: "Simple spices, sensible oil and complete meals.", icon: ShieldCheck },
   { title: "Hyperlocal Delivery", description: "A focused service area for dependable delivery.", icon: Bike },
 ];

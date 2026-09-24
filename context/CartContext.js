@@ -21,7 +21,6 @@ function createCartItem(meal, deliveryMealPeriod, quantity, serviceDate, customi
   const selectedChoices = customization.selectedChoices || {};
   const selectedAddOns = customization.selectedAddOns || {};
   const priced = calculateThaliPrice(meal, selectedChoices, selectedAddOns, clampQuantity(quantity));
-  const limits = [meal.stock || 10, ...priced.selectedChoices.flatMap((group) => group.options.map((option) => meal.choiceGroups.find((entry) => entry.id === group.groupId)?.options.find((entry) => entry.id === option.id)?.stock ?? 10)), ...priced.selectedAddOns.map((addOn) => { const stock = meal.addOns.find((entry) => entry.id === addOn.id)?.stock; return stock == null ? 10 : Math.floor(stock / addOn.quantity); })];
   return {
     key: itemKey(meal.id, deliveryMealPeriod, selectedChoices, selectedAddOns),
     mealId: meal.id,
@@ -35,7 +34,6 @@ function createCartItem(meal, deliveryMealPeriod, quantity, serviceDate, customi
     selectedAddOns,
     choiceSummary: priced.selectedChoices,
     addOnSummary: priced.selectedAddOns,
-    maxThaliQuantity: Math.min(10, ...limits),
     needsReview: false,
     quantity: clampQuantity(quantity),
     deliveryMealPeriod,
@@ -116,7 +114,7 @@ export function CartProvider({ children }) {
 
       return remaining.map((item) =>
         item.key === key
-          ? { ...item, quantity: Math.min(item.maxThaliQuantity || 10, clampQuantity(item.quantity + newItem.quantity)) }
+          ? { ...item, quantity: clampQuantity(item.quantity + newItem.quantity) }
           : item,
       );
     });
@@ -138,7 +136,7 @@ export function CartProvider({ children }) {
       newItems.forEach((newItem) => {
         const index = mergedItems.findIndex((item) => item.key === newItem.key);
         if (index === -1) mergedItems.push(newItem);
-        else mergedItems[index] = { ...mergedItems[index], quantity: Math.min(mergedItems[index].maxThaliQuantity || 10, clampQuantity(mergedItems[index].quantity + newItem.quantity)) };
+        else mergedItems[index] = { ...mergedItems[index], quantity: clampQuantity(mergedItems[index].quantity + newItem.quantity) };
       });
       return mergedItems;
     });
@@ -152,7 +150,7 @@ export function CartProvider({ children }) {
   function updateQuantity(key, quantity) {
     setItems((currentItems) => currentItems.map((item) =>
       item.key === key
-        ? { ...item, quantity: Math.min(item.maxThaliQuantity || 10, clampQuantity(quantity)) }
+        ? { ...item, quantity: clampQuantity(quantity) }
         : item,
     ));
   }

@@ -106,7 +106,7 @@ export default function CartPageContent() {
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.key, item.quantity + 1)}
-                        disabled={item.quantity >= Math.min(10, item.maxThaliQuantity || 10)}
+                        disabled={item.quantity >= 10}
                         className="grid size-11 place-items-center rounded-r-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
                         aria-label={`Increase ${item.name} quantity`}
                       >

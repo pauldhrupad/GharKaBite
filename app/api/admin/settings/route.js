@@ -26,12 +26,15 @@ export async function PATCH(request) {
     const body = await request.json();
     const freeDeliveryThreshold = Number(body.freeDeliveryThreshold);
     if (!Number.isInteger(freeDeliveryThreshold) || freeDeliveryThreshold < 0 || freeDeliveryThreshold > 100000) return Response.json({ message: "Enter a valid free-delivery minimum between ₹0 and ₹100,000." }, { status: 400 });
+    if (!["acceptingOrders", "lunchEnabled", "dinnerEnabled"].every((field) => typeof body[field] === "boolean")) return Response.json({ message: "Choose valid ordering switches." }, { status: 400 });
+    const validCutoff = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!validCutoff.test(body.lunchCutoff) || !validCutoff.test(body.dinnerCutoff)) return Response.json({ message: "Choose valid lunch and dinner cutoff times." }, { status: 400 });
     const settings = {
-      dailyMaximum: Math.max(1, Number(body.dailyMaximum) || defaultKitchenSettings.dailyMaximum),
-      lunchMaximum: Math.max(1, Number(body.lunchMaximum) || defaultKitchenSettings.lunchMaximum),
-      dinnerMaximum: Math.max(1, Number(body.dinnerMaximum) || defaultKitchenSettings.dinnerMaximum),
-      lunchCutoff: /^\d{2}:\d{2}$/.test(body.lunchCutoff) ? body.lunchCutoff : defaultKitchenSettings.lunchCutoff,
-      dinnerCutoff: /^\d{2}:\d{2}$/.test(body.dinnerCutoff) ? body.dinnerCutoff : defaultKitchenSettings.dinnerCutoff,
+      acceptingOrders: body.acceptingOrders,
+      lunchEnabled: body.lunchEnabled,
+      dinnerEnabled: body.dinnerEnabled,
+      lunchCutoff: body.lunchCutoff,
+      dinnerCutoff: body.dinnerCutoff,
       freeDeliveryThreshold,
     };
     await dbConnect();

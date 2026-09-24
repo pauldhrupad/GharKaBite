@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock3, Save, ShoppingBag, Truck } from "lucide-react";
+import { Clock3, Save, Truck } from "lucide-react";
 import Button from "./Button";
 import { useKitchen } from "@/context/KitchenContext";
 
@@ -17,8 +17,8 @@ function KitchenSettingsEditor({ initialSettings, updateSettings }) {
   const [message, setMessage] = useState("");
 
   function updateField(event) {
-    const { name, value, type } = event.target;
-    setForm((current) => ({ ...current, [name]: type === "number" ? Number(value) : value }));
+    const { name, value, type, checked } = event.target;
+    setForm((current) => ({ ...current, [name]: type === "checkbox" ? checked : type === "number" ? Number(value) : value }));
   }
 
   async function handleSubmit(event) {
@@ -41,7 +41,7 @@ function KitchenSettingsEditor({ initialSettings, updateSettings }) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-7 grid gap-6 xl:grid-cols-2">
-      <section className="rounded-2xl border border-border bg-white p-5 md:p-6"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary"><ShoppingBag className="size-5" aria-hidden="true" /></span><div><h2 className="text-lg font-black">Kitchen capacity</h2><p className="text-xs text-text-secondary">Checkout closes when a limit is reached.</p></div></div><div className="mt-6 grid gap-4 sm:grid-cols-3"><SettingField label="Daily maximum orders" name="dailyMaximum" type="number" min="1" value={form.dailyMaximum} onChange={updateField} /><SettingField label="Lunch maximum" name="lunchMaximum" type="number" min="1" value={form.lunchMaximum} onChange={updateField} /><SettingField label="Dinner maximum" name="dinnerMaximum" type="number" min="1" value={form.dinnerMaximum} onChange={updateField} /></div><p className="mt-4 rounded-xl bg-surface-muted p-3 text-xs font-semibold leading-5 text-text-secondary">Keep limits realistic for one cook and one delivery person. Capacity protection applies before an order is created.</p></section>
+      <section className="rounded-2xl border border-border bg-white p-5 md:p-6"><h2 className="text-lg font-black">Accepting orders</h2><p className="mt-1 text-xs text-text-secondary">Pause all ordering or one meal period without changing the menu.</p><div className="mt-5 space-y-3">{[["acceptingOrders", "Accepting orders"], ["lunchEnabled", "Lunch orders enabled"], ["dinnerEnabled", "Dinner orders enabled"]].map(([name, label]) => <label key={name} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-sm font-bold"><input type="checkbox" name={name} checked={form[name] !== false} onChange={updateField} />{label}</label>)}</div></section>
 
       <section className="rounded-2xl border border-border bg-white p-5 md:p-6"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-accent/10 text-accent"><Clock3 className="size-5" aria-hidden="true" /></span><div><h2 className="text-lg font-black">Order cutoffs</h2><p className="text-xs text-text-secondary">Times use the Asia/Kolkata timezone.</p></div></div><div className="mt-6 grid gap-4 sm:grid-cols-2"><SettingField label="Lunch ordering cutoff" name="lunchCutoff" type="time" value={form.lunchCutoff} onChange={updateField} /><SettingField label="Dinner ordering cutoff" name="dinnerCutoff" type="time" value={form.dinnerCutoff} onChange={updateField} /></div><p className="mt-4 rounded-xl bg-surface-muted p-3 text-xs font-semibold leading-5 text-text-secondary">Customer menu and checkout availability automatically use these cutoff times.</p></section>
 

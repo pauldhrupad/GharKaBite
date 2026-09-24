@@ -87,7 +87,7 @@ export default function CheckoutForm() {
   const deliveryFee = selectedSubscription ? 0 : calculateDeliveryFee(subtotal, settings.freeDeliveryThreshold ?? 399);
   const promo = usePromoQuote(promoCode, payableSubtotal);
   const total = Math.max(0, subtotal - (coveredItem?.basePrice || 0) - (promo?.valid ? promo.discount : 0) + deliveryFee);
-  const availability = serviceDate === kolkataDate() ? getAvailability(mealPeriod) : { available: true, reason: "" };
+  const availability = getAvailability(mealPeriod, serviceDate);
   const selectedAddress = savedAddresses.find((address, index) => addressKey(address, index) === selectedAddressId);
   const profileReady = authStatus === "authenticated" && profileState.userId === session?.user?.id && profileState.status === "ready";
   const profileFailed = authStatus === "authenticated" && profileState.userId === session?.user?.id && profileState.status === "error";

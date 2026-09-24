@@ -20,7 +20,7 @@ export default function MenuExplorer({ initialDate }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const { settings, hydrated: kitchenHydrated, getAvailability } = useKitchen();
-  const periodAvailability = date === kolkataDate() && kitchenHydrated ? getAvailability(period) : { available: true, reason: "" };
+  const periodAvailability = kitchenHydrated ? getAvailability(period, date) : { available: true, reason: "" };
 
   useEffect(() => {
     let active = true;
@@ -120,7 +120,7 @@ export default function MenuExplorer({ initialDate }) {
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <p className="text-sm font-bold text-text-secondary" aria-live="polite">{loading ? "Loading menu…" : `Showing ${filteredMeals.length} ${period.toLowerCase()} ${filteredMeals.length === 1 ? "item" : "items"}`}</p>
-        <p className="hidden text-xs font-bold text-text-secondary sm:block">Availability reflects today&apos;s limited batches.</p>
+        <p className="hidden text-xs font-bold text-text-secondary sm:block">Made to order before the kitchen cutoff.</p>
       </div>
 
       {loading ? <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="status" aria-label="Loading menu">{[0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse bg-surface-muted" />)}</div> : filteredMeals.length > 0 ? (

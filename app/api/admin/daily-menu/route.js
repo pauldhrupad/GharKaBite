@@ -26,19 +26,17 @@ export async function PATCH(request) {
     if (Object.hasOwn(body, "availableOverride")) {
       if (body.availableOverride !== null && typeof body.availableOverride !== "boolean") return Response.json({ message: "Invalid availability." }, { status: 400 });
       patch.availableOverride = body.availableOverride;
+      if (body.availableOverride === true) patch.soldOut = false; // Clear legacy manual sold-out flags.
     }
     if (Object.hasOwn(body, "soldOut")) {
       if (typeof body.soldOut !== "boolean") return Response.json({ message: "Invalid sold-out flag." }, { status: 400 });
       patch.soldOut = body.soldOut;
     }
-    if (Object.hasOwn(body, "remaining")) {
-      if (!Number.isInteger(body.remaining) || body.remaining < 0 || body.remaining > meal.stockLimit) return Response.json({ message: "Stock must be between zero and the daily limit." }, { status: 400 });
-      patch.remaining = body.remaining;
-    }
-    const daily = await DailyMenu.findOneAndUpdate({ meal: meal._id, date: body.date }, { $setOnInsert: { meal: meal._id, date: body.date, ...(!Object.hasOwn(patch, "remaining") ? { remaining: meal.stockLimit } : {}), stockLimitSnapshot: meal.stockLimit }, $set: patch }, { upsert: true, returnDocument: "after", runValidators: true });
+    if (!Object.keys(patch).length) return Response.json({ message: "Choose an availability change." }, { status: 400 });
+    const daily = await DailyMenu.findOneAndUpdate({ meal: meal._id, date: body.date }, { $setOnInsert: { meal: meal._id, date: body.date }, $set: patch }, { upsert: true, returnDocument: "after", runValidators: true });
     return Response.json({ daily });
   } catch (error) {
-    if (error.code === 40) return Response.json({ message: "Stock update conflicted; retry." }, { status: 409 });
+    if (error.code === 40) return Response.json({ message: "Availability update conflicted; retry." }, { status: 409 });
     return Response.json({ message: "Unable to update daily menu." }, { status: 503 });
   }
 }

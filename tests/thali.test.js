@@ -20,10 +20,11 @@ describe("configurable Thali pricing", () => {
     expect(() => calculateThaliPrice(thali, {}, {})).toThrow(/choose Rice or Roti/);
     expect(() => calculateThaliPrice(thali, { base: ["rice"], sides: ["papad", "chutney", "salad"] }, {})).toThrow(/no more than 2/);
   });
-  it("rejects unknown, unavailable, duplicated or over-stock selections", () => {
+  it("rejects unknown, unavailable, duplicated or excessive add-on selections", () => {
     expect(() => calculateThaliPrice(thali, { base: ["rice"], unknown: [] }, {})).toThrow(/no longer available/);
     expect(() => calculateThaliPrice(thali, { base: ["rice", "rice"] }, {})).toThrow(/Review Base/);
-    expect(() => calculateThaliPrice(thali, { base: ["rice"] }, { egg: 3 }, 2)).toThrow(/unavailable/);
+    expect(calculateThaliPrice({ ...thali, addOns: [{ ...thali.addOns[0], stock: 0 }] }, { base: ["rice"] }, { egg: 3 }, 2).selectedAddOns[0].quantity).toBe(3);
+    expect(() => calculateThaliPrice(thali, { base: ["rice"] }, { egg: 4 }, 2)).toThrow(/unavailable/);
     expect(hasRequiredUnavailable({ ...thali, choiceGroups: [{ ...thali.choiceGroups[0], options: thali.choiceGroups[0].options.map((option) => ({ ...option, active: false })) }] })).toBe(true);
   });
   it("gives equivalent selections the same cart identity regardless of object order", () => {
@@ -32,6 +33,9 @@ describe("configurable Thali pricing", () => {
   });
   it("retains included items from an older catalogue record", () => {
     const legacy = { price: 119, contents: ["Rice", "Dal"], fixedItems: [], choiceGroups: [], addOns: [] };
-    expect(calculateThaliPrice(legacy).fixedItems).toEqual([{ name: "Rice", description: "" }, { name: "Dal", description: "" }]);
+    expect(calculateThaliPrice(legacy).fixedItems).toEqual([
+      { name: "Rice", description: "", preparationQuantity: 1, preparationUnit: "portion" },
+      { name: "Dal", description: "", preparationQuantity: 1, preparationUnit: "portion" },
+    ]);
   });
 });

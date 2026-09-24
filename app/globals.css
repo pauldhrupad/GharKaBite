@@ -165,6 +165,17 @@ summary:focus-visible { border-radius: 0.5rem; }
   body { padding-bottom: 5.5rem; }
   body:has([data-admin-layout]), body:has([data-owner-auth]) { padding-bottom: 0; }
 }
+@media print {
+  @page { margin: 14mm; }
+  body:has([data-preparation-sheet]) { padding: 0; background: white; color: black; }
+  [data-admin-layout]:has([data-preparation-sheet]) { display: block; min-height: 0; background: white; }
+  [data-admin-layout]:has([data-preparation-sheet]) > aside,
+  [data-admin-layout]:has([data-preparation-sheet]) > button,
+  [data-admin-layout]:has([data-preparation-sheet]) > div > header { display: none !important; }
+  [data-admin-layout]:has([data-preparation-sheet]) main { padding: 0 !important; }
+  [data-preparation-sheet] { display: block; }
+  [data-preparation-sheet] > * { margin-top: 12px; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

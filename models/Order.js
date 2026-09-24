@@ -8,9 +8,9 @@ const orderItemSchema = new mongoose.Schema({
   image: { type: String, required: true },
   price: { type: Number, required: true, min: 0 },
   basePrice: { type: Number, min: 0, default: 0 },
-  fixedItems: { type: [{ name: String, description: String }], default: [], _id: false },
-  selectedChoices: { type: [{ groupId: String, groupName: String, options: [{ id: String, name: String, priceAdjustment: Number }] }], default: [], _id: false },
-  selectedAddOns: { type: [{ id: String, name: String, price: Number, quantity: Number }], default: [], _id: false },
+  fixedItems: { type: [{ name: String, description: String, preparationQuantity: Number, preparationUnit: String }], default: [], _id: false },
+  selectedChoices: { type: [{ groupId: String, groupName: String, options: [{ id: String, name: String, priceAdjustment: Number, preparationQuantity: Number, preparationUnit: String }] }], default: [], _id: false },
+  selectedAddOns: { type: [{ id: String, name: String, price: Number, quantity: Number, preparationQuantity: Number, preparationUnit: String }], default: [], _id: false },
   quantity: { type: Number, required: true, min: 1, max: 10 },
   category: { type: String, required: true },
 }, { _id: false });

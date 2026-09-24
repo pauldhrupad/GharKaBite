@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { defaultKitchenSettings, getPeriodAvailability } from "@/lib/kitchen-operations";
+import { kolkataDate } from "@/lib/dates";
 
 const KitchenContext = createContext(null);
 
@@ -34,9 +35,9 @@ export function KitchenProvider({ children }) {
     setLoadFailed(false);
   }
 
-  function getAvailability(period) {
+  function getAvailability(period, serviceDate = kolkataDate()) {
     if (loadFailed) return { available: false, reason: "Kitchen availability is temporarily unavailable." };
-    return getPeriodAvailability(period, settings);
+    return getPeriodAvailability(period, settings, [], new Date(), serviceDate);
   }
 
   return <KitchenContext.Provider value={{ settings, hydrated, updateSettings, getAvailability }}>{children}</KitchenContext.Provider>;
