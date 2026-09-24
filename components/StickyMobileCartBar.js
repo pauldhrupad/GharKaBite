@@ -18,7 +18,7 @@ export default function StickyMobileCartBar() {
     if (!footer) return;
     const observer = new IntersectionObserver(
       ([entry]) => setFooterVisible(entry.isIntersecting),
-      { rootMargin: "0px 0px -8rem 0px" },
+      { rootMargin: "0px 0px -128px 0px" },
     );
     observer.observe(footer);
     return () => observer.disconnect();
