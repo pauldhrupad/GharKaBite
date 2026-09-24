@@ -1,15 +1,19 @@
 const tones = {
-  green: "bg-primary/10 text-primary",
-  terracotta: "bg-accent/10 text-accent",
-  muted: "bg-surface-muted text-text-secondary",
-  warning: "bg-warning/10 text-warning",
+  green: "border border-primary/25 bg-primary/10 text-primary",
+  terracotta: "border border-accent/25 bg-accent/10 text-accent",
+  muted: "border border-border bg-surface-alt text-text-secondary",
+  warning: "border border-warning/25 bg-warning/10 text-warning",
+  danger: "border border-danger/25 bg-danger/10 text-danger",
+  neutral: "border border-border bg-disabled-bg text-text-primary",
 };
 
 const imageTones = {
   green: "bg-primary text-white",
-  terracotta: "bg-[#8b3929] text-white",
-  muted: "bg-[#24372b] text-white",
-  warning: "bg-[#783b14] text-white",
+  terracotta: "bg-accent text-white",
+  muted: "bg-text-primary text-white",
+  warning: "bg-warning text-white",
+  danger: "bg-danger text-white",
+  neutral: "bg-text-secondary text-white",
 };
 
 export default function Badge({ children, tone = "green", onImage = false }) {

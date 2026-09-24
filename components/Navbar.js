@@ -22,11 +22,11 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", update);
   }, []);
   return (
-    <header className={`sticky top-0 z-40 border-b border-border/80 bg-background/88 backdrop-blur-xl transition-shadow duration-200 ${scrolled ? "shadow-[0_8px_22px_rgba(31,42,35,0.08)]" : ""}`}>
-      <nav className="container-shell flex h-17 items-center justify-between" aria-label="Primary navigation">
+    <header className={`sticky top-0 z-40 border-b border-border bg-surface/97 backdrop-blur-xl transition-shadow duration-200 ${scrolled ? "shadow-[0_6px_18px_rgba(30,40,34,0.1)]" : ""}`}>
+      <nav className="container-shell flex h-15 items-center justify-between md:h-16" aria-label="Primary navigation">
         <Link href="/" className="flex shrink-0 items-center" aria-label="GharKaBite home"><BrandMark className="size-15 shrink-0" loading="eager" /></Link>
         <div className="hidden items-center gap-1 lg:flex">
-          {links.map((link) => { const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href); return <Link key={link.href} href={link.href} aria-current={active ? "page" : undefined} className={`relative rounded-lg px-3.5 py-2 text-sm font-bold after:absolute after:inset-x-3.5 after:bottom-0 after:h-0.5 after:origin-left after:rounded-full after:bg-primary after:transition-transform after:duration-200 ${active ? "bg-primary/9 text-primary after:scale-x-100" : "text-text-secondary after:scale-x-0 hover:bg-surface-muted hover:text-primary hover:after:scale-x-100"}`}>{link.label}</Link>; })}
+          {links.map((link) => { const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href); return <Link key={link.href} href={link.href} aria-current={active ? "page" : undefined} className={`relative rounded-lg px-3.5 py-2 text-sm font-bold after:absolute after:inset-x-3.5 after:bottom-0 after:h-0.5 after:origin-left after:rounded-full after:bg-primary after:transition-transform after:duration-200 ${active ? "bg-primary/10 text-primary after:scale-x-100" : "text-text-primary after:scale-x-0 hover:bg-surface-alt hover:text-primary hover:after:scale-x-100"}`}>{link.label}</Link>; })}
         </div>
         <div className="flex items-center gap-2">
           <Link href="/cart" className="ui-action relative grid size-11 place-items-center rounded-xl border border-border bg-surface text-text-primary hover:border-primary/40 hover:text-primary" aria-label={`Open cart, ${itemCount} ${itemCount === 1 ? "item" : "items"}`}><ShoppingBag className="size-5" aria-hidden="true" />{itemCount > 0 && <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-accent text-[10px] font-black text-white">{itemCount > 9 ? "9+" : itemCount}</span>}</Link>

@@ -18,7 +18,7 @@ export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderi
   const unavailable = !meal.available || orderingDisabled;
 
   return (
-    <article className={`meal-card group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_14px_38px_rgba(56,45,31,0.07)] ${unavailable ? "is-sold-out" : ""}`}>
+    <article className={`meal-card group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_4px_14px_rgba(30,40,34,0.07)] ${unavailable ? "is-sold-out" : ""}`}>
       <Link href={`/menu/${meal.id}?date=${serviceDate}`} className="relative block aspect-[4/3] overflow-hidden bg-surface-muted" aria-label={`View ${meal.name}`}>
         <Image
           src={meal.image}
@@ -47,7 +47,7 @@ export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderi
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-4">
-          <p className="text-xl font-black">{meal.addOns.length || meal.choiceGroups.some((group) => group.options.some((option) => option.priceAdjustment)) ? "From " : ""}₹{meal.price}</p>
+          <p className="text-xl font-black text-accent">{meal.addOns.length || meal.choiceGroups.some((group) => group.options.some((option) => option.priceAdjustment)) ? "From " : ""}₹{meal.price}</p>
           {unavailable ? <span className="rounded-xl bg-surface-muted px-4 py-2 text-sm font-extrabold text-text-secondary">{orderingDisabled ? "Closed" : "Unavailable"}</span> : <Link href={`/menu/${meal.id}?date=${serviceDate}`} className="inline-flex min-h-10 items-center gap-1 rounded-xl bg-primary px-4 text-sm font-extrabold text-white hover:bg-primary-hover">{meal.kind === "dish" ? "View dish" : "Customize Thali"} <ArrowRight className="size-4" aria-hidden="true" /></Link>}
         </div>
       </div>

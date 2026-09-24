@@ -55,7 +55,7 @@ export default function CartPageContent() {
   }
 
   return (
-    <section className="container-shell grid gap-7 py-10 lg:grid-cols-[1fr_22rem] lg:items-start">
+    <section className="container-shell grid gap-5 py-7 md:py-9 lg:grid-cols-[1fr_22rem] lg:items-start">
       <div>
         <div className="mb-4 flex items-center justify-between gap-4">
           <p className="text-sm font-bold text-text-secondary">{items.length} {items.length === 1 ? "menu item" : "menu items"}</p>
@@ -73,7 +73,7 @@ export default function CartPageContent() {
                   <div>
                     <h2 className="font-black sm:text-lg">{item.name}</h2>
                     <p className="mt-1 text-xs font-bold text-text-secondary">{item.deliveryMealPeriod} · {item.serviceDate}</p>
-                    <p className="mt-2 text-sm font-extrabold">₹{item.price} each</p>
+                    <p className="mt-2 text-sm font-extrabold text-accent">₹{item.price} each</p>
                     {item.needsReview && <p className="mt-2 text-xs font-bold text-warning">Please review this older selection before checkout.</p>}
                     {item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="mt-1 text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}
                     {item.addOnSummary?.map((addOn) => <p key={addOn.id} className="mt-1 text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per {item.kind === "dish" ? "dish" : "Thali"}</p>)}
@@ -92,7 +92,7 @@ export default function CartPageContent() {
                 <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <p className="mb-1.5 text-xs font-bold text-text-secondary">Quantity</p>
-                    <div className="flex items-center rounded-lg border border-border bg-surface">
+                    <div className="flex items-center rounded-lg border border-border bg-surface-alt text-primary">
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.key, item.quantity - 1)}
@@ -116,7 +116,7 @@ export default function CartPageContent() {
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-bold text-text-secondary">Subtotal</p>
-                    <p className="text-lg font-black">₹{item.price * item.quantity}</p>
+                    <p className="text-lg font-black text-accent">₹{item.price * item.quantity}</p>
                   </div>
                 </div>
               </div>
@@ -125,7 +125,7 @@ export default function CartPageContent() {
         </div>
       </div>
 
-      <aside className="card-surface p-5 lg:sticky lg:top-24">
+      <aside className="card-surface border-primary/35 p-5 lg:sticky lg:top-24">
         <h2 className="text-xl font-black">Order summary</h2>
 
         <div className="mt-5 rounded-xl border border-border bg-surface-muted p-4">
@@ -167,7 +167,7 @@ export default function CartPageContent() {
           <div className="flex justify-between text-text-secondary"><span>Subtotal</span><span>₹{subtotal}</span></div>
           <div className="flex justify-between text-text-secondary"><span>Local delivery</span><span className={deliveryFee === 0 ? "font-black text-success" : ""}>{deliveryFee === 0 ? "Free" : `₹${deliveryFee}`}</span></div>
           {discount > 0 && <div className="flex justify-between font-bold text-success"><span>{promo.code}</span><span>−₹{discount}</span></div>}
-          <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
+          <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span className="text-accent">₹{total}</span></div>
         </div>
         {promoCode && !promo.valid ? <p className="mt-4 text-xs font-semibold text-warning">Remove or correct the promo code to continue.</p> : null}
         {needsReview && <p className="mt-4 text-xs font-semibold text-warning">Edit the older cart selection to review its options.</p>}

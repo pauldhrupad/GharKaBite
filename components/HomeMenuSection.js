@@ -33,8 +33,8 @@ function HomeMealCard({ meal, orderingDisabled, unavailableReason }) {
       <div className="p-4">
         <h3 className="text-lg font-black tracking-tight">{meal.name}</h3>
         <p className="mt-1 min-h-11 text-sm leading-5 text-text-secondary">{meal.description}</p>
-        <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
-          <p className="text-xl font-black">From ₹{meal.price}</p>
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+          <p className="text-xl font-black text-accent">From ₹{meal.price}</p>
           {orderingDisabled ? <span className="rounded-xl bg-surface-muted px-4 py-2 text-sm font-extrabold text-text-secondary">Closed</span> : <Link href={`/menu/${meal.id}?date=${kolkataDate()}`} className="ui-action inline-flex min-h-11 items-center gap-1 rounded-xl bg-primary px-4 text-sm font-extrabold text-white">{meal.kind === "dish" ? "View dish" : "Customize"} <ArrowRight className="size-4" aria-hidden="true" /></Link>}
         </div>
         {orderingDisabled && <p className="mt-3 text-xs font-bold text-danger">{unavailableReason}</p>}
@@ -68,7 +68,7 @@ export default function HomeMenuSection() {
   }
 
   return (
-    <section id="todays-menu" aria-busy={loading} className="container-shell py-14 md:py-20">
+    <section id="todays-menu" aria-busy={loading} className="border-b border-border bg-surface py-9 md:py-16"><div className="container-shell">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="eyebrow">Today&apos;s menu</p>
@@ -79,14 +79,14 @@ export default function HomeMenuSection() {
           <p className="inline-flex items-center gap-2 text-sm font-bold text-text-secondary">
             <Clock3 className="size-4 text-accent" aria-hidden="true" /> {periodAvailability.available ? `${selectedPeriod} orders close at ${formatCutoffTime(mealTime === "lunch" ? settings.lunchCutoff : settings.dinnerCutoff)}` : periodAvailability.reason}
           </p>
-          <div className="inline-grid grid-cols-2 rounded-xl border border-border bg-surface-muted p-1" role="group" aria-label="Choose meal time">
+          <div className="grid w-full grid-cols-2 rounded-xl border border-border bg-surface-alt p-1 sm:w-auto" role="group" aria-label="Choose meal time">
             {["lunch", "dinner"].map((option) => (
               <button
                 key={option}
                 type="button"
                 onClick={() => chooseMealTime(option)}
                 aria-pressed={mealTime === option}
-                className={`min-h-10 rounded-lg px-5 text-sm font-extrabold capitalize transition ${mealTime === option ? "bg-surface text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                className={`min-h-11 rounded-lg px-5 text-sm font-extrabold capitalize transition ${mealTime === option ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-surface hover:text-primary"}`}
               >
                 {option}
               </button>
@@ -95,10 +95,10 @@ export default function HomeMenuSection() {
         </div>
       </div>
 
-      <div className="-mx-4 mt-8 grid auto-cols-[82%] grid-flow-col gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:mx-0 sm:grid-flow-row sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4">
+      <div className="-mx-4 mt-6 grid auto-cols-[82%] grid-flow-col gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:mx-0 sm:grid-flow-row sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4">
         {loading && [0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse snap-start bg-surface-muted" aria-hidden="true" />)}
         {meals.map((meal) => <HomeMealCard key={meal.id} meal={meal} orderingDisabled={!periodAvailability.available || !meal.available} unavailableReason={!meal.available ? "Currently unavailable" : periodAvailability.reason} />)}
       </div>
-    </section>
+    </div></section>
   );
 }

@@ -236,8 +236,8 @@ export default function CheckoutForm() {
   if (authStatus === "unauthenticated") return <section className="container-shell py-10"><div className="card-surface max-w-xl p-6 md:p-8"><h2 className="text-2xl font-black">Sign in to finish your order</h2><p className="mt-2 text-sm leading-6 text-text-secondary">Your saved contact details and delivery addresses will be filled in automatically. Your cart will be waiting when you return.</p><div className="mt-5 flex flex-wrap gap-3"><Button href="/login?callbackUrl=/checkout">Sign in and continue</Button><Button href="/register" variant="secondary">Create an account</Button></div></div></section>;
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="container-shell grid gap-7 py-10 lg:grid-cols-[1fr_23rem] lg:items-start">
-      <div className="space-y-5">
+    <form onSubmit={handleSubmit} noValidate className="container-shell grid gap-5 py-7 md:py-9 lg:grid-cols-[1fr_23rem] lg:items-start">
+      <div className="space-y-4">
         <CheckoutSection icon={UserRound} number="1" title="Contact Information">
           {profileFailed && <p className="mb-4 rounded-xl bg-warning/10 p-3 text-sm text-text-secondary" role="status">We couldn’t load your saved profile. Please review your details for this order.</p>}
           {profileReady && !editingContact ? (
@@ -310,7 +310,7 @@ export default function CheckoutForm() {
         </CheckoutSection>
       </div>
 
-      <aside className="card-surface p-5 lg:sticky lg:top-24">
+      <aside className="card-surface border-primary/35 p-5 lg:sticky lg:top-24">
         <h2 className="text-xl font-black">Order Summary</h2>
         <div className="mt-5 space-y-4">
           {items.map((item) => <div key={item.key} className="flex gap-3"><div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-surface-muted"><Image src={item.image} alt="" fill sizes="56px" className="object-cover" /></div><div className="min-w-0 flex-1"><p className="text-sm font-black">{item.name}</p><p className="text-xs text-text-secondary">{item.quantity} × ₹{item.price}</p>{item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}{item.addOnSummary?.map((addOn) => <p key={addOn.id} className="text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per {item.kind === "dish" ? "dish" : "Thali"}</p>)}</div><p className="text-sm font-black">₹{item.quantity * item.price}</p></div>)}
@@ -322,7 +322,7 @@ export default function CheckoutForm() {
           {promoCode.trim() && <p className={`text-xs font-bold ${promo.valid ? "text-success" : "text-warning"}`} role="status">{promo.message}</p>}
           <div className="flex justify-between text-text-secondary"><span>Subtotal</span><span>₹{subtotal}</span></div>
           <div className="flex justify-between text-text-secondary"><span>Delivery</span><span className={deliveryFee === 0 ? "font-black text-success" : ""}>{deliveryFee === 0 ? "Free" : `₹${deliveryFee}`}</span></div>
-          <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span>₹{total}</span></div>
+          <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span className="text-accent">₹{total}</span></div>
         </div>
         {submitError && <p className="mt-4 rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger" role="alert">{submitError}</p>}
         <Button type="submit" disabled={submitting || !availability.available || !paymentMethod || (paymentMethod === "manual_online" && !paymentChannel) || (Boolean(promoCode.trim()) && !promo.valid)} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{submitting ? "Placing order…" : paymentMethod === "manual_online" ? "Place order & continue to payment" : "Place COD order"}</Button>
@@ -333,7 +333,7 @@ export default function CheckoutForm() {
 }
 
 function CheckoutSection({ icon: Icon, number, title, children }) {
-  return <section className="card-surface p-5 md:p-7"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary"><Icon className="size-5" aria-hidden="true" /></span><div><p className="text-xs font-extrabold uppercase tracking-wider text-text-secondary">Step {number}</p><h2 className="text-xl font-black">{title}</h2></div></div><div className="mt-6">{children}</div></section>;
+  return <section className="card-surface p-4 md:p-6"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary"><Icon className="size-5" aria-hidden="true" /></span><div><p className="text-xs font-extrabold uppercase tracking-wider text-primary">Step {number}</p><h2 className="text-xl font-black">{title}</h2></div></div><div className="mt-4">{children}</div></section>;
 }
 
 function Field({ label, optional, error, className = "", ...props }) {

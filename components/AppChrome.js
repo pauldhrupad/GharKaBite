@@ -9,5 +9,5 @@ import StickyMobileCartBar from "./StickyMobileCartBar";
 export default function AppChrome({ children }) {
   const pathname = usePathname();
   if (pathname.startsWith("/admin") || pathname.startsWith("/owner") || pathname.startsWith("/staff")) return children;
-  return <div className="flex min-h-screen flex-col"><Navbar /><main className="flex-1">{children}</main><StickyMobileCartBar /><Footer /><MobileBottomNav /><CartPeriodConflictModal /></div>;
+  return <div data-customer-layout className="flex min-h-screen flex-col"><Navbar /><main className="flex-1">{children}</main><StickyMobileCartBar /><Footer /><MobileBottomNav /><CartPeriodConflictModal /></div>;
 }

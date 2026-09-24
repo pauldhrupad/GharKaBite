@@ -64,20 +64,20 @@ export default function MenuExplorer({ initialDate }) {
   }
 
   return (
-    <section className="container-shell py-9 md:py-12">
+    <section className="container-shell py-7 md:py-10">
       <div className="mb-5 flex gap-2" aria-label="Delivery date">{[0, 1].map((offset) => <button key={offset} type="button" onClick={() => { if (date !== kolkataDate(offset)) { setLoading(true); setDate(kolkataDate(offset)); } }} aria-pressed={date === kolkataDate(offset)} className={`min-h-11 rounded-xl px-5 py-2 text-sm font-bold ${date === kolkataDate(offset) ? "bg-primary text-white" : "border border-border bg-surface hover:border-primary/40 hover:text-primary"}`}>{offset ? "Tomorrow" : "Today"}</button>)}</div>
       {loadError && <p role="alert" className="mb-4 text-sm font-bold text-danger">{loadError}</p>}
       <div className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-4 shadow-[0_12px_35px_rgba(56,45,31,0.05)] sm:p-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-extrabold uppercase tracking-wider text-text-secondary">Choose delivery period</p>
-          <div className="mt-2 inline-grid grid-cols-2 rounded-xl border border-border bg-surface-muted p-1" role="group" aria-label="Choose lunch or dinner">
+          <div className="mt-2 grid w-full grid-cols-2 rounded-xl border border-border bg-surface-alt p-1 sm:w-auto" role="group" aria-label="Choose lunch or dinner">
             {periods.map((option) => (
               <button
                 key={option}
                 type="button"
                 onClick={() => choosePeriod(option)}
                 aria-pressed={period === option}
-                className={`min-h-10 rounded-lg px-7 text-sm font-extrabold transition ${period === option ? "bg-surface text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                className={`min-h-11 rounded-lg px-7 text-sm font-extrabold transition ${period === option ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-surface hover:text-primary"}`}
               >
                 {option}
               </button>

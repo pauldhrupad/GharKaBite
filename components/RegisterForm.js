@@ -56,5 +56,5 @@ export default function RegisterForm() {
     </>
   );
 
-  return <section className="container-shell grid min-h-[70vh] place-items-center py-12"><div className="card-surface w-full max-w-lg p-6 md:p-8">{content}</div></section>;
+  return <section className="container-shell grid min-h-[60vh] place-items-center py-8 md:py-12"><div className="card-surface w-full max-w-lg p-5 md:p-8">{content}</div></section>;
 }
