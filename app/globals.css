@@ -198,10 +198,6 @@ input[type="file"]::file-selector-button {
 }
 input[type="file"]:hover::file-selector-button { border-color: var(--primary); background: #e8f1e9; }
 summary:focus-visible { border-radius: 0.5rem; }
-@media (max-width: 1023px) {
-  body { padding-bottom: 5.5rem; }
-  body:has([data-admin-layout]), body:has([data-owner-auth]) { padding-bottom: 0; }
-}
 @media print {
   @page { margin: 14mm; }
   body:has([data-preparation-sheet]) { padding: 0; background: white; color: black; }

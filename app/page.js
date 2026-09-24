@@ -109,13 +109,15 @@ export default async function Home() {
 
       <HomeMenuSection />
 
-      <div className="container-shell grid grid-cols-2 gap-2 pb-8 md:grid-cols-4 md:pb-12">
-        {trustIndicators.map(({ label, icon: Icon }) => (
-          <div key={label} className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-3 text-xs font-extrabold text-text-secondary sm:text-sm">
-            <Icon className="size-4.5 shrink-0 text-primary" aria-hidden="true" /> {label}
-          </div>
-        ))}
-      </div>
+      <section className="bg-surface" aria-label="Why customers choose GharKaBite">
+        <div className="container-shell grid max-w-4xl grid-cols-2 gap-3 py-8 md:grid-cols-4 md:py-10">
+          {trustIndicators.map(({ label, icon: Icon }) => (
+            <div key={label} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-center text-xs font-extrabold text-text-secondary sm:text-sm">
+              <Icon className="size-4.5 shrink-0 text-primary" aria-hidden="true" /> {label}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="border-y border-border bg-surface-muted/70 py-10 md:py-12">
         <div className="container-shell">
@@ -172,8 +174,8 @@ export default async function Home() {
           <SectionHeading eyebrow="Why GharKaBite" title="Built for everyday eating" align="center" />
           <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {benefits.map(({ title, description, icon: Icon }) => (
-              <article key={title} className="rounded-2xl border border-border bg-background p-5">
-                <span className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary"><Icon className="size-5" aria-hidden="true" /></span>
+              <article key={title} className="rounded-2xl border border-border bg-surface p-5 shadow-[0_4px_14px_rgba(30,40,34,0.07)]">
+                <span className="grid size-11 place-items-center rounded-xl bg-surface-alt text-primary"><Icon className="size-5" aria-hidden="true" /></span>
                 <h3 className="mt-5 font-black">{title}</h3>
                 <p className="mt-2 text-sm leading-6 text-text-secondary">{description}</p>
               </article>
@@ -211,7 +213,7 @@ export default async function Home() {
         </div>
       </div></section>
 
-      <section className="container-shell pb-4">
+      <section className="container-shell pt-8 pb-1 md:pt-12 md:pb-3">
         <div className="overflow-hidden rounded-[1.75rem] bg-accent px-6 py-10 text-center text-white shadow-[0_24px_65px_rgba(201,103,67,0.2)] md:px-10 md:py-14">
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/70">Plan ahead, eat better</p>
           <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-black tracking-[-0.04em] md:text-4xl">Tomorrow&apos;s meal can already be sorted.</h2>
