@@ -1,7 +1,7 @@
 "use client";
 
-import { Search, SlidersHorizontal, UtensilsCrossed, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, UtensilsCrossed, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MealCard from "./MealCard";
 import { kolkataDate } from "@/lib/dates";
 import { MEAL_PERIOD_STORAGE_KEY } from "@/lib/constants";
@@ -19,6 +19,9 @@ export default function MenuExplorer({ initialDate }) {
   const [meals, setMeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const categoryScroller = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
   const { settings, hydrated: kitchenHydrated, getAvailability } = useKitchen();
   const periodAvailability = kitchenHydrated ? getAvailability(period, date) : { available: true, reason: "" };
 
@@ -41,6 +44,28 @@ export default function MenuExplorer({ initialDate }) {
     return () => window.clearTimeout(loadSavedPeriod);
   }, []);
 
+  const updateCategoryScroll = useCallback(() => {
+    const scroller = categoryScroller.current;
+    if (!scroller) return;
+    setCanScrollLeft(scroller.scrollLeft > 2);
+    setCanScrollRight(scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    const scroller = categoryScroller.current;
+    if (!scroller) return;
+    const observer = new ResizeObserver(updateCategoryScroll);
+    observer.observe(scroller);
+    const frame = window.requestAnimationFrame(updateCategoryScroll);
+    return () => { observer.disconnect(); window.cancelAnimationFrame(frame); };
+  }, [updateCategoryScroll]);
+
+  function scrollCategories(direction) {
+    const scroller = categoryScroller.current;
+    if (!scroller) return;
+    scroller.scrollBy({ left: direction * Math.max(160, scroller.clientWidth * 0.75), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+
   function choosePeriod(nextPeriod) {
     setPeriod(nextPeriod);
     window.localStorage.setItem(MEAL_PERIOD_STORAGE_KEY, nextPeriod);
@@ -61,6 +86,7 @@ export default function MenuExplorer({ initialDate }) {
   function clearFilters() {
     setCategory("All");
     setSearchQuery("");
+    categoryScroller.current?.scrollTo({ left: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   return (
@@ -103,28 +129,35 @@ export default function MenuExplorer({ initialDate }) {
         </label>
       </div>
 
-      <div className="mt-5 flex items-center gap-2 overflow-x-auto pb-2 [scrollbar-width:none]" aria-label="Filter menu by category">
-        <span className="mr-1 inline-flex shrink-0 items-center gap-2 text-sm font-black"><SlidersHorizontal className="size-4" aria-hidden="true" /> Categories</span>
-        {categories.map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => setCategory(option)}
-            aria-pressed={category === option}
-            className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-extrabold ${category === option ? "bg-primary text-white" : "border border-border bg-surface text-text-secondary hover:border-primary/40 hover:bg-primary/5 hover:text-primary"}`}
-          >
-            {option}
-          </button>
-        ))}
+      <div className="mt-5">
+        <div className="mb-2 flex items-center justify-between gap-2"><span className="inline-flex items-center gap-2 text-sm font-black"><SlidersHorizontal className="size-4" aria-hidden="true" /> Categories</span><span className="text-xs font-bold text-text-secondary sm:hidden">Swipe to browse</span></div>
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => scrollCategories(-1)} disabled={!canScrollLeft} aria-label="Scroll categories left" className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-primary disabled:opacity-40 sm:hidden"><ChevronLeft className="size-5" aria-hidden="true" /></button>
+          <div ref={categoryScroller} onScroll={updateCategoryScroll} role="group" aria-label="Filter menu by category" tabIndex={0} className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth pb-2 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] sm:overflow-visible sm:pb-0">
+            {categories.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setCategory(option)}
+                aria-pressed={category === option}
+                className={`min-h-11 shrink-0 snap-start rounded-full px-4 text-sm font-extrabold ${category === option ? "bg-primary text-white" : "border border-border bg-surface text-text-secondary hover:border-primary/40 hover:bg-primary/5 hover:text-primary"}`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => scrollCategories(1)} disabled={!canScrollRight} aria-label="Scroll categories right" className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-primary disabled:opacity-40 sm:hidden"><ChevronRight className="size-5" aria-hidden="true" /></button>
+        </div>
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <p className="text-sm font-bold text-text-secondary" aria-live="polite">{loading ? "Loading menu…" : `Showing ${filteredMeals.length} ${period.toLowerCase()} ${filteredMeals.length === 1 ? "item" : "items"}`}</p>
+        {filteredMeals.length > 1 && <p className="shrink-0 text-xs font-bold text-text-secondary sm:hidden">Swipe for more →</p>}
         <p className="hidden text-xs font-bold text-text-secondary sm:block">Made to order before the kitchen cutoff.</p>
       </div>
 
       {loading ? <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="status" aria-label="Loading menu">{[0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse bg-surface-muted" />)}</div> : filteredMeals.length > 0 ? (
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div role="region" aria-label="Menu items" tabIndex={0} className="-mx-4 mt-5 grid auto-cols-[min(80vw,18rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-px-4 snap-x snap-mandatory [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] sm:mx-0 sm:mt-6 sm:grid-flow-row sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3 xl:grid-cols-4">
           {filteredMeals.map((meal) => <MealCard key={meal.id} meal={meal} deliveryMealPeriod={period} serviceDate={date} orderingDisabled={!periodAvailability.available} unavailableReason={periodAvailability.reason} />)}
         </div>
       ) : (

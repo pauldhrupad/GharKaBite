@@ -73,7 +73,8 @@ export default async function MealDetailPage({ params, searchParams }) {
       <section className="border-t border-border bg-surface-alt py-8 md:py-12">
         <div className="container-shell">
           <SectionHeading eyebrow="More from today's kitchen" title="You May Also Like" />
-          <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {recommendations.length > 1 && <p className="mt-2 text-xs font-bold text-text-secondary sm:hidden">Swipe for more →</p>}
+          <div role="region" aria-label="Recommended menu items" tabIndex={0} className="-mx-4 mt-4 grid auto-cols-[min(80vw,18rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-px-4 snap-x snap-mandatory [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] sm:mx-0 sm:mt-7 sm:grid-flow-row sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3">
               {recommendations.map((recommendation) => <MealCard key={recommendation.id} meal={recommendation} deliveryMealPeriod={recommendation.slots[0]} serviceDate={date} />)}
           </div>
         </div>
