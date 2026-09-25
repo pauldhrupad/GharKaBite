@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
 import { ArrowUpRight, LogOut, UserRound } from "lucide-react";
 
-export default function AdminAvatar() {
+export default function AdminAvatar({ onOpen }) {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -57,7 +57,7 @@ export default function AdminAvatar() {
   }
 
   return <div className="relative shrink-0">
-    <button ref={triggerRef} type="button" onClick={() => setOpen((current) => !current)} aria-label="Owner account menu" aria-expanded={open} aria-controls="admin-profile-photo-panel" className="grid size-11 place-items-center overflow-hidden rounded-full bg-primary text-xs font-black text-white ring-offset-2 hover:ring-2 hover:ring-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+    <button ref={triggerRef} type="button" onClick={() => { if (!open) onOpen?.(); setOpen(!open); }} aria-label="Owner account menu" aria-expanded={open} aria-controls="admin-profile-photo-panel" className="grid size-11 place-items-center overflow-hidden rounded-full bg-primary text-xs font-black text-white ring-offset-2 hover:ring-2 hover:ring-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
       {avatarUrl ? <Image src={avatarUrl} alt="" width={40} height={40} className="size-10 object-cover" onError={() => setAvatarUrl("")} /> : "GB"}
     </button>
     {open && <>
