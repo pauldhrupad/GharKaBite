@@ -8,13 +8,17 @@ export async function GET() {
 
   try {
     await dbConnect();
-    const count = await Order.countDocuments({
+    const filter = {
       $or: [
         { orderStatus: { $in: ["received", "confirmed"] } },
         { orderStatus: "payment_pending", paymentStatus: "verification_pending" },
       ],
-    });
-    return Response.json({ count }, { headers: { "Cache-Control": "private, no-store" } });
+    };
+    const [count, orders] = await Promise.all([
+      Order.countDocuments(filter),
+      Order.find(filter).select("orderNumber orderStatus paymentStatus mealPeriod serviceDate customer.name createdAt").sort({ createdAt: -1 }).limit(5).lean(),
+    ]);
+    return Response.json({ count, orders }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return Response.json({ message: "Order alerts are temporarily unavailable." }, { status: 503 });
   }

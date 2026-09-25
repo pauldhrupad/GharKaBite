@@ -15,7 +15,7 @@ let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, upd
 let getAdminAvatar, uploadAdminAvatar;
 let getCustomerProfile, uploadCustomerAvatar;
 let createAdminThali;
-let getAdminOrderAlerts;
+let getAdminOrderAlerts, getCustomerNavSummary;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
@@ -59,12 +59,13 @@ beforeAll(async () => {
   ({ POST: uploadCustomerAvatar } = await import("@/app/api/profile/avatar/route"));
   ({ POST: createAdminThali } = await import("@/app/api/admin/meals/route"));
   ({ GET: getAdminOrderAlerts } = await import("@/app/api/admin/order-alerts/route"));
+  ({ GET: getCustomerNavSummary } = await import("@/app/api/orders/nav-summary/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
   await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init(), PromoCode.init()]);
 });
 afterAll(async () => { if (mongoose?.connection?.readyState) await mongoose.disconnect(); if (replica) await replica.stop(); });
-beforeEach(async () => { authState.role = "customer"; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
+beforeEach(async () => { authState.role = "customer"; authState.id = null; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
 
 describe("daily menu and checkout", () => {
   it("alerts admins only to orders awaiting a first action", async () => {
@@ -73,15 +74,34 @@ describe("daily menu and checkout", () => {
     authState.role = "admin";
     const alerts = await getAdminOrderAlerts();
     expect(alerts.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(await alerts.json()).toEqual({ count: 1 });
+    expect(await alerts.json()).toMatchObject({ count: 1, orders: [{ orderNumber: order.orderNumber }] });
 
     await updateOrderStatus(order.orderNumber, "cooking");
-    expect(await (await getAdminOrderAlerts()).json()).toEqual({ count: 0 });
+    expect(await (await getAdminOrderAlerts()).json()).toEqual({ count: 0, orders: [] });
 
     await Order.updateOne({ orderNumber: order.orderNumber }, { $set: { orderStatus: "payment_pending", paymentStatus: "verification_pending" } });
-    expect(await (await getAdminOrderAlerts()).json()).toEqual({ count: 1 });
+    expect(await (await getAdminOrderAlerts()).json()).toMatchObject({ count: 1, orders: [{ orderNumber: order.orderNumber }] });
     await Order.updateOne({ orderNumber: order.orderNumber }, { $set: { orderStatus: "delivered", paymentStatus: "paid" } });
-    expect(await (await getAdminOrderAlerts()).json()).toEqual({ count: 0 });
+    expect(await (await getAdminOrderAlerts()).json()).toEqual({ count: 0, orders: [] });
+  });
+
+  it("keeps navbar order status scoped to the signed-in customer", async () => {
+    expect((await getCustomerNavSummary()).status).toBe(401);
+    const buyer = user();
+    const other = user();
+    const mine = await createOrder(buyer, request(), "COD", { verifyDelivery: delivery });
+    await createOrder(other, request(), "COD", { verifyDelivery: delivery });
+    authState.id = buyer.toString();
+    const summary = await getCustomerNavSummary();
+    expect(summary.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await summary.json()).toMatchObject({ activeCount: 1, orders: [{ orderNumber: mine.orderNumber }] });
+    for (let index = 0; index < 3; index += 1) await createOrder(buyer, request(), "COD", { verifyDelivery: delivery });
+    const expanded = await (await getCustomerNavSummary()).json();
+    expect(expanded.activeCount).toBe(4);
+    expect(expanded.orders).toHaveLength(3);
+    expect(expanded.orders.every((order) => order.orderNumber !== undefined)).toBe(true);
+    await Order.updateOne({ orderNumber: mine.orderNumber }, { $set: { orderStatus: "delivered" } });
+    expect((await (await getCustomerNavSummary()).json()).activeCount).toBe(3);
   });
 
   it("migrates to four configurable Thalis without the old duplicate meals", async () => {

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowUpRight, CalendarRange, ChefHat, ClipboardList, House, LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShoppingBag, Users, X } from "lucide-react";
 import BrandMark from "./BrandMark";
+import { useAdminOrderAlerts } from "./AdminOrderAlertsProvider";
 import { useModalFocus } from "@/lib/use-modal-focus";
 
 const links = [
@@ -33,58 +34,13 @@ export default function AdminSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [alertCount, setAlertCount] = useState(0);
-  const [announcement, setAnnouncement] = useState("");
-  const previousAlertCount = useRef(null);
+  const { count: alertCount, announcement, clearAnnouncement } = useAdminOrderAlerts();
   const mobileDialogRef = useModalFocus(open, () => setOpen(false));
 
   useEffect(() => {
     const timer = window.setTimeout(() => setCollapsed(window.localStorage.getItem("gharkabite-admin-sidebar-collapsed") === "true"), 0);
     return () => window.clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    let active = true;
-    let loading = false;
-
-    async function refreshAlerts() {
-      if (document.visibilityState === "hidden" || loading) return;
-      loading = true;
-      try {
-        const response = await fetch("/api/admin/order-alerts", { cache: "no-store" });
-        if (!response.ok) return;
-        const data = await response.json();
-        if (!active || !Number.isInteger(data.count)) return;
-        if (previousAlertCount.current !== null && data.count > previousAlertCount.current) {
-          const newCount = data.count - previousAlertCount.current;
-          setAnnouncement(`${newCount} new ${newCount === 1 ? "order needs" : "orders need"} attention`);
-        }
-        previousAlertCount.current = data.count;
-        setAlertCount(data.count);
-      } catch {
-        // Keep the previous badge if the network is temporarily unavailable.
-      } finally {
-        loading = false;
-      }
-    }
-
-    refreshAlerts();
-    const interval = window.setInterval(refreshAlerts, 20000);
-    window.addEventListener("focus", refreshAlerts);
-    document.addEventListener("visibilitychange", refreshAlerts);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refreshAlerts);
-      document.removeEventListener("visibilitychange", refreshAlerts);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!announcement) return undefined;
-    const timer = window.setTimeout(() => setAnnouncement(""), 6000);
-    return () => window.clearTimeout(timer);
-  }, [announcement]);
 
   function toggleCollapsed() {
     setCollapsed(!collapsed);
@@ -101,6 +57,6 @@ export default function AdminSidebar() {
       <Navigation pathname={pathname} collapsed={collapsed} alertCount={alertCount} />
     </aside>
     {open && <div className="ui-modal-backdrop fixed inset-0 z-50 lg:hidden"><button type="button" className="absolute inset-0 bg-black/45" onClick={() => setOpen(false)} aria-label="Close admin menu overlay" /><aside ref={mobileDialogRef} role="dialog" aria-modal="true" aria-label="Admin navigation" className="ui-drawer relative h-full w-[min(82vw,18rem)] bg-[#173c27] text-white shadow-2xl"><div className="flex h-17 items-center justify-between border-b border-white/10 px-5"><Link href="/admin/dashboard" onClick={() => setOpen(false)} className="flex items-center" aria-label="GharKaBite admin dashboard"><BrandMark className="size-14 shrink-0 rounded-md bg-white" /></Link><button type="button" className="grid size-11 place-items-center rounded-lg hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close admin menu"><X className="size-5" /></button></div><Navigation pathname={pathname} onNavigate={() => setOpen(false)} alertCount={alertCount} /></aside></div>}
-    {announcement && <div role="status" className="fixed bottom-5 right-4 z-40 max-w-[calc(100vw-2rem)] rounded-xl border border-primary/20 bg-white text-sm font-black text-primary shadow-xl lg:bottom-6"><Link href="/admin/orders" className="block rounded-xl px-4 py-3 hover:bg-primary/5" onClick={() => setAnnouncement("")}>{announcement} · View orders</Link></div>}
+    {announcement && <div role="status" className="fixed bottom-5 right-4 z-40 max-w-[calc(100vw-2rem)] rounded-xl border border-primary/20 bg-white text-sm font-black text-primary shadow-xl lg:bottom-6"><Link href="/admin/orders" className="block rounded-xl px-4 py-3 hover:bg-primary/5" onClick={clearAnnouncement}>{announcement} · View orders</Link></div>}
   </>;
 }

@@ -11,10 +11,10 @@ import { formatCutoffTime } from "@/lib/kitchen-operations";
 const periods = ["Lunch", "Dinner"];
 const categories = ["All", "Veg", "Egg", "Chicken", "Fish", "Special"];
 
-export default function MenuExplorer({ initialDate }) {
+export default function MenuExplorer({ initialDate, initialSearch = "" }) {
   const [period, setPeriod] = useState("Lunch");
   const [category, setCategory] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [date, setDate] = useState(initialDate || kolkataDate());
   const [meals, setMeals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +24,11 @@ export default function MenuExplorer({ initialDate }) {
   const [canScrollRight, setCanScrollRight] = useState(true);
   const { settings, hydrated: kitchenHydrated, getAvailability } = useKitchen();
   const periodAvailability = kitchenHydrated ? getAvailability(period, date) : { available: true, reason: "" };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(initialSearch), 0);
+    return () => window.clearTimeout(timer);
+  }, [initialSearch]);
 
   useEffect(() => {
     let active = true;
