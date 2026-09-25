@@ -16,6 +16,7 @@ import { useKitchen } from "@/context/KitchenContext";
 import { deliverySlotStart, kolkataDate } from "@/lib/dates";
 import { calculateDeliveryFee } from "@/lib/cart-pricing";
 import { usePromoQuote } from "@/lib/use-promo-quote";
+import { revealValidationTarget } from "@/lib/validation-navigation";
 
 const deliverySlots = {
   Lunch: ["12–1 PM", "1–2 PM"],
@@ -181,17 +182,27 @@ export default function CheckoutForm() {
     ["house", "street", "area", "city"].forEach((field) => { if (!form[field].trim()) nextErrors[field] = "This field is required."; });
     if (!/^\d{6}$/.test(form.pinCode)) nextErrors.pinCode = "Enter a valid 6-digit PIN code.";
     if (!deliverySlot) nextErrors.deliverySlot = "Choose a delivery slot.";
+    if (!paymentMethod) nextErrors.paymentMethod = "Choose a payment method.";
+    if (paymentMethod === "manual_online" && !paymentChannel) nextErrors.paymentChannel = "Choose how you want to pay.";
     if (subscriptionId && !coveredMealId) nextErrors.coveredMealId = "Choose one meal for your plan credit.";
     setErrors(nextErrors);
     if (["fullName", "mobile", "email"].some((field) => nextErrors[field])) setEditingContact(true);
     if (addressFields.some((field) => nextErrors[field])) setEditingAddress(true);
-    return Object.keys(nextErrors).length === 0;
+    return nextErrors;
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setSubmitError("");
-    if (!validate() || !availability.available || (promoCode.trim() && !promo.valid)) return;
+    const nextErrors = validate();
+    const firstError = Object.keys(nextErrors)[0];
+    if (firstError) {
+      const fieldId = `checkout-${firstError}`;
+      revealValidationTarget(`${fieldId}-error`, fieldId);
+      return;
+    }
+    if (!availability.available) return;
+    if (promoCode.trim() && !promo.valid) { revealValidationTarget("checkout-promo-error", "checkout-promo-code"); return; }
     setSubmitting(true);
 
     const payload = {
@@ -216,6 +227,7 @@ export default function CheckoutForm() {
       clearCart(); router.push(paymentMethod === "manual_online" ? `/orders/${data.order.orderNumber}/payment` : `/orders/${data.order.orderNumber}`);
     } catch (error) {
       setSubmitError(error.message || "Unable to place this order.");
+      revealValidationTarget("checkout-submit-error");
     } finally {
       setSubmitting(false);
     }
@@ -284,25 +296,25 @@ export default function CheckoutForm() {
         <CheckoutSection icon={Clock3} number="3" title="Delivery Slot">
           <p className="text-sm font-bold text-text-secondary">Delivery on {serviceDate} · {mealPeriod}. Change the date from the menu if needed.</p>
           {!availability.available && <p className="mt-3 rounded-xl border border-danger/20 bg-danger/7 p-3 text-sm font-bold text-danger">{availability.reason}</p>}
-          <fieldset className="mt-4">
+          <fieldset id="checkout-deliverySlot" tabIndex={-1} aria-invalid={Boolean(errors.deliverySlot)} aria-describedby={errors.deliverySlot ? "checkout-deliverySlot-error" : undefined} className="mt-4">
             <legend className="sr-only">Choose a delivery slot</legend>
             <div className="grid gap-3 sm:grid-cols-3">
             {slots.map((slot) => <label key={slot} className={`cursor-pointer rounded-xl border p-4 text-center text-sm font-black transition-colors focus-within:outline-2 focus-within:outline-primary active:scale-[0.99] ${deliverySlot === slot ? "border-primary bg-primary/8 text-primary" : "border-border bg-surface hover:border-primary/40"}`}><input type="radio" name="deliverySlot" value={slot} checked={deliverySlot === slot} onChange={() => { setDeliverySlot(slot); setSubscriptionId(""); setCoveredMealId(""); setErrors((current) => ({ ...current, deliverySlot: "" })); }} className="sr-only" />{deliverySlot === slot && <Check className="mr-1 inline size-4" aria-hidden="true" />}{slot}</label>)}
             </div>
-            {errors.deliverySlot && <p className="mt-2 text-xs font-bold text-danger">{errors.deliverySlot}</p>}
+            {errors.deliverySlot && <p id="checkout-deliverySlot-error" className="mt-2 text-xs font-bold text-danger">{errors.deliverySlot}</p>}
           </fieldset>
         </CheckoutSection>
 
         <CheckoutSection icon={CreditCard} number="4" title="Payment Method">
           {paymentSettingsError && <p role="alert" className="text-sm font-bold text-danger">{paymentSettingsError}</p>}
           {!paymentSettings && !paymentSettingsError && <p className="text-sm text-text-secondary">Loading payment options…</p>}
-          {paymentSettings && <><div className="grid gap-3 sm:grid-cols-2">
-            <label className={`cursor-pointer rounded-xl border p-4 transition-colors focus-within:outline-2 focus-within:outline-primary active:scale-[0.99] ${paymentMethod === "manual_online" ? "border-primary bg-primary/8" : "border-border hover:border-primary/40 hover:bg-primary/5"} ${!paymentSettings.onlinePaymentEnabled ? "cursor-not-allowed opacity-50" : ""}`}><input type="radio" name="payment" value="manual_online" checked={paymentMethod === "manual_online"} disabled={!paymentSettings.onlinePaymentEnabled} onChange={() => setPaymentMethod("manual_online")} className="sr-only" /><span className="flex items-center gap-3"><CreditCard className="size-5 text-primary" aria-hidden="true" /><span className="flex-1"><span className="block font-black">Online Payment</span><span className="text-xs text-text-secondary">UPI · manually verified</span></span>{paymentMethod === "manual_online" && <Check className="size-5 text-primary" aria-hidden="true" />}</span></label>
-            {paymentSettings.codEnabled && <label className={`cursor-pointer rounded-xl border p-4 transition-colors focus-within:outline-2 focus-within:outline-primary active:scale-[0.99] ${paymentMethod === "COD" ? "border-primary bg-primary/8" : "border-border hover:border-primary/40 hover:bg-primary/5"}`}><input type="radio" name="payment" value="COD" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} className="sr-only" /><span className="flex items-center gap-3"><Banknote className="size-5 text-primary" aria-hidden="true" /><span className="flex-1"><span className="block font-black">Cash on Delivery</span><span className="text-xs text-text-secondary">Pay when your meal arrives</span></span>{paymentMethod === "COD" && <Check className="size-5 text-primary" aria-hidden="true" />}</span></label>}
-          </div>{!paymentSettings.onlinePaymentEnabled && <p className="mt-3 text-sm text-text-secondary">Online payment is temporarily unavailable. Please choose another payment method.</p>}{paymentMethod === "manual_online" && <div className="mt-5"><PaymentOptions payment={paymentSettings} channel={paymentChannel} onChange={setPaymentChannel} amount={total} /></div>}</>}
+          {paymentSettings && <><div id="checkout-paymentMethod" role="group" aria-label="Payment method" aria-describedby={errors.paymentMethod ? "checkout-paymentMethod-error" : undefined} tabIndex={-1} className="grid gap-3 sm:grid-cols-2">
+            <label className={`cursor-pointer rounded-xl border p-4 transition-colors focus-within:outline-2 focus-within:outline-primary active:scale-[0.99] ${paymentMethod === "manual_online" ? "border-primary bg-primary/8" : "border-border hover:border-primary/40 hover:bg-primary/5"} ${!paymentSettings.onlinePaymentEnabled ? "cursor-not-allowed opacity-50" : ""}`}><input type="radio" name="payment" value="manual_online" checked={paymentMethod === "manual_online"} disabled={!paymentSettings.onlinePaymentEnabled} onChange={() => { setPaymentMethod("manual_online"); setErrors((current) => ({ ...current, paymentMethod: "" })); }} className="sr-only" /><span className="flex items-center gap-3"><CreditCard className="size-5 text-primary" aria-hidden="true" /><span className="flex-1"><span className="block font-black">Online Payment</span><span className="text-xs text-text-secondary">UPI · manually verified</span></span>{paymentMethod === "manual_online" && <Check className="size-5 text-primary" aria-hidden="true" />}</span></label>
+            {paymentSettings.codEnabled && <label className={`cursor-pointer rounded-xl border p-4 transition-colors focus-within:outline-2 focus-within:outline-primary active:scale-[0.99] ${paymentMethod === "COD" ? "border-primary bg-primary/8" : "border-border hover:border-primary/40 hover:bg-primary/5"}`}><input type="radio" name="payment" value="COD" checked={paymentMethod === "COD"} onChange={() => { setPaymentMethod("COD"); setErrors((current) => ({ ...current, paymentMethod: "", paymentChannel: "" })); }} className="sr-only" /><span className="flex items-center gap-3"><Banknote className="size-5 text-primary" aria-hidden="true" /><span className="flex-1"><span className="block font-black">Cash on Delivery</span><span className="text-xs text-text-secondary">Pay when your meal arrives</span></span>{paymentMethod === "COD" && <Check className="size-5 text-primary" aria-hidden="true" />}</span></label>}
+          </div>{errors.paymentMethod && <p id="checkout-paymentMethod-error" className="mt-2 text-xs font-bold text-danger">{errors.paymentMethod}</p>}{!paymentSettings.onlinePaymentEnabled && <p className="mt-3 text-sm text-text-secondary">Online payment is temporarily unavailable. Please choose another payment method.</p>}{paymentMethod === "manual_online" && <div id="checkout-paymentChannel" tabIndex={-1} className="mt-5"><PaymentOptions payment={paymentSettings} channel={paymentChannel} onChange={(next) => { setPaymentChannel(next); setErrors((current) => ({ ...current, paymentChannel: "" })); }} amount={total} />{errors.paymentChannel && <p id="checkout-paymentChannel-error" className="mt-2 text-xs font-bold text-danger">{errors.paymentChannel}</p>}</div>}</>}
         </CheckoutSection>
 
-        {availableSubscriptions.length > 0 && <CheckoutSection icon={Check} number="5" title="Use a meal plan"><label className="text-sm font-bold">Subscription<CustomSelect value={subscriptionId} onChange={(event) => { setSubscriptionId(event.target.value); setCoveredMealId(""); }} className="input-field mt-2"><option value="">Pay without a plan credit</option>{availableSubscriptions.map((item) => <option key={item._id} value={item._id}>{item.planName} · {item.remainingMeals} left</option>)}</CustomSelect></label>{subscriptionId && <label className="mt-3 block text-sm font-bold">Cover one Thali base<CustomSelect value={coveredMealId} onChange={(event) => setCoveredMealId(event.target.value)} className="input-field mt-2"><option value="">Choose a Thali</option>{eligibleItems.map((item) => <option key={item.key} value={item.mealId}>{item.name} · ₹{item.basePrice} base covered</option>)}</CustomSelect>{errors.coveredMealId && <span className="text-xs text-danger">{errors.coveredMealId}</span>}</label>}<p className="mt-3 text-xs text-text-secondary">Your plan covers one eligible base Thali and delivery. Paid choices and add-ons remain payable.</p></CheckoutSection>}
+        {availableSubscriptions.length > 0 && <CheckoutSection icon={Check} number="5" title="Use a meal plan"><label className="text-sm font-bold">Subscription<CustomSelect value={subscriptionId} onChange={(event) => { setSubscriptionId(event.target.value); setCoveredMealId(""); setErrors((current) => ({ ...current, coveredMealId: "" })); }} className="input-field mt-2"><option value="">Pay without a plan credit</option>{availableSubscriptions.map((item) => <option key={item._id} value={item._id}>{item.planName} · {item.remainingMeals} left</option>)}</CustomSelect></label>{subscriptionId && <label className="mt-3 block text-sm font-bold">Cover one Thali base<CustomSelect id="checkout-coveredMealId" value={coveredMealId} onChange={(event) => { setCoveredMealId(event.target.value); setErrors((current) => ({ ...current, coveredMealId: "" })); }} aria-invalid={Boolean(errors.coveredMealId)} aria-describedby={errors.coveredMealId ? "checkout-coveredMealId-error" : undefined} className="input-field mt-2"><option value="">Choose a Thali</option>{eligibleItems.map((item) => <option key={item.key} value={item.mealId}>{item.name} · ₹{item.basePrice} base covered</option>)}</CustomSelect>{errors.coveredMealId && <span id="checkout-coveredMealId-error" className="mt-1 block text-xs text-danger">{errors.coveredMealId}</span>}</label>}<p className="mt-3 text-xs text-text-secondary">Your plan covers one eligible base Thali and delivery. Paid choices and add-ons remain payable.</p></CheckoutSection>}
 
         <CheckoutSection icon={NotebookPen} number="6" title="Order Notes">
           <label className="block text-sm font-bold">Cooking or delivery instructions <span className="font-normal text-text-secondary">(optional)</span><textarea name="notes" value={form.notes} onChange={updateField} className="input-field mt-2 min-h-24 resize-y" placeholder="e.g. Please make it mildly spicy" maxLength={300} /></label>
@@ -318,14 +330,14 @@ export default function CheckoutForm() {
         <div className="mt-5 space-y-3 border-t border-border pt-5 text-sm">
           {coveredItem && <div className="flex justify-between text-success"><span>Plan Thali base</span><span>−₹{coveredItem.basePrice}</span></div>}
           {promo?.valid && <div className="flex justify-between text-success"><span>{promo.code}</span><span>−₹{promo.discount}</span></div>}
-          <label className="block font-bold">Promo code<input name="promoCode" type="text" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Enter promo code" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} className="input-field mt-1 uppercase" /></label>
-          {promoCode.trim() && <p className={`text-xs font-bold ${promo.valid ? "text-success" : "text-warning"}`} role="status">{promo.message}</p>}
+          <label className="block font-bold">Promo code<input id="checkout-promo-code" name="promoCode" type="text" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Enter promo code" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} className="input-field mt-1 uppercase" /></label>
+          {promoCode.trim() && <p id="checkout-promo-error" className={`text-xs font-bold ${promo.valid ? "text-success" : "text-warning"}`} role="status">{promo.message}</p>}
           <div className="flex justify-between text-text-secondary"><span>Subtotal</span><span>₹{subtotal}</span></div>
           <div className="flex justify-between text-text-secondary"><span>Delivery</span><span className={deliveryFee === 0 ? "font-black text-success" : ""}>{deliveryFee === 0 ? "Free" : `₹${deliveryFee}`}</span></div>
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span className="text-accent">₹{total}</span></div>
         </div>
-        {submitError && <p className="mt-4 rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger" role="alert">{submitError}</p>}
-        <Button type="submit" disabled={submitting || !availability.available || !paymentMethod || (paymentMethod === "manual_online" && !paymentChannel) || (Boolean(promoCode.trim()) && !promo.valid)} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{submitting ? "Placing order…" : paymentMethod === "manual_online" ? "Place order & continue to payment" : "Place COD order"}</Button>
+        {submitError && <p id="checkout-submit-error" tabIndex={-1} className="mt-4 rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger" role="alert">{submitError}</p>}
+        <Button type="submit" disabled={submitting || !availability.available || !paymentSettings} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{submitting ? "Placing order…" : paymentMethod === "manual_online" ? "Place order & continue to payment" : "Place COD order"}</Button>
         <p className="mt-5 flex items-center gap-2 text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 text-success" aria-hidden="true" /> Online orders are confirmed only after we verify payment.</p>
       </aside>
     </form>

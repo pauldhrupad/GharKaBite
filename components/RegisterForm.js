@@ -6,33 +6,43 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { ArrowRight, UserPlus } from "lucide-react";
 import Button from "./Button";
+import { revealValidationTarget } from "@/lib/validation-navigation";
 
 export default function RegisterForm() {
   const router = useRouter();
   const [form, setForm] = useState({ name: "", phone: "", email: "", password: "" });
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
   function updateField(event) {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+    setFieldErrors((current) => ({ ...current, [event.target.name]: "" }));
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
-    if (!/^[6-9]\d{9}$/.test(form.phone.replace(/\D/g, ""))) { setError("Enter a valid 10-digit Indian mobile number."); return; }
-    if (form.password.length < 8) { setError("Password must contain at least 8 characters."); return; }
+    const nextErrors = {};
+    if (form.name.trim().length < 2) nextErrors.name = "Enter your full name.";
+    if (!/^[6-9]\d{9}$/.test(form.phone.replace(/\D/g, ""))) nextErrors.phone = "Enter a valid 10-digit Indian mobile number.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) nextErrors.email = "Enter a valid email address.";
+    if (form.password.length < 8) nextErrors.password = "Password must contain at least 8 characters.";
+    setFieldErrors(nextErrors);
+    const firstError = Object.keys(nextErrors)[0];
+    if (firstError) { revealValidationTarget(`register-${firstError}-error`, `register-${firstError}`); return; }
     setSubmitting(true);
     try {
       const response = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const data = await response.json();
-      if (!response.ok) { setError(data.message || "Unable to create your account."); return; }
+      if (!response.ok) { setError(data.message || "Unable to create your account."); revealValidationTarget("register-form-error"); return; }
       const result = await signIn("credentials", { identifier: form.email, password: form.password, redirect: false });
       if (result?.error) { router.push("/login"); return; }
       router.push("/profile");
       router.refresh();
     } catch {
       setError("Registration is temporarily unavailable.");
+      revealValidationTarget("register-form-error");
     } finally {
       setSubmitting(false);
     }
@@ -44,12 +54,12 @@ export default function RegisterForm() {
       <p className="mt-6 text-xs font-extrabold uppercase tracking-[0.16em] text-accent">Start simply</p>
       <h1 className="mt-2 text-3xl font-black tracking-tight">Create your account</h1>
       <p className="mt-2 text-sm leading-6 text-text-secondary">Save time on repeat orders and manage delivery details.</p>
-      <form onSubmit={handleSubmit} className="mt-7 grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-bold">Full name<input className="input-field mt-2" name="name" type="text" value={form.name} onChange={updateField} autoComplete="name"  required /></label>
-        <label className="text-sm font-bold">Phone<input className="input-field mt-2" name="phone" type="tel" value={form.phone} onChange={updateField} autoComplete="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10}  required /></label>
-        <label className="text-sm font-bold sm:col-span-2">Email<input className="input-field mt-2" name="email" value={form.email} onChange={updateField} type="email" autoComplete="email" placeholder="e.g. abc@example.com" required /></label>
-        <label className="text-sm font-bold sm:col-span-2">Password<input className="input-field mt-2" name="password" value={form.password} onChange={updateField} type="password" autoComplete="new-password" placeholder="Create a password" minLength={8} aria-describedby="password-hint" required /><span id="password-hint" className="mt-1.5 block text-xs font-normal text-text-secondary">Use at least 8 characters.</span></label>
-        {error && <p className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger sm:col-span-2" role="alert">{error}</p>}
+      <form onSubmit={handleSubmit} noValidate className="mt-7 grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-bold">Full name<input id="register-name" className="input-field mt-2" name="name" type="text" value={form.name} onChange={updateField} autoComplete="name" required aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? "register-name-error" : undefined} />{fieldErrors.name && <span id="register-name-error" className="mt-1 block text-xs text-danger" role="alert">{fieldErrors.name}</span>}</label>
+        <label className="text-sm font-bold">Phone<input id="register-phone" className="input-field mt-2" name="phone" type="tel" value={form.phone} onChange={updateField} autoComplete="tel" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} required aria-invalid={Boolean(fieldErrors.phone)} aria-describedby={fieldErrors.phone ? "register-phone-error" : undefined} />{fieldErrors.phone && <span id="register-phone-error" className="mt-1 block text-xs text-danger" role="alert">{fieldErrors.phone}</span>}</label>
+        <label className="text-sm font-bold sm:col-span-2">Email<input id="register-email" className="input-field mt-2" name="email" value={form.email} onChange={updateField} type="email" autoComplete="email" placeholder="e.g. abc@example.com" required aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? "register-email-error" : undefined} />{fieldErrors.email && <span id="register-email-error" className="mt-1 block text-xs text-danger" role="alert">{fieldErrors.email}</span>}</label>
+        <label className="text-sm font-bold sm:col-span-2">Password<input id="register-password" className="input-field mt-2" name="password" value={form.password} onChange={updateField} type="password" autoComplete="new-password" placeholder="Create a password" minLength={8} aria-describedby={fieldErrors.password ? "password-hint register-password-error" : "password-hint"} aria-invalid={Boolean(fieldErrors.password)} required /><span id="password-hint" className="mt-1.5 block text-xs font-normal text-text-secondary">Use at least 8 characters.</span>{fieldErrors.password && <span id="register-password-error" className="mt-1 block text-xs text-danger" role="alert">{fieldErrors.password}</span>}</label>
+        {error && <p id="register-form-error" tabIndex={-1} className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger sm:col-span-2" role="alert">{error}</p>}
         <Button type="submit" disabled={submitting} className="sm:col-span-2 disabled:opacity-55">{submitting ? "Creating account…" : <>Create account <ArrowRight className="size-4" aria-hidden="true" /></>}</Button>
       </form>
       <p className="mt-5 text-center text-sm text-text-secondary">Already registered? <Link href="/login" className="font-black text-primary hover:underline">Sign in</Link></p>

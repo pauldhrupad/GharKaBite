@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, ImagePlus, Trash2 } from "lucide-react";
 
-export default function PaymentScreenshotPicker({ file, onChange, disabled }) {
+export default function PaymentScreenshotPicker({ file, onChange, disabled, requiredError = "" }) {
   const [dragging, setDragging] = useState(false);
   const [preview, setPreview] = useState("");
   const [error, setError] = useState("");
@@ -28,8 +28,9 @@ export default function PaymentScreenshotPicker({ file, onChange, disabled }) {
       <ImagePlus className="size-6 text-primary" aria-hidden="true" />
       <span className="text-sm font-bold">{file ? "Replace screenshot" : "Choose a screenshot or drop it here"}</span>
       <span className="text-xs text-text-secondary">JPG, PNG or WebP · up to 5 MB</span>
-      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => acceptFile(event.target.files?.[0])} disabled={disabled} className="sr-only" aria-label="Choose payment screenshot" />
+      <input id="payment-screenshot" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => acceptFile(event.target.files?.[0])} disabled={disabled} className="sr-only" aria-label="Choose payment screenshot" aria-invalid={Boolean(requiredError || error)} aria-describedby={requiredError ? "payment-screenshot-error" : undefined} />
     </label>
+    {requiredError && <p id="payment-screenshot-error" role="alert" className="mt-2 text-xs font-bold text-danger">{requiredError}</p>}
     {error && <p role="alert" className="mt-2 text-xs font-bold text-danger">{error}</p>}
     {file && <div className="ui-enter mt-3 flex items-center gap-3 rounded-xl border border-success/25 bg-success/5 p-3"><div className="size-16 shrink-0 overflow-hidden rounded-lg bg-white">{preview && <img src={preview} alt="Selected payment screenshot preview" className="size-full object-contain" />}</div><div className="min-w-0 flex-1"><p className="flex items-center gap-1 text-xs font-black text-success"><CheckCircle2 className="size-4" aria-hidden="true" /> Screenshot ready</p><p className="truncate text-xs text-text-secondary">{file.name}</p></div><button type="button" onClick={() => { onChange(null); setPreview(""); }} disabled={disabled} className="grid size-11 shrink-0 place-items-center rounded-lg text-text-secondary hover:bg-danger/10 hover:text-danger" aria-label="Remove screenshot"><Trash2 className="size-4" aria-hidden="true" /></button></div>}
   </div>;
