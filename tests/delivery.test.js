@@ -7,7 +7,7 @@ function configure() {
   vi.stubEnv("GEOAPIFY_API_KEY", "test-key");
   vi.stubEnv("KITCHEN_LATITUDE", "22.5000");
   vi.stubEnv("KITCHEN_LONGITUDE", "88.3000");
-  vi.stubEnv("MAX_DELIVERY_RADIUS_KM", "5");
+  vi.stubEnv("MAX_DELIVERY_RADIUS_KM", "3");
 }
 
 function mockGeoapify(properties) {
@@ -28,13 +28,36 @@ describe("delivery verification", () => {
     mockGeoapify({ lat: 22.501, lon: 88.301, result_type: "street", rank: { confidence: 0.9 }, postcode: "700099" });
     expect((await checkDelivery(address)).serviceable).toBe(false);
   });
-  it("checks the five kilometre straight-line radius", async () => {
+  it("checks the three kilometre straight-line radius", async () => {
     configure();
     mockGeoapify({ lat: 22.501, lon: 88.301, result_type: "street", rank: { confidence: 0.9 }, postcode: "700034" });
     expect((await checkDelivery(address)).serviceable).toBe(true);
     mockGeoapify({ lat: 22.6, lon: 88.4, result_type: "street", rank: { confidence: 0.9 }, postcode: "700034" });
     expect(await checkDelivery(address)).toMatchObject({ serviceable: false, reason: "Sorry, this address is currently outside our delivery area." });
-    expect(haversineKm(22.5, 88.3, 22.6, 88.4)).toBeGreaterThan(5);
+    expect(haversineKm(22.5, 88.3, 22.6, 88.4)).toBeGreaterThan(3);
+  });
+  it.each([2.99, 3.01, 4])("checks a geocoded address %s km away", async (distance) => {
+    configure();
+    const lat = 22.5 + distance / 6371 * 180 / Math.PI;
+    mockGeoapify({ lat, lon: 88.3, result_type: "street", rank: { confidence: 0.9 }, postcode: "700034" });
+    expect((await checkDelivery(address)).serviceable).toBe(distance < 3);
+  });
+  it("defaults to three kilometres when no radius override is configured", async () => {
+    configure();
+    vi.stubEnv("MAX_DELIVERY_RADIUS_KM", "");
+    mockGeoapify({ lat: 22.5 + 4 / 6371 * 180 / Math.PI, lon: 88.3, result_type: "street", rank: { confidence: 0.9 }, postcode: "700034" });
+    expect((await checkDelivery(address)).serviceable).toBe(false);
+  });
+  it("includes the distance boundary for geocoded addresses and map pins", async () => {
+    configure();
+    const point = { lat: 22.5 + 3 / 6371 * 180 / Math.PI, lon: 88.3 };
+    // Use the computed distance to avoid a floating-point rounding discrepancy at equality.
+    const distance = haversineKm(22.5, 88.3, point.lat, point.lon);
+    expect(distance).toBeCloseTo(3, 10);
+    vi.stubEnv("MAX_DELIVERY_RADIUS_KM", String(distance));
+    mockGeoapify({ ...point, result_type: "street", rank: { confidence: 0.9 }, postcode: "700034", country_code: "in", street: "Test Road", suburb: "Behala", city: "Kolkata" });
+    expect((await checkDelivery(address)).serviceable).toBe(true);
+    expect((await checkLocation(point, address)).serviceable).toBe(true);
   });
 });
 
@@ -61,10 +84,11 @@ describe("map pin verification", () => {
   it("checks points at the boundary and fails closed when reverse geocoding fails", async () => {
     configure();
     mockGeoapify(resolved);
-    const justInside = { lat: 22.5 + 4.9 / 111.2, lon: 88.3 };
-    const justOutside = { lat: 22.5 + 5.1 / 111.2, lon: 88.3 };
+    const justInside = { lat: 22.5 + 2.99 / 6371 * 180 / Math.PI, lon: 88.3 };
+    const justOutside = { lat: 22.5 + 3.01 / 6371 * 180 / Math.PI, lon: 88.3 };
     expect((await checkLocation(justInside)).serviceable).toBe(true);
     expect((await checkLocation(justOutside)).serviceable).toBe(false);
+    expect((await checkLocation({ lat: 22.5 + 4 / 6371 * 180 / Math.PI, lon: 88.3 })).serviceable).toBe(false);
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false })));
     expect(await checkLocation(near)).toMatchObject({ serviceable: false, unavailable: true });
     mockGeoapify({ ...resolved, postcode: "" });

@@ -48,7 +48,7 @@ const faqs = [
   { question: "Is the food cooked daily?", answer: "Yes. Meals are freshly prepared to match confirmed orders, subject to menu availability and the ordering cutoff." },
   { question: "Can I order without a subscription?", answer: "Yes. You can place a one-time lunch or dinner order whenever meals are available." },
   { question: "Do you provide lunch and dinner?", answer: "Yes. Lunch and dinner menus can differ, and each has its own ordering cutoff." },
-  { question: "How far do you deliver?", answer: "We currently plan to serve selected locations within approximately 5 km of the kitchen. The exact kitchen address is not displayed." },
+  { question: "How far do you deliver?", answer: "We deliver to verified addresses within 3 km of the kitchen. The exact kitchen address is not displayed." },
   { question: "Can I pause a subscription?", answer: "The kitchen admin can pause an active plan. Its expiry moves forward by the paused time when it resumes." },
   { question: "Do you offer vegetarian options?", answer: "Yes. Vegetarian meals are included in both daily menus and meal-plan choices." },
 ];

@@ -23,7 +23,7 @@ The first menu request seeds four configurable Thalis (Chicken, Fish, Egg and Ve
 | `GEOAPIFY_API_KEY` | Free-tier Geoapify key for address suggestions and geocoding. The app proxies requests server-side. |
 | `NEXT_PUBLIC_GEOAPIFY_MAPS_KEY` | Separate browser-visible Geoapify key for map tiles. Restrict it to `http://localhost:3000` and the deployed domain in Geoapify. Set it before building or redeploying. Never use the private server key here. |
 | `KITCHEN_LATITUDE`, `KITCHEN_LONGITUDE` | Private center of the delivery radius. Never use `NEXT_PUBLIC_` for these. |
-| `MAX_DELIVERY_RADIUS_KM` | Straight-line limit, default `5`. |
+| `MAX_DELIVERY_RADIUS_KM` | Straight-line limit, default `3`. |
 
 Production values for Cloudinary, Geoapify and the private kitchen center are configured in Vercel. They are kept out of Git. Existing local meal images remain selectable. A fresh installation must supply its own values; address verification and order placement fail closed until then. There is no keyword-only delivery fallback.
 

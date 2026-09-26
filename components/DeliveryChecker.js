@@ -44,6 +44,6 @@ export default function DeliveryChecker() {
     {suggestions.length > 0 && !selected && <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-border">{suggestions.map((value) => <button key={value} type="button" onClick={() => { setQuery(value); setSuggestions([]); }} className="block min-h-11 w-full border-b border-border p-2 text-left text-xs hover:bg-surface-muted">{value}</button>)}</div>}
     <div className="mt-3"><LocationPicker compactTrigger location={selected?.location} onSelect={(choice) => { setSelected(choice); setQuery(choice.result.label || [choice.address.street, choice.address.area, choice.address.city, choice.address.pinCode].join(", ")); setSuggestions([]); setResult(choice.result); setFieldError(""); }} /></div>
     {result && <p role="status" className={`ui-enter mt-3 flex items-center gap-2 text-sm font-bold ${result.serviceable ? "text-success" : "text-danger"}`}>{result.serviceable ? <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" /> : <CircleAlert className="size-4 shrink-0" aria-hidden="true" />}{result.reason}</p>}
-    <p className="mt-3 text-xs leading-5 text-text-secondary">Verified addresses within 5 km only.</p>
+    <p className="mt-3 text-xs leading-5 text-text-secondary">Verified addresses within 3 km only.</p>
   </div>;
 }
