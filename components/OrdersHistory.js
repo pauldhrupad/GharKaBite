@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarDays, RotateCcw, UtensilsCrossed } from "lucide-react";
 import Button from "./Button";
 import EmptyState from "./EmptyState";
+import LoadingState from "./LoadingState";
 import { useCart } from "@/context/CartContext";
 import { formatOrderTimestamp } from "@/lib/order-utils";
 import { kolkataDate } from "@/lib/dates";
@@ -18,27 +19,34 @@ export default function OrdersHistory() {
   const { getAvailability } = useKitchen();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reordering, setReordering] = useState("");
   const [message, setMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let active = true;
     const loadOrders = window.setTimeout(async () => {
-      let databaseOrders = [];
       try {
         const response = await fetch("/api/orders");
-        if (response.ok) databaseOrders = (await response.json()).orders || [];
+        if (!response.ok) throw new Error("ORDERS_UNAVAILABLE");
+        const databaseOrders = (await response.json()).orders || [];
+        if (active) {
+          setOrders(databaseOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+          setLoadError("");
+        }
       } catch {
-        // The database is the source of truth for orders.
+        if (active) setLoadError("Your orders could not be loaded. Please try again.");
       }
-      if (active) {
-        setOrders(databaseOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-        setLoading(false);
-      }
+      if (active) setLoading(false);
     }, 0);
     return () => { active = false; window.clearTimeout(loadOrders); };
-  }, []);
+  }, [retryKey]);
 
   async function reorder(order) {
+    if (reordering) return;
+    setReordering(order.orderNumber);
+    try {
     const availability = getAvailability(order.mealPeriod, kolkataDate());
     if (!availability.available) { setMessage(availability.reason); return; }
     const response = await fetch(`/api/menu?date=${kolkataDate()}`);
@@ -61,9 +69,12 @@ export default function OrdersHistory() {
       const result = addOrderItems(selections.map(({ item, meal, customization }) => ({ meal, quantity: item.quantity, customization })), order.mealPeriod, kolkataDate());
       setMessage(result.status === "conflict" ? `Your existing cart uses another meal period. Confirm the switch to reorder this ${order.mealPeriod.toLowerCase()}.` : "Previous menu items and their choices added to your cart.");
     } catch { setMessage("Some previous selections are no longer available. Please review your menu items."); }
+    } catch { setMessage("Today's menu could not be checked. Please try again."); }
+    finally { setReordering(""); }
   }
 
-  if (loading) return <section className="container-shell py-10"><div className="h-56 animate-pulse rounded-2xl bg-surface-muted" /></section>;
+  if (loading) return <LoadingState label="Loading your orders" rows={2} />;
+  if (loadError) return <section className="container-shell py-10" role="alert"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={() => { setLoading(true); setRetryKey((current) => current + 1); }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></section>;
   if (!orders.length) return <section className="container-shell py-12"><EmptyState title="No orders here yet" description="Your first order will appear here with its status, delivery timing and an easy reorder option." /></section>;
 
   return (
@@ -72,7 +83,7 @@ export default function OrdersHistory() {
       <div className="space-y-5">{orders.map((order) => (
         <article key={order.orderNumber} className="order-card card-surface overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-border bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><Link href={`/orders/${order.orderNumber}`} className="font-black text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 flex items-center gap-1.5 text-xs text-text-secondary"><CalendarDays className="size-3.5" aria-hidden="true" /> {formatOrderTimestamp(order.createdAt)}</p></div><span className="w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-black capitalize text-primary">{order.orderStatus.replaceAll("_", " ")}</span></div>
-          <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:p-5"><div><p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-text-secondary"><UtensilsCrossed className="size-4" aria-hidden="true" /> {order.mealPeriod} · {order.deliverySlot}</p><p className="mt-3 font-black">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(" · ")}</p><p className="mt-2 text-sm text-text-secondary">Total <strong className="text-accent">₹{order.total}</strong> · {order.paymentMethod === "COD" ? "Cash on Delivery" : "Online Payment"}</p><p className="mt-2 text-sm font-bold capitalize">Payment: {order.paymentStatus.replaceAll("_", " ")} · Order: {order.orderStatus.replaceAll("_", " ")}</p></div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => reorder(order)}><RotateCcw className="size-4" aria-hidden="true" /> Order Again</Button>{order.paymentMethod === "manual_online" && ["pending", "rejected"].includes(order.paymentStatus) && order.orderStatus !== "cancelled" && <Button href={`/orders/${order.orderNumber}/payment`}>{order.paymentStatus === "rejected" ? "Resubmit Payment" : "Complete Payment"}</Button>}{order.paymentStatus === "verification_pending" && <span className="self-center text-xs font-bold text-warning">Awaiting Verification</span>}<Button href={`/orders/${order.orderNumber}`}>View Details <ArrowRight className="size-4" aria-hidden="true" /></Button></div></div>
+          <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:p-5"><div><p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-text-secondary"><UtensilsCrossed className="size-4" aria-hidden="true" /> {order.mealPeriod} · {order.deliverySlot}</p><p className="mt-3 font-black">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(" · ")}</p><p className="mt-2 text-sm text-text-secondary">Total <strong className="text-accent">₹{order.total}</strong> · {order.paymentMethod === "COD" ? "Cash on Delivery" : "Online Payment"}</p><p className="mt-2 text-sm font-bold capitalize">Payment: {order.paymentStatus.replaceAll("_", " ")} · Order: {order.orderStatus.replaceAll("_", " ")}</p></div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" loading={reordering === order.orderNumber} loadingText="Checking menu…" disabled={Boolean(reordering)} onClick={() => reorder(order)}><RotateCcw className="size-4" aria-hidden="true" /> Order Again</Button>{order.paymentMethod === "manual_online" && ["pending", "rejected"].includes(order.paymentStatus) && order.orderStatus !== "cancelled" && <Button href={`/orders/${order.orderNumber}/payment`}>{order.paymentStatus === "rejected" ? "Resubmit Payment" : "Complete Payment"}</Button>}{order.paymentStatus === "verification_pending" && <span className="self-center text-xs font-bold text-warning">Awaiting Verification</span>}<Button href={`/orders/${order.orderNumber}`}>View Details <ArrowRight className="size-4" aria-hidden="true" /></Button></div></div>
         </article>
       ))}</div>
     </section>

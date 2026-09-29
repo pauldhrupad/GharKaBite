@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import AdminThaliForm from "@/components/AdminThaliForm";
 import CustomSelect from "@/components/CustomSelect";
+import LoadingState, { LoadingSpinner } from "@/components/LoadingState";
 
 function dateAt(offset = 0) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(Date.now() + offset * 86400000));
@@ -19,13 +20,23 @@ export default function AdminMealsPage() {
   const [editing, setEditing] = useState(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const reload = useCallback(async () => {
     const [catalogue, overrides] = await Promise.all([fetch("/api/admin/meals"), fetch(`/api/admin/daily-menu?date=${date}`)]);
     if (!catalogue.ok || !overrides.ok) throw new Error("Unable to load menu items.");
     setMeals((await catalogue.json()).meals || []);
     setDaily((await overrides.json()).overrides || []);
   }, [date]);
-  useEffect(() => { const timer = window.setTimeout(() => reload().catch((error) => setMessage(error.message)), 0); return () => window.clearTimeout(timer); }, [reload]);
+  useEffect(() => {
+    const timer = window.setTimeout(async () => {
+      setLoading(true); setLoadError("");
+      try { await reload(); }
+      catch (error) { setLoadError(error.message); }
+      finally { setLoading(false); }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [reload]);
 
   async function change(url, method, payload) {
     setBusy(true); setMessage("");
@@ -42,10 +53,14 @@ export default function AdminMealsPage() {
     setEditing(null); setForm(copy); setMessage("");
   }
 
+  if (loading) return <LoadingState label="Loading menu items" variant="section" className="mt-7" />;
+  if (loadError) return <div role="alert" className="mt-7 rounded-xl border border-danger/30 bg-white p-5"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={async () => { setLoading(true); setLoadError(""); try { await reload(); } catch (error) { setLoadError(error.message); } finally { setLoading(false); } }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></div>;
+
   return <section>
     <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Kitchen catalogue</p><h1 className="mt-1 text-3xl font-black">Menu items</h1><p className="text-sm text-text-secondary">Manage Thalis, single dishes, choices, add-ons and availability.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setEditing(null); setForm({ kind: "thali" }); }} className="min-h-11 rounded-xl bg-primary px-4 py-3 text-sm font-black text-white hover:bg-primary-hover">Create Thali</button><button type="button" onClick={() => { setEditing(null); setForm({ kind: "dish" }); }} className="min-h-11 rounded-xl border border-primary px-4 py-3 text-sm font-black text-primary hover:bg-primary/10">Add single dish</button></div></div>
     <div className="mt-5 flex gap-2">{[0, 1].map((offset) => <button key={offset} type="button" onClick={() => setDate(dateAt(offset))} className={`rounded-xl px-4 py-2 text-sm font-bold ${date === dateAt(offset) ? "bg-primary text-white" : "border border-border bg-white"}`}>{offset ? "Tomorrow" : "Today"}</button>)}</div>
     {message && <p className="mt-4 rounded-xl bg-white p-3 text-sm font-bold" role="status">{message}</p>}
+    {busy && <p role="status" className="mt-4 flex items-center gap-2 text-sm font-bold text-primary"><LoadingSpinner />Updating menu item…</p>}
     <div className="mt-6 grid gap-4 lg:grid-cols-2">{meals.map((meal) => {
       const override = daily.find((item) => String(item.meal) === String(meal._id));
       const dayPayload = (patch) => change("/api/admin/daily-menu", "PATCH", { mealId: meal.slug, date, ...patch });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LoadingSpinner } from "./LoadingState";
 
 const variants = {
   primary: "border border-primary bg-primary text-white shadow-[0_6px_16px_rgba(35,77,60,0.16)] hover:border-primary-hover hover:bg-primary-hover",
@@ -7,8 +8,8 @@ const variants = {
   ghost: "text-primary hover:bg-primary/8",
 };
 
-export default function Button({ href, children, variant = "primary", className = "", ...props }) {
+export default function Button({ href, children, variant = "primary", className = "", loading = false, loadingText = "Working…", disabled = false, ...props }) {
   const classes = `ui-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:border-disabled-bg disabled:bg-disabled-bg disabled:text-disabled-text disabled:shadow-none ${variants[variant]} ${className}`;
   if (href) return <Link href={href} className={classes} {...props}>{children}</Link>;
-  return <button className={classes} {...props}>{children}</button>;
+  return <button className={classes} disabled={disabled || loading} aria-busy={loading} {...props}>{loading ? <><LoadingSpinner />{loadingText}</> : children}</button>;
 }

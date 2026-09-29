@@ -18,10 +18,9 @@ import {
 import Button from "@/components/Button";
 import DeliveryChecker from "@/components/DeliveryChecker";
 import HomeMenuSection from "@/components/HomeMenuSection";
+import { HomepagePlanCards, TomorrowMenuCards } from "@/components/HomeProgressiveSections";
 import SectionHeading from "@/components/SectionHeading";
-import { getMenu, seedCatalog } from "@/lib/catalog";
 import { kolkataDate } from "@/lib/dates";
-import SubscriptionPlan from "@/models/SubscriptionPlan";
 
 const trustIndicators = [
   { label: "Fresh Ingredients", icon: Leaf },
@@ -55,11 +54,8 @@ const faqs = [
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+export default function Home() {
   const tomorrowDate = kolkataDate(1);
-  const tomorrowMeals = (await getMenu(tomorrowDate)).filter((meal) => meal.available).slice(0, 3).map((meal) => ({ name: meal.name, detail: meal.contents.join(", "), image: meal.image }));
-  await seedCatalog();
-  const homepagePlans = (await SubscriptionPlan.find({ active: true }).sort({ mealCount: 1 }).lean()).map((plan) => ({ name: plan.name, meals: plan.mealCount, price: plan.price, perMeal: (plan.price / plan.mealCount).toFixed(2), validity: `Valid for ${plan.validityDays} days`, featured: plan.slug === "monthly", modes: [["Lunch", plan.lunchAllowed], ["Dinner", plan.dinnerAllowed], ["Mixed", plan.mixedAllowed]].filter(([, allowed]) => allowed).map(([mode]) => mode) }));
   const schema = { "@context": "https://schema.org", "@type": "FoodEstablishment", name: "GharKaBite", url: process.env.SITE_URL || "http://localhost:3000", servesCuisine: "Homemade Indian food", areaServed: { "@type": "City", name: "Kolkata" }, hasMenu: `${process.env.SITE_URL || "http://localhost:3000"}/menu` };
   return (
     <>
@@ -128,48 +124,16 @@ export default async function Home() {
             </div>
             <Button href={`/menu?date=${tomorrowDate}`} variant="secondary">Pre-order Tomorrow <ArrowRight className="size-4" aria-hidden="true" /></Button>
           </div>
-          <div className="-mx-4 mt-6 grid auto-cols-[82%] grid-flow-col gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:mx-0 sm:grid-flow-row sm:grid-cols-3 sm:overflow-visible sm:px-0">
-            {tomorrowMeals.length === 0 && <p className="col-span-full rounded-xl bg-surface p-5 text-sm font-bold text-text-secondary">Tomorrow&apos;s menu is being prepared. Check back later.</p>}
-            {tomorrowMeals.map((meal) => (
-              <article key={meal.name} className="flex snap-start items-center gap-4 rounded-2xl border border-border bg-surface p-3">
-                <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-surface-muted">
-                  <Image src={meal.image} alt={`${meal.name} preview`} fill sizes="80px" className="object-cover" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-black">{meal.name}</h3>
-                  <p className="mt-1 text-xs leading-5 text-text-secondary">{meal.detail}</p>
-                </div>
-              </article>
-            ))}
-          </div>
+          <TomorrowMenuCards date={tomorrowDate} />
         </div>
       </section>
 
       <section className="bg-surface-alt py-9 md:py-16"><div className="container-shell">
         <SectionHeading eyebrow="Flexible meal plans" title="Make everyday meals easier" description="Start small or plan the month. Choose lunch, dinner or a mix when you select a plan." />
-        <div className="mt-8 grid gap-5 lg:grid-cols-3">
-          {homepagePlans.map((plan) => (
-            <article key={plan.name} className={`relative rounded-2xl border bg-surface p-5 shadow-[0_4px_14px_rgba(30,40,34,0.07)] md:p-6 ${plan.featured ? "border-2 border-accent" : "border-border"}`}>
-              {plan.featured && <span className="absolute -top-3 left-5 rounded-full bg-accent px-3 py-1 text-xs font-black text-white">Best Value</span>}
-              <p className="text-sm font-extrabold text-text-secondary">{plan.meals} Meals</p>
-              <h3 className="mt-1 text-2xl font-black">{plan.name}</h3>
-              <div className="mt-5 flex items-end gap-2">
-                <span className="text-4xl font-black text-accent">₹{plan.price.toLocaleString("en-IN")}</span>
-                <span className="pb-1 text-sm font-bold text-text-secondary">₹{plan.perMeal} per meal</span>
-              </div>
-              <p className="mt-2 text-sm text-text-secondary">{plan.validity}</p>
-              <div className="mt-6 flex flex-wrap gap-2" aria-label="Available meal timing options">
-                {plan.modes.map((option) => (
-                  <span key={option} className="rounded-full border border-border bg-surface-alt px-3 py-1.5 text-xs font-extrabold text-text-secondary">{option}</span>
-                ))}
-              </div>
-              <Button href="/plans" className="mt-6 w-full">See plan details</Button>
-            </article>
-          ))}
-        </div>
+        <HomepagePlanCards />
       </div></section>
 
-      <section className="border-y border-border bg-background py-9 md:py-16">
+      <section className="defer-render border-y border-border bg-background py-9 md:py-16">
         <div className="container-shell">
           <SectionHeading eyebrow="Why GharKaBite" title="Built for everyday eating" align="center" />
           <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -184,7 +148,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="container-shell py-9 md:py-16">
+      <section className="defer-render container-shell py-9 md:py-16">
         <SectionHeading eyebrow="How it works" title="Four simple steps to fresh food" align="center" />
         <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map(({ title, description, icon: Icon }, index) => (
@@ -198,7 +162,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="border-y border-border bg-surface py-9 md:py-16"><div className="container-shell">
+      <section className="defer-render border-y border-border bg-surface py-9 md:py-16"><div className="container-shell">
         <SectionHeading eyebrow="Common questions" title="Before you order" />
         <div className="mt-8 grid gap-3 lg:grid-cols-2">
           {faqs.map((item) => (

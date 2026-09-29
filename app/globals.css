@@ -198,6 +198,17 @@ input[type="file"]::file-selector-button {
 }
 input[type="file"]:hover::file-selector-button { border-color: var(--primary); background: #e8f1e9; }
 summary:focus-visible { border-radius: 0.5rem; }
+.loading-spinner { animation: loading-spin 650ms linear infinite; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+.loading-skeleton {
+  background: linear-gradient(100deg, var(--surface-muted) 30%, var(--surface-alt) 50%, var(--surface-muted) 70%);
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes loading-shimmer { to { background-position-x: -200%; } }
+@supports (content-visibility: auto) {
+  .defer-render { content-visibility: auto; contain-intrinsic-size: auto 460px; }
+}
 @media print {
   @page { margin: 14mm; }
   body:has([data-preparation-sheet]) { padding: 0; background: white; color: black; }

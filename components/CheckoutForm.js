@@ -10,6 +10,7 @@ import Button from "./Button";
 import CustomSelect from "./CustomSelect";
 import EmptyState from "./EmptyState";
 import LocationPicker from "./LocationPicker";
+import LoadingState from "./LoadingState";
 import PaymentOptions, { availableChannels } from "./PaymentOptions";
 import { useCart } from "@/context/CartContext";
 import { useKitchen } from "@/context/KitchenContext";
@@ -242,9 +243,9 @@ export default function CheckoutForm() {
     } catch { setDeliveryResult({ serviceable: false, reason: "We couldn't verify this address. Please contact us for delivery confirmation." }); }
   }
 
-  if (!hydrated) return <section className="container-shell py-10"><div className="h-80 animate-pulse rounded-2xl bg-surface-muted" /></section>;
+  if (!hydrated) return <LoadingState label="Loading your cart" rows={2} />;
   if (!items.length) return <section className="container-shell py-12"><EmptyState title="Your tiffin box is empty." description="Add a lunch or dinner meal before continuing to checkout." actionLabel="Browse Menu" /></section>;
-  if (authStatus === "loading" || (authStatus === "authenticated" && !profileReady && !profileFailed)) return <section className="container-shell py-10"><div className="card-surface h-44 animate-pulse bg-surface-muted" aria-label="Loading your checkout details" /></section>;
+  if (authStatus === "loading" || (authStatus === "authenticated" && !profileReady && !profileFailed)) return <LoadingState label="Loading your checkout details" rows={2} />;
   if (authStatus === "unauthenticated") return <section className="container-shell py-10"><div className="card-surface max-w-xl p-6 md:p-8"><h2 className="text-2xl font-black">Sign in to finish your order</h2><p className="mt-2 text-sm leading-6 text-text-secondary">Your saved contact details and delivery addresses will be filled in automatically. Your cart will be waiting when you return.</p><div className="mt-5 flex flex-wrap gap-3"><Button href="/login?callbackUrl=/checkout">Sign in and continue</Button><Button href="/register" variant="secondary">Create an account</Button></div></div></section>;
 
   return (
@@ -337,7 +338,7 @@ export default function CheckoutForm() {
           <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span className="text-accent">₹{total}</span></div>
         </div>
         {submitError && <p id="checkout-submit-error" tabIndex={-1} className="mt-4 rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger" role="alert">{submitError}</p>}
-        <Button type="submit" disabled={submitting || !availability.available || !paymentSettings} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{submitting ? "Placing order…" : paymentMethod === "manual_online" ? "Place order & continue to payment" : "Place COD order"}</Button>
+        <Button type="submit" loading={submitting} loadingText="Placing order…" disabled={!availability.available || !paymentSettings} className="mt-5 w-full disabled:cursor-not-allowed disabled:opacity-55">{paymentMethod === "manual_online" ? "Place order & continue to payment" : "Place COD order"}</Button>
         <p className="mt-5 flex items-center gap-2 text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 text-success" aria-hidden="true" /> Online orders are confirmed only after we verify payment.</p>
       </aside>
     </form>

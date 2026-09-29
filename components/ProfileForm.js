@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import { Camera, LayoutDashboard, LogOut, MapPin, Plus, Save, Trash2, UserRound } from "lucide-react";
 import Button from "./Button";
 import LocationPicker from "./LocationPicker";
+import LoadingState from "./LoadingState";
 import { revealValidationTarget } from "@/lib/validation-navigation";
 
 const emptyAddress = { label: "Home", house: "", street: "", area: "", landmark: "", city: "Kolkata", pinCode: "" };
@@ -14,6 +15,8 @@ const emptyAddress = { label: "Home", house: "", street: "", area: "", landmark:
 export default function ProfileForm({ initialUser }) {
   const [profile, setProfile] = useState({ name: initialUser?.name || "", email: initialUser?.email || "", phone: initialUser?.phone || "", avatarUrl: "", addresses: [] });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [message, setMessage] = useState("");
@@ -25,10 +28,10 @@ export default function ProfileForm({ initialUser }) {
     fetch("/api/profile").then(async (response) => {
       if (!response.ok) throw new Error("Unable to load your profile right now.");
       const data = await response.json();
-      if (active) setProfile({ ...data.user, addresses: data.user.addresses || [] });
-    }).catch(() => { if (active) setError("Unable to load your profile right now."); }).finally(() => { if (active) setLoading(false); });
+      if (active) { setProfile({ ...data.user, addresses: data.user.addresses || [] }); setLoadError(""); }
+    }).catch(() => { if (active) setLoadError("Unable to load your profile right now."); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [loadAttempt]);
 
   function updateProfile(event) {
     setProfile((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -105,7 +108,8 @@ export default function ProfileForm({ initialUser }) {
     }
   }
 
-  if (loading) return <section className="container-shell py-10"><div className="h-72 animate-pulse rounded-2xl bg-surface-muted" /></section>;
+  if (loading) return <LoadingState label="Loading your profile" rows={2} />;
+  if (loadError) return <section className="container-shell py-10" role="alert"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={() => { setLoading(true); setLoadAttempt((current) => current + 1); }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></section>;
 
   return (
     <form onSubmit={saveProfile} noValidate className="container-shell grid gap-5 py-8 md:py-10 lg:grid-cols-[20rem_1fr] lg:items-start">
@@ -119,7 +123,7 @@ export default function ProfileForm({ initialUser }) {
         </section>
 
         {(message || error) && <p id="profile-form-error" tabIndex={error ? -1 : undefined} className={`rounded-xl p-4 text-sm font-bold ${error ? "bg-danger/8 text-danger" : "bg-success/10 text-success"}`} role={error ? "alert" : "status"}>{error || message}</p>}
-        <Button type="submit" disabled={saving} className="w-full sm:w-auto disabled:opacity-55"><Save className="size-4" aria-hidden="true" /> {saving ? "Saving…" : "Save profile"}</Button>
+        <Button type="submit" loading={saving} loadingText="Saving…" className="w-full sm:w-auto disabled:opacity-55"><Save className="size-4" aria-hidden="true" /> Save profile</Button>
       </div>
     </form>
   );

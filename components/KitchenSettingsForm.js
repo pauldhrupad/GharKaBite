@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { Clock3, Save, Truck } from "lucide-react";
 import Button from "./Button";
+import LoadingState from "./LoadingState";
 import { useKitchen } from "@/context/KitchenContext";
 
 export default function KitchenSettingsForm() {
   const { settings, hydrated, updateSettings } = useKitchen();
-  if (!hydrated) return <div className="mt-7 h-64 animate-pulse rounded-2xl bg-surface-muted" />;
+  if (!hydrated) return <LoadingState label="Loading kitchen settings" variant="section" className="mt-7" rows={2} />;
   return <KitchenSettingsEditor initialSettings={settings} updateSettings={updateSettings} />;
 }
 
@@ -47,7 +48,7 @@ function KitchenSettingsEditor({ initialSettings, updateSettings }) {
 
       <section className="rounded-2xl border border-border bg-white p-5 md:p-6 xl:col-span-2"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-success/10 text-success"><Truck className="size-5" aria-hidden="true" /></span><div><h2 className="text-lg font-black">Free delivery</h2><p className="text-xs text-text-secondary">Set the minimum meal subtotal for free local delivery.</p></div></div><div className="mt-5 max-w-xs"><SettingField label="Minimum order amount (₹)" name="freeDeliveryThreshold" type="number" min="0" max="100000" value={form.freeDeliveryThreshold ?? 399} onChange={updateField} /></div><p className="mt-3 text-xs text-text-secondary">Set ₹0 to make delivery free on every order. Meal-plan credit orders remain delivery-free.</p></section>
 
-      <div className="xl:col-span-2"><Button type="submit" disabled={saving} className="min-w-40 disabled:opacity-55"><Save className="size-4" aria-hidden="true" /> {saving ? "Saving…" : "Save settings"}</Button>{message && <p className="ml-0 mt-3 text-sm font-bold text-success sm:ml-4 sm:mt-0 sm:inline">{message}</p>}</div>
+      <div className="xl:col-span-2"><Button type="submit" loading={saving} loadingText="Saving…" className="min-w-40 disabled:opacity-55"><Save className="size-4" aria-hidden="true" /> Save settings</Button>{message && <p role="status" className="ml-0 mt-3 text-sm font-bold text-success sm:ml-4 sm:mt-0 sm:inline">{message}</p>}</div>
     </form>
   );
 }

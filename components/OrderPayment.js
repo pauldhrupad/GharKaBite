@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Clock3, MessageCircle, Upload } from "lucide-react";
 import PaymentOptions, { availableChannels } from "./PaymentOptions";
 import PaymentScreenshotPicker from "./PaymentScreenshotPicker";
+import LoadingState from "./LoadingState";
 import { whatsappUrl } from "@/lib/payment-settings";
 import { formatOrderTimestamp } from "@/lib/order-utils";
 import { revealValidationTarget } from "@/lib/validation-navigation";
@@ -14,6 +15,7 @@ export default function OrderPayment({ orderId }) {
   const [payment, setPayment] = useState(null);
   const [channel, setChannel] = useState("");
   const [loading, setLoading] = useState(true);
+  const [retryKey, setRetryKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -30,7 +32,7 @@ export default function OrderPayment({ orderId }) {
       setOrder(orderData.order);
       if (paymentResponse.ok || orderData.order.paymentDetails) { const data = paymentResponse.ok ? await paymentResponse.json() : null; const details = orderData.order.paymentDetails || data?.payment; setPayment(details); setChannel(availableChannels(details).includes(orderData.order.paymentChannel) ? orderData.order.paymentChannel : availableChannels(details)[0] || ""); }
     }).catch((failure) => setError(failure.message)).finally(() => setLoading(false));
-  }, [orderId]);
+  }, [orderId, retryKey]);
 
   useEffect(() => {
     if (order?.paymentStatus !== "verification_pending") return undefined;
@@ -71,8 +73,8 @@ export default function OrderPayment({ orderId }) {
     finally { setBusy(false); }
   }
 
-  if (loading) return <main className="container-shell py-10"><div className="h-96 animate-pulse rounded-2xl bg-surface-muted" /></main>;
-  if (!order) return <main className="container-shell py-10"><p role="alert">{error || "Order not found."}</p><Link href="/orders" className="mt-4 inline-block font-black text-primary underline">My Orders</Link></main>;
+  if (loading) return <LoadingState label="Loading payment details" rows={2} />;
+  if (!order) return <main className="container-shell py-10"><p role="alert">{error || "Order not found."}</p><div className="mt-4 flex flex-wrap items-center gap-4"><button type="button" onClick={() => { setError(""); setLoading(true); setRetryKey((current) => current + 1); }} className="min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button><Link href="/orders" className="font-black text-primary underline">My Orders</Link></div></main>;
   if (order.paymentMethod !== "manual_online") return <main className="container-shell py-10"><p>This order uses Cash on Delivery.</p><Link href={`/orders/${orderId}`} className="font-black text-primary underline">View order</Link></main>;
   const canSubmit = ["pending", "rejected"].includes(order.paymentStatus) && order.orderStatus !== "cancelled";
   const proofUrl = whatsappUrl(payment?.businessWhatsApp, `Hi GharKaBite,\n\nI have completed payment for my order.\n\nOrder Number: ${order.orderNumber}\nAmount: ₹${order.total}\n\nI am sending the payment screenshot here for verification.`);

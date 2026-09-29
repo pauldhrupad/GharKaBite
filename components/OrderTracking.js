@@ -7,6 +7,7 @@ import { Check, ChefHat, CircleCheckBig, Clock3, CookingPot, House, MapPin, Pack
 import Badge from "./Badge";
 import Button from "./Button";
 import EmptyState from "./EmptyState";
+import LoadingState from "./LoadingState";
 import ThaliOrderDetails from "./ThaliOrderDetails";
 import { orderStatuses } from "@/data/order-statuses";
 import { formatOrderTimestamp, getStatusIndex } from "@/lib/order-utils";
@@ -16,6 +17,8 @@ const statusIcons = [ReceiptText, CircleCheckBig, CookingPot, PackageCheck, Truc
 export default function OrderTracking({ orderId }) {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -25,13 +28,15 @@ export default function OrderTracking({ orderId }) {
         if (response.ok) {
           const data = await response.json();
           if (active) setOrder(data.order);
-        }
+        } else if (response.status !== 404) throw new Error("ORDER_UNAVAILABLE");
+      } catch {
+        if (active) setLoadError("Order tracking is temporarily unavailable. Please try again.");
       } finally {
         if (active) setLoading(false);
       }
     }, 0);
     return () => { active = false; window.clearTimeout(loadOrder); };
-  }, [orderId]);
+  }, [orderId, retryKey]);
 
   useEffect(() => {
     if (order?.paymentMethod !== "manual_online" || !["pending", "verification_pending", "rejected"].includes(order.paymentStatus)) return undefined;
@@ -39,7 +44,8 @@ export default function OrderTracking({ orderId }) {
     return () => window.clearInterval(timer);
   }, [order?.paymentMethod, order?.paymentStatus, orderId]);
 
-  if (loading) return <main className="container-shell py-12"><div className="h-96 animate-pulse rounded-2xl bg-surface-muted" /></main>;
+  if (loading) return <LoadingState label="Loading order tracking" rows={2} />;
+  if (loadError) return <main className="container-shell py-12" role="alert"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={() => { setLoading(true); setLoadError(""); setRetryKey((current) => current + 1); }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></main>;
   if (!order) return <main className="container-shell py-12"><EmptyState title="We couldn’t find this order" description="Check the order number or return to your order history." actionLabel="View My Orders" href="/orders" /></main>;
 
   const currentIndex = getStatusIndex(order.orderStatus);

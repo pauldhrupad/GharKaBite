@@ -27,6 +27,7 @@ export default function AdminOrdersTable({ initialPaymentFilter = "all" }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -34,9 +35,9 @@ export default function AdminOrdersTable({ initialPaymentFilter = "all" }) {
       if (!response.ok) throw new Error("Unable to load orders.");
       const databaseOrders = (await response.json()).orders || [];
       if (active) { setOrders(databaseOrders); setLoadError(""); setLoading(false); }
-    }).catch(() => { if (active) { setOrders([]); setLoadError("Orders could not be loaded. Refresh the page to try again."); setLoading(false); } });
+    }).catch(() => { if (active) { setOrders([]); setLoadError("Orders could not be loaded. Please try again."); setLoading(false); } });
     return () => { active = false; };
-  }, [paymentFilter]);
+  }, [paymentFilter, retryKey]);
 
   const filteredOrders = useMemo(() => filterAdminOrders(orders, { query, status, period, paymentFilter }), [orders, period, query, status, paymentFilter]);
   const activeFilters = [
@@ -78,7 +79,7 @@ export default function AdminOrdersTable({ initialPaymentFilter = "all" }) {
 
       <div className="space-y-3 bg-surface-muted/40 p-3 sm:p-4">
         {loading && <div className="rounded-xl bg-white p-8 text-center text-sm font-bold text-text-secondary" role="status">Loading orders…</div>}
-        {!loading && loadError && <div className="rounded-xl bg-white p-8 text-center text-sm font-bold text-danger" role="alert">{loadError}</div>}
+        {!loading && loadError && <div className="rounded-xl bg-white p-8 text-center text-sm font-bold text-danger" role="alert">{loadError}<button type="button" onClick={() => { setLoading(true); setRetryKey((current) => current + 1); }} className="mx-auto mt-3 block min-h-11 rounded-xl border border-primary px-4 text-primary">Try again</button></div>}
         {!loading && !loadError && filteredOrders.map((order) => (
           <article key={order.orderNumber} className="min-w-0 rounded-xl border border-border bg-white p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2">

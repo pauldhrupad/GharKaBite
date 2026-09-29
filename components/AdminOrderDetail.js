@@ -9,6 +9,7 @@ import { formatOrderTimestamp, isOrderComplete } from "@/lib/order-utils";
 import { whatsappUrl } from "@/lib/payment-settings";
 import CustomSelect from "./CustomSelect";
 import ThaliOrderDetails from "./ThaliOrderDetails";
+import LoadingState from "./LoadingState";
 import { dismissOnBackdrop, useModalFocus } from "@/lib/use-modal-focus";
 
 export default function AdminOrderDetail({ orderId, initialOrder }) {
@@ -90,7 +91,7 @@ export default function AdminOrderDetail({ orderId, initialOrder }) {
     finally { setSavingPayment(false); }
   }
 
-  if (loading) return <div className="h-80 animate-pulse rounded-2xl bg-surface-muted" />;
+  if (loading) return <LoadingState label="Loading order details" variant="section" rows={2} />;
   if (!order) return <div className="rounded-2xl border border-border bg-white p-10 text-center"><h1 className="text-2xl font-black">Order not found</h1><p className="mt-2 text-sm text-text-secondary">This order is not available in the database.</p><Link href="/admin/orders" className="mt-5 inline-flex font-black text-primary">Return to orders</Link></div>;
 
   const address = order.deliveryAddress;
