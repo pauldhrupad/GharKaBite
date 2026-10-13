@@ -28,7 +28,7 @@ export default function StickyMobileCartBar() {
 
   return (
     <aside
-      className="ui-enter fixed inset-x-0 z-40 px-3 lg:hidden"
+      className="ui-enter fixed inset-x-0 z-[var(--layer-purchase-bar)] px-3 lg:hidden"
       style={{ bottom: "calc(var(--nav-height) + 0.5rem)" }}
       aria-label="Cart summary"
     >

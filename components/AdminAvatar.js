@@ -61,8 +61,8 @@ export default function AdminAvatar({ onOpen }) {
       {avatarUrl ? <Image src={avatarUrl} alt="" width={40} height={40} className="size-10 object-cover" onError={() => setAvatarUrl("")} /> : "GB"}
     </button>
     {open && <>
-      <button type="button" className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} aria-label="Close owner profile menu" />
-      <div id="admin-profile-photo-panel" className="ui-enter absolute right-0 top-12 z-50 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-border bg-white p-4 text-left shadow-xl">
+      <button type="button" className="fixed inset-0 z-[var(--layer-dropdown-backdrop)] cursor-default" onClick={() => setOpen(false)} aria-label="Close owner profile menu" />
+      <div id="admin-profile-photo-panel" className="ui-enter absolute right-0 top-12 z-[var(--layer-dropdown-menu)] w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-border bg-white p-4 text-left shadow-xl">
         <p className="font-extrabold text-text-primary">Owner account</p>
         <div className="mt-2 border-y border-border py-1">
           <Link href="/profile" onClick={() => setOpen(false)} className="flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-bold text-text-primary hover:bg-surface-alt"><UserRound className="size-4 text-primary" aria-hidden="true" />Profile & addresses</Link>

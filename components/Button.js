@@ -6,10 +6,12 @@ const variants = {
   secondary: "border-[1.5px] border-primary bg-surface text-primary hover:bg-primary/5",
   light: "border border-surface bg-surface text-primary hover:bg-surface-alt",
   ghost: "text-primary hover:bg-primary/8",
+  outline: "border-[1.5px] border-primary bg-transparent text-primary hover:bg-primary/5",
+  destructive: "border border-danger bg-danger text-white hover:bg-danger/90",
 };
 
 export default function Button({ href, children, variant = "primary", className = "", loading = false, loadingText = "Working…", disabled = false, ...props }) {
-  const classes = `ui-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:border-disabled-bg disabled:bg-disabled-bg disabled:text-disabled-text disabled:shadow-none ${variants[variant]} ${className}`;
+  const classes = `gkb-button gkb-button--${variant} type-action ui-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:border-disabled-bg disabled:bg-disabled-bg disabled:text-disabled-text disabled:shadow-none ${variants[variant]} ${className}`;
   if (href) return <Link href={href} className={classes} {...props}>{children}</Link>;
   return <button className={classes} disabled={disabled || loading} aria-busy={loading} {...props}>{loading ? <><LoadingSpinner />{loadingText}</> : children}</button>;
 }

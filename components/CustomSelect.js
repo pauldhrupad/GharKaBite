@@ -16,6 +16,8 @@ export default function CustomSelect({ value, onChange, children, className = ""
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [position, setPosition] = useState(null);
+  const [portalHost, setPortalHost] = useState(null);
+  const insideDialog = portalHost?.matches('[role="dialog"], [role="alertdialog"]');
 
   useEffect(() => {
     if (!open) return undefined;
@@ -30,6 +32,15 @@ export default function CustomSelect({ value, onChange, children, className = ""
       window.removeEventListener("resize", closeOnResize);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const list = listRef.current;
+    const option = list?.children[activeIndex];
+    if (!option) return;
+    if (option.offsetTop < list.scrollTop) list.scrollTop = option.offsetTop;
+    else if (option.offsetTop + option.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = option.offsetTop + option.offsetHeight - list.clientHeight;
+  }, [open, activeIndex]);
 
   function nextEnabled(from, direction) {
     if (!options.some((option) => !option.disabled)) return -1;
@@ -49,6 +60,7 @@ export default function CustomSelect({ value, onChange, children, className = ""
     const desiredHeight = Math.min(320, options.length * 48 + 8);
     const placeAbove = below < Math.min(desiredHeight, 192) && above > below;
     const maxHeight = Math.max(48, Math.min(320, placeAbove ? above : below));
+    setPortalHost(triggerRef.current.closest('[role="dialog"], [role="alertdialog"], [data-customer-layout], [data-admin-layout], [data-owner-auth]') || document.body);
     setPosition({
       left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
       top: placeAbove ? Math.max(8, rect.top - Math.min(desiredHeight, maxHeight) - 4) : rect.bottom + 4,
@@ -84,6 +96,7 @@ export default function CustomSelect({ value, onChange, children, className = ""
       else openMenu();
     } else if (event.key === "Escape" && open) {
       event.preventDefault();
+      event.stopPropagation();
       setOpen(false);
     } else if (event.key === "Tab" && open) {
       setOpen(false);
@@ -102,11 +115,11 @@ export default function CustomSelect({ value, onChange, children, className = ""
     <button {...rest} id={id} ref={triggerRef} type="button" role="combobox" aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? listId : undefined} aria-activedescendant={open && activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined} disabled={disabled} onClick={(event) => { if (event.detail === 0) return; open ? setOpen(false) : openMenu(); }} onKeyDown={handleKeyDown} className={`${className} flex items-center justify-between gap-3 text-left hover:border-primary/40 ${open ? "border-primary ring-4 ring-primary/10" : ""}`}>
       <span className="min-w-0 truncate">{selected?.label ?? "Select an option"}</span><ChevronDown className={`size-4 shrink-0 text-text-secondary transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
     </button>
-    {open && position && createPortal(<>
-      <div className="fixed inset-0 z-[100]" onClick={() => setOpen(false)} aria-hidden="true" />
-      <div ref={listRef} id={listId} role="listbox" aria-label={ariaLabel} className="ui-enter fixed z-[101] overflow-y-auto overscroll-contain rounded-xl border border-border bg-white p-1 shadow-[0_16px_40px_rgba(31,42,35,0.18)]" style={position}>
-        {options.map((option, index) => <div key={`${option.value}-${index}`} id={`${listId}-option-${index}`} role="option" aria-selected={index === selectedIndex} aria-disabled={option.disabled || undefined} onMouseEnter={() => { if (!option.disabled) setActiveIndex(index); }} onClick={() => choose(option)} className={`flex min-h-11 items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-bold ${option.disabled ? "cursor-not-allowed text-text-secondary/60" : index === activeIndex ? "cursor-pointer bg-primary/10 text-primary" : "cursor-pointer text-text-primary hover:bg-surface-muted"}`}><span className="min-w-0 break-words">{option.label}</span>{index === selectedIndex && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}</div>)}
+    {open && position && portalHost && createPortal(<>
+      <div className="dropdown-backdrop fixed inset-0" style={{ zIndex: `var(--layer-${insideDialog ? "modal-dropdown" : "dropdown"}-backdrop)` }} onClick={() => setOpen(false)} aria-hidden="true" />
+      <div ref={listRef} id={listId} role="listbox" aria-label={ariaLabel} className="dropdown-menu type-label ui-enter fixed overflow-y-auto overscroll-contain rounded-xl border border-border bg-white p-1 shadow-[0_16px_40px_rgba(31,42,35,0.18)]" style={{ ...position, zIndex: `var(--layer-${insideDialog ? "modal-dropdown" : "dropdown"}-menu)` }}>
+        {options.map((option, index) => <div key={`${option.value}-${index}`} id={`${listId}-option-${index}`} role="option" aria-selected={index === selectedIndex} aria-disabled={option.disabled || undefined} onMouseEnter={() => { if (!option.disabled) setActiveIndex(index); }} onClick={() => choose(option)} className={`dropdown-option flex min-h-11 items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm font-bold ${option.disabled ? "cursor-not-allowed text-text-secondary/60" : index === activeIndex ? "cursor-pointer bg-primary/10 text-primary" : "cursor-pointer text-text-primary hover:bg-surface-muted"}`}><span className="min-w-0 break-words">{option.label}</span>{index === selectedIndex && <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />}</div>)}
       </div>
-    </>, document.body)}
+    </>, portalHost)}
   </>;
 }

@@ -5,6 +5,17 @@
 .map-picker-pin { display: block; width: 26px; height: 26px; border: 4px solid white; border-radius: 50% 50% 50% 0; background: var(--primary); box-shadow: 0 2px 8px #0008; transform: rotate(-45deg); }
 
 :root {
+  --layer-content: 0;
+  --layer-header: 30;
+  --layer-bottom-nav: 40;
+  --layer-purchase-bar: 45;
+  --layer-dropdown-backdrop: 50;
+  --layer-dropdown-menu: 51;
+  --layer-modal-backdrop: 60;
+  --layer-modal-dialog: 61;
+  --layer-modal-dropdown-backdrop: 62;
+  --layer-modal-dropdown-menu: 63;
+  --layer-critical-notification: 70;
   --interaction-fast: 150ms;
   --interaction-normal: 200ms;
   --interaction-slow: 260ms;
@@ -113,8 +124,8 @@ details.faq-item[open] > p { animation: ui-reveal var(--interaction-normal) var(
 .ui-dialog { animation: ui-dialog-enter var(--interaction-normal) var(--interaction-ease) both; }
 .ui-drawer { animation: ui-drawer-enter var(--interaction-slow) var(--interaction-ease) both; }
 @keyframes ui-backdrop { from { opacity: 0; } to { opacity: 1; } }
-@keyframes ui-dialog-enter { from { opacity: 0; transform: translateY(6px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@keyframes ui-drawer-enter { from { transform: translateX(-12px); opacity: 0.85; } to { transform: translateX(0); opacity: 1; } }
+@keyframes ui-dialog-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ui-drawer-enter { from { opacity: 0.85; } to { opacity: 1; } }
 .ui-enter { animation: ui-reveal var(--interaction-normal) var(--interaction-ease) both; }
 label:focus-within:not(:has(input:disabled)) { color: var(--primary); }
 input[type="checkbox"], input[type="radio"] { cursor: pointer; }

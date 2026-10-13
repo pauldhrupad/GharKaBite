@@ -14,14 +14,14 @@ export default function CartPeriodConflictModal() {
   if (!periodConflict) return null;
 
   return (
-    <div className="ui-modal-backdrop fixed inset-0 z-[70] grid place-items-center bg-text-primary/55 px-4 backdrop-blur-sm" role="presentation" onPointerDown={(event) => dismissOnBackdrop(event, cancelPeriodSwitch)}>
+    <div className="ui-modal-backdrop fixed inset-0 z-[var(--layer-modal-backdrop)] grid place-items-center bg-text-primary/55 px-4 backdrop-blur-sm" role="presentation" onPointerDown={(event) => dismissOnBackdrop(event, cancelPeriodSwitch)}>
       <section
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="cart-period-conflict-title"
         aria-describedby="cart-period-conflict-description"
-        className="ui-dialog w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+        className="ui-dialog relative z-[var(--layer-modal-dialog)] w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
       >
         <span className="grid size-12 place-items-center rounded-xl bg-warning/12 text-warning">
           <AlertTriangle className="size-6" aria-hidden="true" />
