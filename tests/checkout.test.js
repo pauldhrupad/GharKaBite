@@ -363,12 +363,6 @@ describe("daily menu and checkout", () => {
 });
 
 describe("demo payment route", () => {
-  async function start(kind, payload) {
-    const key = kind === "order" ? payload.checkoutKey : payload.purchaseKey;
-    const response = await createDemoPayment(new Request("http://localhost/api/demo-payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, key, payload }) }));
-    expect(response.status).toBe(200);
-    return (await response.json()).id;
-  }
   async function complete(id, outcome) {
     return completeDemoPayment(new Request(`http://localhost/api/demo-payments/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ outcome }) }), { params: Promise.resolve({ id }) });
   }
@@ -376,17 +370,31 @@ describe("demo payment route", () => {
     authState.id = String(user());
     const payload = request();
     const response = await createDemoPayment(new Request("http://localhost/api/demo-payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "order", key: payload.checkoutKey, payload }) }));
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(410);
     expect(await Order.countDocuments()).toBe(0);
   });
-  it("purchases a plan once after successful demo payment", async () => {
+  it("requires authentication on both retired preview routes", async () => {
+    expect((await createDemoPayment()).status).toBe(401);
+    expect((await completeDemoPayment()).status).toBe(401);
+  });
+  it("does not parse a request or create a purchase intent", async () => {
     authState.id = String(user());
-    const plan = await SubscriptionPlan.findOne({ slug: "weekly" });
-    const id = await start("subscription", { planId: String(plan._id), mode: "Dinner", purchaseKey: crypto.randomUUID() });
-    expect((await complete(id, "success")).status).toBe(200);
-    expect((await complete(id, "success")).status).toBe(200);
-    expect(await Subscription.countDocuments()).toBe(1);
-    expect((await Subscription.findOne()).remainingMeals).toBe(7);
+    const json = vi.fn(() => { throw new Error("Must not process retired purchases"); });
+    expect((await createDemoPayment({ json })).status).toBe(410);
+    expect((await completeDemoPayment({ json }, { params: Promise.resolve({ id: "invalid" }) })).status).toBe(410);
+    expect(json).not.toHaveBeenCalled();
+    expect(await DemoPayment.countDocuments()).toBe(0);
+    expect(await Subscription.countDocuments()).toBe(0);
+    expect(await Order.countDocuments()).toBe(0);
+  });
+  it.each(["pending", "processing", "paid"])("blocks %s preview intents without changing stored records", async (status) => {
+    authState.id = String(user());
+    const intent = await DemoPayment.create({ user: authState.id, key: crypto.randomUUID(), kind: "subscription", payload: {}, payloadHash: "legacy-preview", status, processingAt: new Date(Date.now() - 180000), expiresAt: new Date(Date.now() + 600000) });
+    expect((await complete(String(intent._id), "success")).status).toBe(410);
+    expect((await DemoPayment.findById(intent._id)).status).toBe(status);
+    expect(await DemoPayment.countDocuments()).toBe(1);
+    expect(await Subscription.countDocuments()).toBe(0);
+    expect(await Order.countDocuments()).toBe(0);
   });
 });
 

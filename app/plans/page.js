@@ -3,5 +3,5 @@ import PlansCatalog from "@/components/PlansCatalog";
 
 export const metadata = { title: "Meal Plans | GharKaBite" };
 export default function PlansPage() {
-  return <><PageIntro eyebrow="Flexible meal plans" title="Choose your plan" description="Pick lunch, dinner or a mix. Plan purchase is currently a no-money preview, separate from food-order Online Payment." /><PlansCatalog /></>;
+  return <><PageIntro eyebrow="Flexible meal plans" title="Choose your plan" description="Browse lunch, dinner or mixed plans. Purchases are temporarily unavailable; existing plan credits remain usable." /><PlansCatalog /></>;
 }
