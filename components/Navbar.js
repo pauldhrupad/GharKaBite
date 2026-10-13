@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, ChevronDown, ClipboardList, LogOut, Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
+import { ArrowRight, ChevronDown, ClipboardList, LogOut, MapPin, Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import BrandMark from "./BrandMark";
 import { useCart } from "@/context/CartContext";
 import { useCustomerOrderSummary } from "@/lib/use-customer-order-summary";
 import { useModalFocus } from "@/lib/use-modal-focus";
+import { useDeliveryPreview } from "@/context/DeliveryPreviewContext";
 
 const primaryLinks = [{ href: "/", label: "Home" }, { href: "/menu", label: "Menu" }, { href: "/plans", label: "Meal Plans" }, { href: "/subscriptions", label: "My Plans" }, { href: "/orders", label: "My Orders" }];
 const secondaryLinks = [{ href: "/about", label: "Our kitchen" }, { href: "/contact", label: "Contact" }, { href: "/privacy", label: "Privacy" }, { href: "/terms", label: "Terms" }];
@@ -25,6 +26,7 @@ function ActiveOrders({ orders, count, onNavigate }) {
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { label: deliveryLabel, updatePreview } = useDeliveryPreview();
   const { itemCount } = useCart();
   const { data: session, status } = useSession();
   const { activeCount, orders } = useCustomerOrderSummary(session?.user?.id);
@@ -70,14 +72,21 @@ export default function Navbar() {
     signOut({ callbackUrl: "/" });
   }
 
+  function openDelivery() {
+    updatePreview({ expanded: true });
+    if (pathname !== "/") router.push("/#delivery-checker");
+    else document.getElementById("delivery-checker")?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  }
+
   return <>
     <header className={`customer-header sticky top-0 z-[var(--layer-header)] border-b border-border bg-surface/97 backdrop-blur-xl transition-shadow duration-200 ${scrolled ? "shadow-[0_6px_18px_rgba(30,40,34,0.1)]" : ""}`}>
       <nav className="container-shell flex h-15 items-center justify-between md:h-16" aria-label="Primary navigation">
-        <Link href="/" className="flex shrink-0 items-center" aria-label="GharKaBite home"><BrandMark className="size-15 shrink-0" loading="eager" /></Link>
+        <Link href="/" className="header-brand flex shrink-0 items-center" aria-label="GharKaBite home"><BrandMark variant="app" className="size-10 lg:hidden" loading="eager" /><BrandMark variant="wordmark" className="hidden h-12 w-36 lg:block" loading="eager" /></Link>
+        <button type="button" onClick={openDelivery} className="header-location" aria-label={deliveryLabel ? `Delivery checked for ${deliveryLabel}. Change address` : "Check delivery availability"}><MapPin size={16} aria-hidden="true" /><span><strong>{deliveryLabel || "Check delivery"}</strong><small>{deliveryLabel ? "Change address" : "Before you order"}</small></span></button>
         <div className="hidden items-center gap-1 lg:flex">{primaryLinks.map((link) => { const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href); return <Link key={link.href} href={link.href} aria-current={active ? "page" : undefined} className={`relative rounded-lg px-3.5 py-2 text-sm font-bold after:absolute after:inset-x-3.5 after:bottom-0 after:h-0.5 after:origin-left after:rounded-full after:bg-primary after:transition-transform after:duration-200 ${active ? "bg-primary/10 text-primary after:scale-x-100" : "text-text-primary after:scale-x-0 hover:bg-surface-alt hover:text-primary hover:after:scale-x-100"}`}>{link.label}</Link>; })}</div>
         <div className="flex items-center gap-1.5 sm:gap-2">
           <button ref={searchTrigger} type="button" onClick={() => setSearchOpen(true)} aria-label="Search menu" className="ui-action grid size-11 place-items-center rounded-xl border border-border bg-surface text-primary hover:border-primary/40 hover:bg-primary/5"><Search className="size-5" aria-hidden="true" /></button>
-          <Link href="/cart" className="ui-action relative grid size-11 place-items-center rounded-xl border border-border bg-surface text-text-primary hover:border-primary/40 hover:text-primary" aria-label={`Open cart, ${itemCount} ${itemCount === 1 ? "item" : "items"}`}><ShoppingBag className="size-5" aria-hidden="true" />{itemCount > 0 && <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-accent text-[10px] font-black text-white">{itemCount > 9 ? "9+" : itemCount}</span>}</Link>
+          <Link href="/cart" className="ui-action header-cart relative grid size-11 place-items-center rounded-xl border border-border bg-surface text-text-primary hover:border-primary/40 hover:text-primary" aria-label={`Open cart, ${itemCount} ${itemCount === 1 ? "item" : "items"}`}><ShoppingBag className="size-5" aria-hidden="true" />{itemCount > 0 && <span key={itemCount} className="cart-count absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-accent text-[10px] font-black text-white">{itemCount > 9 ? "9+" : itemCount}</span>}</Link>
           <button ref={menuTrigger} type="button" onClick={() => setMobileOpen(true)} aria-label={`Open menu${session?.user && activeCount ? `, ${activeCount} active ${activeCount === 1 ? "order" : "orders"}` : ""}`} aria-expanded={mobileOpen} className="ui-action relative grid size-11 place-items-center rounded-xl border border-border bg-surface text-primary hover:border-primary/40 hover:bg-primary/5 lg:hidden"><Menu className="size-5" aria-hidden="true" />{session?.user && activeCount > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-[10px] font-black text-white ring-2 ring-white">{activeCount > 9 ? "9+" : activeCount}</span>}</button>
           {status !== "loading" && session?.user ? <div ref={profileContainer} className="relative hidden lg:block"><button ref={profileTrigger} type="button" onClick={() => setProfileOpen(!profileOpen)} aria-label={`Account menu${activeCount ? `, ${activeCount} active ${activeCount === 1 ? "order" : "orders"}` : ""}`} aria-expanded={profileOpen} aria-controls="customer-profile-menu" className="ui-action relative inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm font-extrabold hover:border-primary/40 hover:text-primary"><UserRound className="size-4" aria-hidden="true" /><span className="max-w-24 truncate">{session.user.name?.split(" ")[0] || "Profile"}</span><ChevronDown className="size-4" aria-hidden="true" />{activeCount > 0 && <span aria-hidden="true" className="grid min-h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-[10px] text-white">{activeCount > 9 ? "9+" : activeCount}</span>}</button>{profileOpen && <div id="customer-profile-menu" className="ui-enter absolute right-0 top-13 z-[var(--layer-dropdown-menu)] w-72 rounded-2xl border border-border bg-surface p-3 shadow-xl"><p className="truncate px-2 pb-3 text-sm font-black text-text-primary">{session.user.name || "Your account"}</p><ActiveOrders orders={orders} count={activeCount} onNavigate={() => setProfileOpen(false)} /><div className="mt-2 border-t border-border pt-2"><Link href="/profile" onClick={() => setProfileOpen(false)} className={navLinkClass}><UserRound className="mr-2 size-4" aria-hidden="true" />Profile & addresses</Link>{session.user.role === "admin" && <Link href="/admin/dashboard" onClick={() => setProfileOpen(false)} className={navLinkClass}>Admin dashboard</Link>}<button type="button" onClick={signOutAndClose} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold text-danger hover:bg-danger/5"><LogOut className="size-4" aria-hidden="true" />Sign out</button></div></div>}</div> : <Link href="/welcome?mode=signin" className="ui-action hidden min-h-11 items-center rounded-xl border border-primary px-4 text-sm font-bold text-primary hover:bg-primary/5 lg:inline-flex">Sign in</Link>}
         </div>

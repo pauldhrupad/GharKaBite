@@ -1,188 +1,49 @@
-import Image from "next/image";
-import {
-  ArrowRight,
-  Bike,
-  CalendarCheck2,
-  Check,
-  ChevronDown,
-  Clock3,
-  CookingPot,
-  House,
-  Leaf,
-  MapPin,
-  PackageCheck,
-  ShieldCheck,
-  Sparkles,
-  Utensils,
-} from "lucide-react";
+import { ArrowRight, Bike, CalendarCheck2, ChevronDown, CookingPot, House, MapPin, PackageCheck, Utensils } from "lucide-react";
 import Button from "@/components/Button";
 import DeliveryChecker from "@/components/DeliveryChecker";
+import HomeHero from "@/components/HomeHero";
 import HomeMenuSection from "@/components/HomeMenuSection";
-import { HomepagePlanCards, TomorrowMenuCards } from "@/components/HomeProgressiveSections";
-import SectionHeading from "@/components/SectionHeading";
-import { kolkataDate } from "@/lib/dates";
-
-const trustIndicators = [
-  { label: "Fresh Ingredients", icon: Leaf },
-  { label: "Home Kitchen", icon: House },
-  { label: "Cooked to Order", icon: Clock3 },
-  { label: "Local Delivery", icon: MapPin },
-];
+import { HomepagePlanCards, HomepageTomorrowPreview } from "@/components/HomeProgressiveSections";
+import KolkataSkyline from "@/components/KolkataSkyline";
 
 const benefits = [
-  { title: "Home-Cooked Everyday", description: "Familiar meals made for regular eating.", icon: House },
-  { title: "Freshly Prepared", description: "Cooked to match confirmed orders before cutoff.", icon: CookingPot },
-  { title: "Balanced Cooking", description: "Simple spices, sensible oil and complete meals.", icon: ShieldCheck },
-  { title: "Hyperlocal Delivery", description: "A focused service area for dependable delivery.", icon: Bike },
+  { title: "Home kitchen", description: "Familiar flavours for everyday eating.", icon: House },
+  { title: "Cooked to order", description: "Prepared for confirmed orders before cutoff.", icon: CookingPot },
+  { title: "Delivered locally", description: "Your address checked before ordering.", icon: Bike },
 ];
-
 const steps = [
-  { title: "Choose Your Meal", description: "See what is available from today’s kitchen.", icon: Utensils },
-  { title: "Select Lunch or Dinner", description: "Pick the meal window that fits your day.", icon: CalendarCheck2 },
-  { title: "Enter Delivery Details", description: "Add your local address and contact details.", icon: MapPin },
-  { title: "Receive Fresh Food", description: "We cook, pack and deliver your meal locally.", icon: PackageCheck },
+  { title: "Choose your meal", description: "Explore the kitchen’s current menu.", icon: Utensils },
+  { title: "Make it yours", description: "Choose your base, sides and meal period.", icon: CalendarCheck2 },
+  { title: "Check delivery", description: "Add your address and contact details.", icon: MapPin },
+  { title: "We cook and deliver", description: "Your confirmed meal, prepared locally.", icon: PackageCheck },
 ];
-
 const faqs = [
-  { question: "Is the food cooked daily?", answer: "Yes. Meals are freshly prepared to match confirmed orders, subject to menu availability and the ordering cutoff." },
-  { question: "Can I order without a subscription?", answer: "Yes. You can place a one-time lunch or dinner order whenever meals are available." },
+  { question: "Is the food cooked daily?", answer: "Meals are freshly prepared to match confirmed orders, subject to menu availability and the ordering cutoff." },
+  { question: "Can I order without a subscription?", answer: "Yes. You can place a one-time lunch or dinner order whenever ordering is open. New subscription purchases are currently unavailable." },
   { question: "Do you provide lunch and dinner?", answer: "Yes. Lunch and dinner menus can differ, and each has its own ordering cutoff." },
-  { question: "How far do you deliver?", answer: "We deliver to verified addresses within 3 km of the kitchen. The exact kitchen address is not displayed." },
-  { question: "Can I pause a subscription?", answer: "The kitchen admin can pause an active plan. Its expiry moves forward by the paused time when it resumes." },
-  { question: "Do you offer vegetarian options?", answer: "Yes. Vegetarian meals are included in both daily menus and meal-plan choices." },
+  { question: "How far do you deliver?", answer: "Use the delivery checker to verify your exact address against the kitchen’s current service area. The exact kitchen address is not displayed." },
+  { question: "Can I pause an existing subscription?", answer: "The kitchen admin can pause an active plan. Its expiry moves forward by the paused time when it resumes." },
+  { question: "Do you offer vegetarian options?", answer: "Yes. Use Veg Thali to see the current vegetarian Thalis, or browse All meals for individual dishes." },
 ];
-
 export const dynamic = "force-dynamic";
 
 export default function Home() {
-  const tomorrowDate = kolkataDate(1);
   const schema = { "@context": "https://schema.org", "@type": "FoodEstablishment", name: "GharKaBite", url: process.env.SITE_URL || "http://localhost:3000", servesCuisine: "Homemade Indian food", areaServed: { "@type": "City", name: "Kolkata" }, hasMenu: `${process.env.SITE_URL || "http://localhost:3000"}/menu` };
-  return (
-    <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replaceAll("<", "\\u003c") }} />
-      <section className="customer-hero overflow-hidden border-b border-border bg-background py-8 md:py-12">
-        <div className="container-shell grid items-center gap-6 lg:grid-cols-[1.02fr_0.98fr] lg:gap-10">
-          <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-xs font-extrabold text-primary">
-              <Sparkles className="size-3.5" aria-hidden="true" /> Freshly Cooked Every Day
-            </p>
-            <h1 className="mt-4 max-w-2xl text-4xl font-black leading-[1.08] tracking-[-0.055em] sm:text-5xl md:text-6xl">
-              Home-Cooked Meals,<br /><span className="hero-highlight">Delivered to Your Door.</span>
-            </h1>
-            <p className="mt-3 max-w-xl text-base leading-6 text-text-secondary md:mt-5 md:text-lg md:leading-7">
-              Fresh, comforting and customizable Thalis, prepared with care.
-            </p>
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:gap-3">
-              <Button href="#todays-menu">Order Now <ArrowRight className="size-4" aria-hidden="true" /></Button>
-              <Button href="/plans" variant="secondary">Explore Meal Plans</Button>
-            </div>
-            <DeliveryChecker />
-          </div>
-
-          <div className="relative lg:pl-4">
-            <div className="hero-food relative h-44 overflow-hidden sm:h-auto sm:aspect-[4/3]">
-              <Image
-                src="/images/kolkata-home-meal.png"
-                alt="Bengali home lunch with rice, dal, aloo bhaja, vegetables and fish curry"
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 48vw"
-                className="object-cover"
-              />
-              <div className="hero-caption">
-                <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/80">Cooked to order · familiar flavours</p>
-                <p className="mt-1 text-xl font-black">Today&apos;s food, cooked like home.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </section>
-
-      <HomeMenuSection />
-
-      <section className="bg-surface" aria-label="Why customers choose GharKaBite">
-        <div className="container-shell grid max-w-4xl grid-cols-2 gap-3 py-8 md:grid-cols-4 md:py-10">
-          {trustIndicators.map(({ label, icon: Icon }) => (
-            <div key={label} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-center text-xs font-extrabold text-text-secondary sm:text-sm">
-              <Icon className="size-4.5 shrink-0 text-primary" aria-hidden="true" /> {label}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-border bg-surface-muted/70 py-10 md:py-12">
-        <div className="container-shell">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="eyebrow">Plan one day ahead</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">Tomorrow&apos;s Menu</h2>
-            </div>
-            <Button href={`/menu?date=${tomorrowDate}`} variant="secondary">Pre-order Tomorrow <ArrowRight className="size-4" aria-hidden="true" /></Button>
-          </div>
-          <TomorrowMenuCards date={tomorrowDate} />
-        </div>
-      </section>
-
-      <section className="bg-surface-alt py-9 md:py-16"><div className="container-shell">
-        <SectionHeading eyebrow="Flexible meal plans" title="Make everyday meals easier" description="Start small or plan the month. Choose lunch, dinner or a mix when you select a plan." />
-        <HomepagePlanCards />
-      </div></section>
-
-      <section className="defer-render border-y border-border bg-background py-9 md:py-16">
-        <div className="container-shell">
-          <SectionHeading eyebrow="Why GharKaBite" title="Built for everyday eating" align="center" />
-          <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {benefits.map(({ title, description, icon: Icon }) => (
-              <article key={title} className="rounded-2xl border border-border bg-surface p-5 shadow-[0_4px_14px_rgba(30,40,34,0.07)]">
-                <span className="grid size-11 place-items-center rounded-xl bg-surface-alt text-primary"><Icon className="size-5" aria-hidden="true" /></span>
-                <h3 className="mt-5 font-black">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-text-secondary">{description}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="defer-render container-shell py-9 md:py-16">
-        <SectionHeading eyebrow="How it works" title="Four simple steps to fresh food" align="center" />
-        <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map(({ title, description, icon: Icon }, index) => (
-            <article key={title} className="relative rounded-2xl border border-border bg-surface p-5">
-              <span className="absolute right-4 top-4 text-sm font-black text-accent">0{index + 1}</span>
-              <Icon className="size-6 text-primary" aria-hidden="true" />
-              <h3 className="mt-8 font-black">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-text-secondary">{description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="defer-render border-y border-border bg-surface py-9 md:py-16"><div className="container-shell">
-        <SectionHeading eyebrow="Common questions" title="Before you order" />
-        <div className="mt-8 grid gap-3 lg:grid-cols-2">
-          {faqs.map((item) => (
-            <details key={item.question} className="faq-item group rounded-2xl border border-border bg-surface px-5 py-4 open:shadow-[0_12px_35px_rgba(56,45,31,0.06)]">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-black">
-                {item.question}
-                <ChevronDown className="size-5 shrink-0 text-primary transition group-open:rotate-180" aria-hidden="true" />
-              </summary>
-              <p className="mt-3 pr-8 text-sm leading-6 text-text-secondary">{item.answer}</p>
-            </details>
-          ))}
-        </div>
-      </div></section>
-
-      <section className="container-shell pt-8 pb-1 md:pt-12 md:pb-3">
-        <div className="customer-promo overflow-hidden rounded-[1.75rem] px-4 py-6 text-center md:px-10 md:py-8"><div className="promo-copy">
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/70">Plan ahead, eat better</p>
-          <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-black tracking-[-0.04em] md:text-4xl">Tomorrow&apos;s meal can already be sorted.</h2>
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button href="/menu" variant="light">Browse Menu</Button>
-              <Button href="/plans" variant="secondary">See Meal Plans</Button>
-          </div>
-        </div></div>
-      </section>
-    </>
-  );
+  return <div className="home-page">
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replaceAll("<", "\\u003c") }} />
+    <HomeHero />
+    <div className="container-shell"><DeliveryChecker /></div>
+    <HomeMenuSection />
+    <section className="home-support container-shell" aria-labelledby="home-promo-title">
+      <div className="home-brand-banner"><div><p className="eyebrow">A little planning, a comforting meal</p><h2 id="home-promo-title" className="type-section-title">Make tomorrow feel like home.</h2><p>Discover what&apos;s cooking next. Choose your meal before its ordering cutoff.</p></div><HomepageTomorrowPreview /></div>
+    </section>
+    <section className="home-support container-shell" aria-labelledby="home-plans-title">
+      <div className="home-section-heading"><div><p className="eyebrow">Meal plans · information only</p><h2 id="home-plans-title" className="type-section-title">Your everyday meal routine</h2></div><Button href="/plans" variant="outline">Plan information <ArrowRight size={16} aria-hidden="true" /></Button></div>
+      <p className="home-support-copy">New plan purchases are unavailable. Existing subscribers can still manage and use their credits.</p>
+      <HomepagePlanCards />
+    </section>
+    <section className="home-support container-shell" aria-labelledby="home-story-title"><div className="home-story"><div><p className="eyebrow">GharKaBite · Ghorer khabar</p><h2 id="home-story-title" className="type-section-title">Every bite feels like home.</h2><p className="home-support-copy">Comforting homemade meals, thoughtful choices and a local kitchen. Familiar food for your everyday rhythm.</p><KolkataSkyline className="home-skyline" /></div><div className="home-benefits">{benefits.map(({ title, description, icon: Icon }) => <article key={title}><Icon size={22} aria-hidden="true" /><div><h3 className="type-card-title">{title}</h3><p>{description}</p></div></article>)}</div></div></section>
+    <section className="home-support container-shell" aria-labelledby="home-steps-title"><h2 id="home-steps-title" className="type-section-title">From our kitchen to your table</h2><ol className="home-steps">{steps.map(({ title, description, icon: Icon }, index) => <li key={title}><span className="home-step-number">{index + 1}</span><Icon size={20} aria-hidden="true" /><div><h3 className="type-card-title">{title}</h3><p>{description}</p></div></li>)}</ol></section>
+    <section className="home-support container-shell" aria-labelledby="home-faq-title"><h2 id="home-faq-title" className="type-section-title">Before you order</h2><div className="home-faq">{faqs.map(({ question, answer }) => <details key={question} className="faq-item group"><summary>{question}<ChevronDown size={18} className="group-open:rotate-180" aria-hidden="true" /></summary><p>{answer}</p></details>)}</div></section>
+  </div>;
 }

@@ -3,6 +3,10 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import Button from "./Button";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { kolkataDate } from "@/lib/dates";
+import { useKitchen } from "@/context/KitchenContext";
 
 function useNearViewport() {
   const ref = useRef(null);
@@ -56,6 +60,12 @@ export function TomorrowMenuCards({ date }) {
   </div>;
 }
 
+export function HomepageTomorrowPreview() {
+  const { now } = useKitchen();
+  const date = kolkataDate(1, new Date(now));
+  return <div className="home-tomorrow"><Button href={`/menu?date=${date}`} variant="outline">Tomorrow&apos;s menu <ArrowRight size={16} aria-hidden="true" /></Button><details><summary>Preview tomorrow&apos;s meals</summary><TomorrowMenuCards date={date} /></details></div>;
+}
+
 export function HomepagePlanCards() {
   const { ref, near } = useNearViewport();
   const [plans, setPlans] = useState([]);
@@ -75,17 +85,15 @@ export function HomepagePlanCards() {
     return () => controller.abort();
   }, [near, attempt]);
 
-  return <div ref={ref} className="mt-8 min-h-72" aria-busy={near && loading}>
-    {loading ? <div role="status"><span className="sr-only">{near ? "Loading meal plans" : "Meal plans load as you scroll"}</span><div aria-hidden="true" className="grid gap-5 lg:grid-cols-3">{[0, 1, 2].map((index) => <div key={index} className="loading-skeleton h-80 rounded-2xl" />)}</div></div> : error ? <Retry message={error} onRetry={() => { setLoading(true); setAttempt((current) => current + 1); }} /> :
-      <div className="grid gap-5 lg:grid-cols-3">{plans.map((plan) => {
+  return <div ref={ref} className="home-plan-preview" aria-busy={near && loading}>
+    {loading ? <div role="status"><span className="sr-only">{near ? "Loading meal plans" : "Meal plans load as you scroll"}</span><div aria-hidden="true" className="home-plan-grid">{[0, 1, 2].map((index) => <div key={index} className="loading-skeleton h-40 rounded-2xl" />)}</div></div> : error ? <Retry message={error} onRetry={() => { setLoading(true); setAttempt((current) => current + 1); }} /> : plans.length === 0 ? <div className="home-plans-unavailable"><p>No plan offerings are currently available for purchase.</p><Link href="/subscriptions" className="home-view-all">Manage an existing plan <ArrowRight size={16} aria-hidden="true" /></Link></div> :
+      <div className="home-plan-grid">{plans.map((plan) => {
         const modes = [["Lunch", plan.lunchAllowed], ["Dinner", plan.dinnerAllowed], ["Mixed", plan.mixedAllowed]].filter(([, allowed]) => allowed).map(([mode]) => mode);
-        return <article key={plan._id} className={`customer-plan relative rounded-2xl border bg-surface p-5 shadow-[0_4px_14px_rgba(30,40,34,0.07)] md:p-6 ${plan.slug === "monthly" ? "border-2 border-accent" : "border-border"}`}>
-          {plan.slug === "monthly" && <span className="absolute -top-3 left-5 rounded-full bg-accent px-3 py-1 text-xs font-black text-white">Plan ahead</span>}
-          <p className="text-sm font-extrabold text-text-secondary">{plan.mealCount} Meals</p><h3 className="mt-1 text-2xl font-black">{plan.name}</h3>
-          <div className="mt-5 flex items-end gap-2"><span className="text-4xl font-black text-accent">₹{plan.price.toLocaleString("en-IN")}</span><span className="pb-1 text-sm font-bold text-text-secondary">₹{(plan.price / plan.mealCount).toFixed(2)} per meal</span></div>
-          <p className="mt-2 text-sm text-text-secondary">Valid for {plan.validityDays} days</p>
-          <div className="mt-6 flex flex-wrap gap-2" aria-label="Available meal timing options">{modes.map((mode) => <span key={mode} className="rounded-full border border-border bg-surface-alt px-3 py-1.5 text-xs font-extrabold text-text-secondary">{mode}</span>)}</div>
-          <Button href="/plans" className="mt-6 w-full">See plan details</Button>
+        return <article key={plan._id} className="home-plan-card">
+          <div><h3 className="type-card-title">{plan.name}</h3><p>{plan.mealCount} meals · {plan.validityDays} days</p></div>
+          <p className="home-plan-price">₹{plan.price.toLocaleString("en-IN")} <span>₹{(plan.price / plan.mealCount).toFixed(2)} per meal</span></p>
+          <p>{modes.join(" / ")}</p>
+          <Button disabled className="w-full">Purchases unavailable</Button>
         </article>;
       })}</div>}
   </div>;

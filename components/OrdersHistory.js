@@ -1,4 +1,5 @@
 "use client";
+import { mealDetailHref } from "@/lib/meal-period";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -62,7 +63,7 @@ export default function OrdersHistory() {
     const invalid = selections.find(({ item, meal, customization }) => { try { calculateThaliPrice(meal, customization.selectedChoices, customization.selectedAddOns, item.quantity); return false; } catch { return true; } });
     if (invalid) {
       window.sessionStorage.setItem("gharkabite-restore-thali", JSON.stringify({ mealId: invalid.meal.id, ...invalid.customization, quantity: invalid.item.quantity, period: order.mealPeriod }));
-      router.push(`/menu/${invalid.meal.id}?date=${kolkataDate()}&restore=1`);
+      router.push(`${mealDetailHref(invalid.meal.id, kolkataDate(), order.mealPeriod)}&restore=1`);
       return;
     }
     try {

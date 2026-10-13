@@ -1,6 +1,7 @@
 import MenuExplorer from "@/components/MenuExplorer";
 import PageIntro from "@/components/PageIntro";
 import { allowedOrderDate, kolkataDate } from "@/lib/dates";
+import { validMealPeriod } from "@/lib/meal-period";
 
 export const metadata = {
   title: "Menu",
@@ -15,7 +16,7 @@ export default async function MenuPage({ searchParams }) {
   return (
     <>
       <PageIntro eyebrow="আজকের রান্না" title="Today's Menu" description="Choose your Thali, make it yours, and order before the kitchen cutoff." />
-      <MenuExplorer initialDate={initialDate} initialSearch={initialSearch} initialCategory={initialCategory} />
+      <MenuExplorer initialDate={initialDate} initialPeriod={validMealPeriod(query?.period)} initialSearch={initialSearch} initialCategory={initialCategory} />
     </>
   );
 }

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import Badge from "./Badge";
+import { mealDetailHref } from "@/lib/meal-period";
 
 const categoryStyles = {
   Veg: "bg-success",
@@ -16,10 +17,11 @@ const categoryStyles = {
 export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderingDisabled = false, unavailableReason = "" }) {
   const selectedPeriod = deliveryMealPeriod || meal.slots[0];
   const unavailable = !meal.available || orderingDisabled;
+  const href = mealDetailHref(meal.id, serviceDate, selectedPeriod);
 
   return (
     <article className={`customer-meal-card meal-card group flex h-full min-w-0 snap-start flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_4px_14px_rgba(30,40,34,0.07)] ${unavailable ? "is-sold-out" : ""}`}>
-      <Link href={`/menu/${meal.id}?date=${serviceDate}`} className="relative block aspect-[16/10] overflow-hidden bg-surface-muted sm:aspect-[4/3]" aria-label={`View ${meal.name}`}>
+      <Link href={href} className="relative block aspect-[16/10] overflow-hidden bg-surface-muted sm:aspect-[4/3]" aria-label={`View ${meal.name}`}>
         <Image
           src={meal.image}
           alt={`${meal.name}: ${meal.contents.join(", ")}`}
@@ -35,20 +37,20 @@ export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderi
 
       <div className="flex flex-1 flex-col p-3 sm:p-4">
         <div className="type-meta flex items-center gap-2 text-xs font-extrabold text-text-secondary">
-          <span className={`size-2.5 rounded-full ${categoryStyles[meal.category]}`} aria-hidden="true" />
+          <span className={`size-2.5 rounded-full ${categoryStyles[meal.category] || "bg-primary"}`} aria-hidden="true" />
           {meal.category} {meal.kind === "dish" ? "Dish" : "Thali"}
         </div>
-        <Link href={`/menu/${meal.id}?date=${serviceDate}`} className="mt-1.5 w-fit hover:text-primary sm:mt-2">
+        <Link href={href} className="mt-1.5 w-fit hover:text-primary sm:mt-2">
           <h2 className="type-card-title text-base font-black tracking-tight sm:text-lg">{meal.name}</h2>
         </Link>
         <p className="type-supporting mt-1 line-clamp-2 text-sm leading-5 text-text-secondary sm:line-clamp-none">{meal.kind === "dish" ? meal.shortDescription : meal.contents.join(" + ")}</p>
-        <div className="mt-2 flex min-h-5 items-center sm:mt-3">
+        <div className="meal-card-availability mt-2 flex min-h-5 items-center sm:mt-3">
           {orderingDisabled ? <p className="text-xs font-black text-danger">{unavailableReason}</p> : !unavailable ? <p className="text-xs font-bold text-success">Available for {selectedPeriod}</p> : <p className="text-xs font-black text-danger">Currently unavailable</p>}
         </div>
 
         <div className="meal-card-footer mt-auto flex items-center justify-between gap-2 border-t border-border pt-3 sm:gap-3 sm:pt-4">
           <p className="text-lg font-black text-accent sm:text-xl">{meal.addOns.length || meal.choiceGroups.some((group) => group.options.some((option) => option.priceAdjustment)) ? "From " : ""}₹{meal.price}</p>
-          {unavailable ? <span className="rounded-xl bg-surface-muted px-3 py-2 text-sm font-extrabold text-text-secondary sm:px-4">{orderingDisabled ? "Closed" : "Unavailable"}</span> : <Link href={`/menu/${meal.id}?date=${serviceDate}`} className="gkb-button gkb-button--primary type-action inline-flex min-h-11 items-center gap-1 rounded-xl bg-primary px-3 text-sm font-extrabold text-white hover:bg-primary-hover sm:min-h-10 sm:px-4">{meal.kind === "dish" ? "View dish" : <><span className="sm:hidden">Customize</span><span className="hidden sm:inline">Customize Thali</span></>} <ArrowRight className="size-4" aria-hidden="true" /></Link>}
+          {unavailable ? <span className="rounded-xl bg-surface-muted px-3 py-2 text-sm font-extrabold text-text-secondary sm:px-4">{orderingDisabled ? "Closed" : "Unavailable"}</span> : <Link href={href} className="gkb-button gkb-button--primary type-action inline-flex min-h-11 items-center gap-1 rounded-xl bg-primary px-3 text-sm font-extrabold text-white hover:bg-primary-hover sm:min-h-10 sm:px-4">{meal.kind === "dish" ? "View dish" : <><span className="sm:hidden">Customize</span><span className="hidden sm:inline">Customize Thali</span></>} <ArrowRight className="size-4" aria-hidden="true" /></Link>}
         </div>
       </div>
     </article>

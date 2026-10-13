@@ -8,12 +8,13 @@ import { useCart } from "@/context/CartContext";
 import { useKitchen } from "@/context/KitchenContext";
 import { calculateThaliPrice, missingChoiceMessage } from "@/lib/thali";
 import { revealValidationTarget } from "@/lib/validation-navigation";
+import { validMealPeriod } from "@/lib/meal-period";
 
-export default function ThaliCustomizer({ meal, serviceDate, editKey = "", restore = false }) {
+export default function ThaliCustomizer({ meal, serviceDate, initialPeriod, editKey = "", restore = false }) {
   const router = useRouter();
   const { items, addItem, hydrated } = useCart();
   const { hydrated: kitchenHydrated, getAvailability } = useKitchen();
-  const [period, setPeriod] = useState(meal.slots[0]);
+  const [period, setPeriod] = useState(validMealPeriod(initialPeriod, meal.slots) || meal.slots[0]);
   const [quantity, setQuantity] = useState(1);
   const [choices, setChoices] = useState({});
   const [addOns, setAddOns] = useState({});

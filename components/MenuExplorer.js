@@ -12,8 +12,8 @@ import { formatCutoffTime } from "@/lib/kitchen-operations";
 
 const periods = ["Lunch", "Dinner"];
 
-export default function MenuExplorer({ initialDate, initialSearch = "", initialCategory = "All" }) {
-  const [period, setPeriod] = useState("Lunch");
+export default function MenuExplorer({ initialDate, initialPeriod, initialSearch = "", initialCategory = "All" }) {
+  const [period, setPeriod] = useState(initialPeriod || "Lunch");
   const [category, setCategory] = useState(initialCategory);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [date, setDate] = useState(initialDate || kolkataDate());
@@ -40,16 +40,18 @@ export default function MenuExplorer({ initialDate, initialSearch = "", initialC
 
   useEffect(() => {
     const loadSavedPeriod = window.setTimeout(() => {
-      const savedPeriod = window.localStorage.getItem(MEAL_PERIOD_STORAGE_KEY);
-      if (periods.includes(savedPeriod)) setPeriod(savedPeriod);
+      if (initialPeriod) setPeriod(initialPeriod);
+      else {
+        try { const savedPeriod = window.localStorage.getItem(MEAL_PERIOD_STORAGE_KEY); if (periods.includes(savedPeriod)) setPeriod(savedPeriod); } catch { /* Browsing works without storage. */ }
+      }
     }, 0);
 
     return () => window.clearTimeout(loadSavedPeriod);
-  }, []);
+  }, [initialPeriod]);
 
   function choosePeriod(nextPeriod) {
     setPeriod(nextPeriod);
-    window.localStorage.setItem(MEAL_PERIOD_STORAGE_KEY, nextPeriod);
+    try { window.localStorage.setItem(MEAL_PERIOD_STORAGE_KEY, nextPeriod); } catch { /* Keep the in-memory selection. */ }
   }
 
   const filteredMeals = useMemo(() => {

@@ -8,6 +8,7 @@ import Button from "./Button";
 import EmptyState from "./EmptyState";
 import { useCart } from "@/context/CartContext";
 import { useKitchen } from "@/context/KitchenContext";
+import { mealDetailHref } from "@/lib/meal-period";
 import { usePromoQuote } from "@/lib/use-promo-quote";
 import {
   amountUntilFreeDelivery,
@@ -78,7 +79,7 @@ export default function CartPageContent() {
                     {item.needsReview && <p className="mt-2 text-xs font-bold text-warning">Please review this older selection before checkout.</p>}
                     {item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="mt-1 text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}
                     {item.addOnSummary?.map((addOn) => <p key={addOn.id} className="mt-1 text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per {item.kind === "dish" ? "dish" : "Thali"}</p>)}
-                    <Link href={`/menu/${item.mealId}?date=${item.serviceDate}&edit=${encodeURIComponent(item.key)}`} className="mt-2 inline-block text-sm font-bold text-primary underline underline-offset-4">Edit customization</Link>
+                    <Link href={`${mealDetailHref(item.mealId, item.serviceDate, item.deliveryMealPeriod)}&edit=${encodeURIComponent(item.key)}`} className="mt-2 inline-block text-sm font-bold text-primary underline underline-offset-4">Edit customization</Link>
                   </div>
                   <button
                     type="button"

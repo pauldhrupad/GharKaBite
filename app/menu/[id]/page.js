@@ -8,6 +8,7 @@ import ThaliCustomizer from "@/components/ThaliCustomizer";
 import SectionHeading from "@/components/SectionHeading";
 import { getMenu } from "@/lib/catalog";
 import { allowedOrderDate, kolkataDate } from "@/lib/dates";
+import { validMealPeriod } from "@/lib/meal-period";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function MealDetailPage({ params, searchParams }) {
   const meals = await getMenu(date);
   const meal = meals.find((item) => item.id === id);
   if (!meal) notFound();
+  const period = validMealPeriod(query?.period, meal.slots) || meal.slots[0];
 
   const recommendations = meals
     .filter((candidate) => candidate.id !== meal.id && (candidate.category === meal.category || candidate.slots.some((slot) => meal.slots.includes(slot))))
@@ -35,7 +37,7 @@ export default async function MealDetailPage({ params, searchParams }) {
   return (
     <>
       <section className="container-shell py-5 md:py-10">
-        <Button href="/menu" variant="ghost" className="-ml-3 mb-2 min-h-11 md:mb-4 md:min-h-12"><ArrowLeft className="size-4" aria-hidden="true" /> Back to menu</Button>
+        <Button href={`/menu?${new URLSearchParams({ date, period })}`} variant="ghost" className="-ml-3 mb-2 min-h-11 md:mb-4 md:min-h-12"><ArrowLeft className="size-4" aria-hidden="true" /> Back to menu</Button>
         <div className="grid gap-4 md:gap-5 lg:grid-cols-2 lg:items-start lg:gap-8">
           <div className="lg:sticky lg:top-24"><div className="customer-thali-image relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-surface-muted">
             <Image src={meal.image} alt={`${meal.name}: ${meal.contents.join(", ")}`} fill priority sizes="(max-width: 1024px) 100vw, 50vw" className={`object-cover ${unavailable ? "grayscale-[35%]" : ""}`} />
@@ -65,7 +67,7 @@ export default async function MealDetailPage({ params, searchParams }) {
               </ul>
             </div>}
 
-            <ThaliCustomizer meal={meal} serviceDate={date} editKey={query?.edit || ""} restore={query?.restore === "1"} />
+            <ThaliCustomizer key={`${meal.id}:${date}:${period}`} meal={meal} serviceDate={date} initialPeriod={period} editKey={query?.edit || ""} restore={query?.restore === "1"} />
           </div>
         </div>
       </section>
@@ -75,7 +77,7 @@ export default async function MealDetailPage({ params, searchParams }) {
           <SectionHeading eyebrow="More from today's kitchen" title="You May Also Like" />
           {recommendations.length > 1 && <p className="mt-2 text-xs font-bold text-text-secondary sm:hidden">Swipe for more →</p>}
           <div role="region" aria-label="Recommended menu items" tabIndex={0} className="-mx-4 mt-4 grid auto-cols-[min(80vw,18rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-px-4 snap-x snap-mandatory [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] sm:mx-0 sm:mt-7 sm:grid-flow-row sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3">
-              {recommendations.map((recommendation) => <MealCard key={recommendation.id} meal={recommendation} deliveryMealPeriod={recommendation.slots[0]} serviceDate={date} />)}
+              {recommendations.map((recommendation) => <MealCard key={recommendation.id} meal={recommendation} deliveryMealPeriod={validMealPeriod(period, recommendation.slots) || recommendation.slots[0]} serviceDate={date} />)}
           </div>
         </div>
       </section>
