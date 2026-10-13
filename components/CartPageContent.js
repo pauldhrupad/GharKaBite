@@ -57,6 +57,7 @@ export default function CartPageContent() {
   return (
     <section className="container-shell grid gap-5 py-7 md:py-9 lg:grid-cols-[1fr_22rem] lg:items-start">
       <div>
+        <p className="customer-cart-period mb-4">One delivery · {items[0].serviceDate} · {items[0].deliveryMealPeriod}</p>
         <div className="mb-4 flex items-center justify-between gap-4">
           <p className="text-sm font-bold text-text-secondary">{items.length} {items.length === 1 ? "menu item" : "menu items"}</p>
           <button type="button" onClick={clearCart} className="min-h-10 rounded-lg px-2 text-sm font-black text-danger hover:bg-danger/8">Clear cart</button>
@@ -64,7 +65,7 @@ export default function CartPageContent() {
 
         <div className="space-y-4">
           {items.map((item) => (
-            <article key={item.key} className="ui-enter card-surface flex gap-4 p-4">
+            <article key={item.key} className="customer-cart-item ui-enter card-surface flex gap-4 p-4">
               <div className="relative size-24 shrink-0 overflow-hidden rounded-xl bg-surface-muted sm:size-28">
                 <Image src={item.image} alt={item.name} fill sizes="112px" className="object-cover" />
               </div>

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { additionalMenuCategories, illustratedCategories } from "@/lib/menu-categories";
 
 export default function FoodCategoryNav({ meals, selectedCategory, onSelect }) {
@@ -17,7 +18,7 @@ export default function FoodCategoryNav({ meals, selectedCategory, onSelect }) {
           return href ? (
             <Link key={value} href={href} className="food-category-tile">{content}</Link>
           ) : (
-            <button key={value} type="button" onClick={() => onSelect(value)} aria-pressed={selectedCategory === value} className="food-category-tile">{content}</button>
+            <button key={value} type="button" onClick={() => onSelect(value)} aria-pressed={selectedCategory === value} className="food-category-tile">{selectedCategory === value && <Check className="category-selected-mark" aria-hidden="true" />}{content}</button>
           );
         })}
       </div>

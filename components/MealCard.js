@@ -18,7 +18,7 @@ export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderi
   const unavailable = !meal.available || orderingDisabled;
 
   return (
-    <article className={`meal-card group flex h-full min-w-0 snap-start flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_4px_14px_rgba(30,40,34,0.07)] ${unavailable ? "is-sold-out" : ""}`}>
+    <article className={`customer-meal-card meal-card group flex h-full min-w-0 snap-start flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_4px_14px_rgba(30,40,34,0.07)] ${unavailable ? "is-sold-out" : ""}`}>
       <Link href={`/menu/${meal.id}?date=${serviceDate}`} className="relative block aspect-[16/10] overflow-hidden bg-surface-muted sm:aspect-[4/3]" aria-label={`View ${meal.name}`}>
         <Image
           src={meal.image}
@@ -27,7 +27,7 @@ export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderi
           sizes="(max-width: 640px) 288px, (max-width: 1024px) 50vw, 33vw"
           className={`meal-card-image object-cover ${unavailable ? "grayscale-[35%]" : ""}`}
         />
-        <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-1.5">
+        <div className="meal-card-badges absolute left-3 top-3 z-10 flex flex-wrap gap-1.5">
           {meal.badges.filter((badge) => badge !== "Limited").slice(0, 2).map((badge) => <Badge key={badge} onImage tone="green">{badge}</Badge>)}
         </div>
         {unavailable && <div className="absolute inset-0 grid place-items-center bg-text-primary/55"><span className="rounded-full bg-white px-4 py-2 text-sm font-black text-text-primary">{orderingDisabled ? "Ordering Closed" : meal.choiceUnavailable ? "Required choice unavailable" : "Currently unavailable"}</span></div>}
@@ -46,7 +46,7 @@ export default function MealCard({ meal, deliveryMealPeriod, serviceDate, orderi
           {orderingDisabled ? <p className="text-xs font-black text-danger">{unavailableReason}</p> : !unavailable ? <p className="text-xs font-bold text-success">Available for {selectedPeriod}</p> : <p className="text-xs font-black text-danger">Currently unavailable</p>}
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-3 sm:gap-3 sm:pt-4">
+        <div className="meal-card-footer mt-auto flex items-center justify-between gap-2 border-t border-border pt-3 sm:gap-3 sm:pt-4">
           <p className="text-lg font-black text-accent sm:text-xl">{meal.addOns.length || meal.choiceGroups.some((group) => group.options.some((option) => option.priceAdjustment)) ? "From " : ""}₹{meal.price}</p>
           {unavailable ? <span className="rounded-xl bg-surface-muted px-3 py-2 text-sm font-extrabold text-text-secondary sm:px-4">{orderingDisabled ? "Closed" : "Unavailable"}</span> : <Link href={`/menu/${meal.id}?date=${serviceDate}`} className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-primary px-3 text-sm font-extrabold text-white hover:bg-primary-hover sm:min-h-10 sm:px-4">{meal.kind === "dish" ? "View dish" : <><span className="sm:hidden">Customize</span><span className="hidden sm:inline">Customize Thali</span></>} <ArrowRight className="size-4" aria-hidden="true" /></Link>}
         </div>

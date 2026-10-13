@@ -60,27 +60,27 @@ export default function Home() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replaceAll("<", "\\u003c") }} />
-      <section className="overflow-hidden border-b border-border bg-background py-8 md:py-12">
+      <section className="customer-hero overflow-hidden border-b border-border bg-background py-8 md:py-12">
         <div className="container-shell grid items-center gap-6 lg:grid-cols-[1.02fr_0.98fr] lg:gap-10">
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/8 px-3 py-1.5 text-xs font-extrabold text-primary">
               <Sparkles className="size-3.5" aria-hidden="true" /> Freshly Cooked Every Day
             </p>
             <h1 className="mt-4 max-w-2xl text-4xl font-black leading-[1.08] tracking-[-0.055em] sm:text-5xl md:text-6xl">
-              Home-Cooked Food, <span className="text-accent">Ready for Your Day.</span>
+              Home-Cooked Meals,<br /><span className="hero-highlight">Delivered to Your Door.</span>
             </h1>
             <p className="mt-3 max-w-xl text-base leading-6 text-text-secondary md:mt-5 md:text-lg md:leading-7">
-              Fresh lunch and dinner from our home kitchen, cooked to order and delivered locally.
+              Fresh, comforting and customizable Thalis, prepared with care.
             </p>
             <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:gap-3">
-              <Button href="#todays-menu">View Menu <ArrowRight className="size-4" aria-hidden="true" /></Button>
+              <Button href="#todays-menu">Order Now <ArrowRight className="size-4" aria-hidden="true" /></Button>
               <Button href="/plans" variant="secondary">Explore Meal Plans</Button>
             </div>
             <DeliveryChecker />
           </div>
 
           <div className="relative lg:pl-4">
-            <div className="relative h-52 overflow-hidden rounded-2xl border-4 border-surface shadow-[0_12px_34px_rgba(30,40,34,0.13)] sm:h-auto sm:aspect-[4/3] lg:rounded-[1.75rem]">
+            <div className="hero-food relative h-44 overflow-hidden sm:h-auto sm:aspect-[4/3]">
               <Image
                 src="/images/kolkata-home-meal.png"
                 alt="Bengali home lunch with rice, dal, aloo bhaja, vegetables and fish curry"
@@ -89,14 +89,10 @@ export default function Home() {
                 sizes="(max-width: 1024px) 100vw, 48vw"
                 className="object-cover"
               />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent p-4 pt-12 text-white sm:p-6 sm:pt-24">
+              <div className="hero-caption">
                 <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/80">Cooked to order · familiar flavours</p>
                 <p className="mt-1 text-xl font-black">Today&apos;s food, cooked like home.</p>
               </div>
-            </div>
-            <div className="absolute -bottom-3 left-3 rounded-xl border border-border bg-surface px-3 py-2 shadow-lg sm:-bottom-5 sm:p-4">
-              <p className="text-xs font-bold text-text-secondary">Meals from</p>
-              <p className="text-xl font-black text-accent sm:text-2xl">₹109</p>
             </div>
           </div>
         </div>
@@ -178,14 +174,14 @@ export default function Home() {
       </div></section>
 
       <section className="container-shell pt-8 pb-1 md:pt-12 md:pb-3">
-        <div className="overflow-hidden rounded-[1.75rem] bg-accent px-6 py-10 text-center text-white shadow-[0_24px_65px_rgba(201,103,67,0.2)] md:px-10 md:py-14">
+        <div className="customer-promo overflow-hidden rounded-[1.75rem] px-4 py-6 text-center md:px-10 md:py-8"><div className="promo-copy">
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/70">Plan ahead, eat better</p>
           <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-black tracking-[-0.04em] md:text-4xl">Tomorrow&apos;s meal can already be sorted.</h2>
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
             <Button href="/menu" variant="light">Browse Menu</Button>
-            <Button href="/plans" variant="secondary" className="border-white/25 bg-transparent text-white hover:bg-white/10">See Meal Plans</Button>
+              <Button href="/plans" variant="secondary">See Meal Plans</Button>
           </div>
-        </div>
+        </div></div>
       </section>
     </>
   );

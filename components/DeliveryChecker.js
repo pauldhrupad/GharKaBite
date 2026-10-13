@@ -42,14 +42,14 @@ export default function DeliveryChecker() {
     } catch { setResult({ serviceable: false, reason: "We couldn't verify this address. Please contact us for delivery confirmation." }); }
     finally { setBusy(false); }
   }
-  return <div className="mt-7 rounded-2xl border border-border bg-surface p-4 shadow-[0_16px_40px_rgba(56,45,31,0.08)] sm:p-5">
+  return <div className="delivery-checker mt-7 rounded-2xl border border-border bg-surface p-4 shadow-[0_16px_40px_rgba(56,45,31,0.08)] sm:p-5">
     <div className="flex items-start gap-3">
       <MapPin className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-      <div className="min-w-0"><h2 className="font-black">Do we deliver to you?</h2><p className="mt-1 text-sm leading-5 text-text-secondary">Enter your address or choose a location.</p></div>
+      <div className="min-w-0"><h2 className="font-black">Check if we deliver to your area</h2><p className="mt-1 text-sm leading-5 text-text-secondary">Enter your address or choose a location.</p></div>
     </div>
     <form onSubmit={check} className="mt-5 flex flex-col gap-3 sm:flex-row">
       <label className="group relative min-w-0 flex-1"><span className="sr-only">Full delivery address</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary group-focus-within:text-primary" aria-hidden="true" /><input id="delivery-address" type="search" name="deliveryAddress" value={query} onChange={(event) => { setQuery(event.target.value); setSelected(null); setSuggestions([]); setSuggesting(false); setResult(null); setFieldError(""); }} aria-invalid={Boolean(fieldError)} aria-describedby={fieldError ? "delivery-address-error" : undefined} className="input-field with-leading-icon" placeholder="Enter delivery address" autoComplete="street-address" enterKeyHint="search" /></label>
-      <button disabled={busy} aria-busy={busy} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-white disabled:opacity-50 sm:w-auto">{busy && <LoadingSpinner />}{busy ? "Checking…" : "Check address"}</button>
+      <button disabled={busy} aria-busy={busy} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-white disabled:opacity-50 sm:w-auto">{busy && <LoadingSpinner />}{busy ? "Checking…" : "Check Delivery"}</button>
     </form>
     {fieldError && <p id="delivery-address-error" role="alert" className="mt-2 text-xs font-bold text-danger">{fieldError}</p>}
     {suggesting && <p role="status" className="mt-2 flex items-center gap-2 text-xs font-bold text-text-secondary"><LoadingSpinner />Searching addresses…</p>}

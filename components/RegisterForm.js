@@ -6,9 +6,11 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { ArrowRight, UserPlus } from "lucide-react";
 import Button from "./Button";
+import BrandMark from "./BrandMark";
+import { authContinueHref, customerReturnTo } from "@/lib/auth-navigation";
 import { revealValidationTarget } from "@/lib/validation-navigation";
 
-export default function RegisterForm() {
+export default function RegisterForm({ callbackUrl = "/profile" }) {
   const router = useRouter();
   const [form, setForm] = useState({ name: "", phone: "", email: "", password: "" });
   const [error, setError] = useState("");
@@ -37,8 +39,8 @@ export default function RegisterForm() {
       const data = await response.json();
       if (!response.ok) { setError(data.message || "Unable to create your account."); revealValidationTarget("register-form-error"); return; }
       const result = await signIn("credentials", { identifier: form.email, password: form.password, redirect: false });
-      if (result?.error) { router.push("/login"); return; }
-      router.push("/profile");
+      if (result?.error) { router.push(authContinueHref("signin", callbackUrl)); return; }
+      router.push(customerReturnTo(callbackUrl));
       router.refresh();
     } catch {
       setError("Registration is temporarily unavailable.");
@@ -50,6 +52,7 @@ export default function RegisterForm() {
 
   const content = (
     <>
+      <BrandMark className="auth-logo size-16" loading="eager" />
       <div className="grid size-12 place-items-center rounded-2xl bg-accent/10 text-accent"><UserPlus className="size-6" aria-hidden="true" /></div>
       <p className="mt-6 text-xs font-extrabold uppercase tracking-[0.16em] text-accent">Start simply</p>
       <h1 className="mt-2 text-3xl font-black tracking-tight">Create your account</h1>
@@ -62,9 +65,9 @@ export default function RegisterForm() {
         {error && <p id="register-form-error" tabIndex={-1} className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger sm:col-span-2" role="alert">{error}</p>}
         <Button type="submit" loading={submitting} loadingText="Creating account…" className="sm:col-span-2 disabled:opacity-55">Create account <ArrowRight className="size-4" aria-hidden="true" /></Button>
       </form>
-      <p className="mt-5 text-center text-sm text-text-secondary">Already registered? <Link href="/login" className="font-black text-primary hover:underline">Sign in</Link></p>
+      <p className="mt-5 text-center text-sm text-text-secondary">Already registered? <Link href={authContinueHref("signin", callbackUrl)} className="font-black text-primary hover:underline">Sign in</Link></p>
     </>
   );
 
-  return <section className="container-shell grid min-h-[60vh] place-items-center py-8 md:py-12"><div className="card-surface w-full max-w-lg p-5 md:p-8">{content}</div></section>;
+  return <section className="customer-auth container-shell grid min-h-[60vh] place-items-center py-8 md:py-12"><div className="auth-card card-surface w-full max-w-lg p-5 md:p-8">{content}</div></section>;
 }

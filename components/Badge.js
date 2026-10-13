@@ -1,5 +1,5 @@
 const tones = {
-  green: "border border-primary/25 bg-primary/10 text-primary",
+  green: "border border-success/25 bg-success/10 text-success",
   terracotta: "border border-accent/25 bg-accent/10 text-accent",
   muted: "border border-border bg-surface-alt text-text-secondary",
   warning: "border border-warning/25 bg-warning/10 text-warning",
@@ -8,7 +8,7 @@ const tones = {
 };
 
 const imageTones = {
-  green: "bg-primary text-white",
+  green: "bg-success text-white",
   terracotta: "bg-accent text-white",
   muted: "bg-text-primary text-white",
   warning: "bg-warning text-white",

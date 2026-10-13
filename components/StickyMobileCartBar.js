@@ -9,7 +9,7 @@ import { useCart } from "@/context/CartContext";
 export default function StickyMobileCartBar() {
   const pathname = usePathname();
   const { hydrated, itemCount, subtotal } = useCart();
-  const isOrderDiscoveryPage = pathname === "/" || pathname.startsWith("/menu");
+  const isOrderDiscoveryPage = pathname === "/" || pathname === "/menu";
   const [footerVisible, setFooterVisible] = useState(false);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function StickyMobileCartBar() {
   return (
     <aside
       className="ui-enter fixed inset-x-0 z-40 px-3 lg:hidden"
-      style={{ bottom: "calc(4.65rem + env(safe-area-inset-bottom))" }}
+      style={{ bottom: "calc(var(--nav-height) + 0.5rem)" }}
       aria-label="Cart summary"
     >
       <div className="mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary px-4 py-3 text-white shadow-[0_16px_40px_rgba(31,42,35,0.24)]">

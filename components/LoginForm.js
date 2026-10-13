@@ -6,6 +6,8 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { ArrowRight, LockKeyhole } from "lucide-react";
 import Button from "./Button";
+import BrandMark from "./BrandMark";
+import { authContinueHref } from "@/lib/auth-navigation";
 import OwnerAuthShell from "./OwnerAuthShell";
 import { revealValidationTarget } from "@/lib/validation-navigation";
 
@@ -65,6 +67,7 @@ export default function LoginForm({ callbackUrl, owner = false }) {
 
   const form = (
     <>
+      {!owner && <BrandMark className="auth-logo size-16" loading="eager" />}
       <div className={`grid size-12 place-items-center rounded-2xl ${owner ? "bg-[#e9efe9] text-[#244c35]" : "bg-primary/10 text-primary"}`}><LockKeyhole className="size-6" aria-hidden="true" /></div>
       <p className={`mt-6 text-xs font-extrabold uppercase tracking-[0.16em] ${owner ? "text-[#5c8067]" : "text-accent"}`}>{owner ? "Owner sign in" : "Welcome back"}</p>
       <h1 className="mt-2 text-3xl font-black tracking-tight">{owner ? "Your kitchen dashboard" : "Sign in to GharKaBite"}</h1>
@@ -75,10 +78,10 @@ export default function LoginForm({ callbackUrl, owner = false }) {
         {error && <p id="login-form-error" tabIndex={-1} className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger" role="alert">{error}</p>}
         <Button type="submit" loading={submitting} loadingText="Signing in…" className={`w-full disabled:opacity-55 ${owner ? "!bg-[#244c35] hover:!bg-[#193c2c]" : ""}`}>{owner ? "Open admin dashboard" : "Sign in"} <ArrowRight className="size-4" aria-hidden="true" /></Button>
       </form>
-      {owner ? <p className="mt-5 text-center text-xs text-text-secondary">Ordering food? <Link href="/login" className="font-bold text-primary underline underline-offset-2">Customer sign in</Link></p> : <p className="mt-5 text-center text-sm text-text-secondary">New here? <Link href="/register" className="font-black text-primary hover:underline">Create an account</Link></p>}
+      {owner ? <p className="mt-5 text-center text-xs text-text-secondary">Ordering food? <Link href="/welcome?mode=signin" className="font-bold text-primary underline underline-offset-2">Customer sign in</Link></p> : <p className="mt-5 text-center text-sm text-text-secondary">New here? <Link href={authContinueHref("signup", callbackUrl)} className="font-black text-primary hover:underline">Create an account</Link></p>}
     </>
   );
 
   if (owner) return <OwnerAuthShell>{form}</OwnerAuthShell>;
-  return <section className="container-shell grid min-h-[60vh] place-items-center py-8 md:py-12"><div className="card-surface w-full max-w-md p-5 md:p-8">{form}</div></section>;
+  return <section className="customer-auth container-shell grid min-h-[60vh] place-items-center py-8 md:py-12"><div className="auth-card card-surface w-full max-w-md p-5 md:p-8">{form}</div></section>;
 }

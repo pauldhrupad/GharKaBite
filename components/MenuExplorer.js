@@ -101,7 +101,7 @@ export default function MenuExplorer({ initialDate, initialSearch = "", initialC
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             className={`input-field with-leading-icon ${searchQuery ? "pr-12" : ""}`}
-            placeholder="Search dishes, Thalis or ingredients"
+            placeholder="Search meals…"
             autoComplete="off"
             enterKeyHint="search"
           />
@@ -113,12 +113,11 @@ export default function MenuExplorer({ initialDate, initialSearch = "", initialC
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <p className="text-sm font-bold text-text-secondary" aria-live="polite">{loading ? "Loading menu…" : `Showing ${filteredMeals.length} ${period.toLowerCase()} ${filteredMeals.length === 1 ? "item" : "items"}`}</p>
-        {filteredMeals.length > 1 && <p className="shrink-0 text-xs font-bold text-text-secondary sm:hidden">Swipe for more →</p>}
         <p className="hidden text-xs font-bold text-text-secondary sm:block">Made to order before the kitchen cutoff.</p>
       </div>
 
       {loading ? <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="status" aria-label="Loading menu">{[0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse bg-surface-muted" />)}</div> : filteredMeals.length > 0 ? (
-        <div role="region" aria-label="Menu items" tabIndex={0} className="-mx-4 mt-5 grid auto-cols-[min(80vw,18rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-px-4 snap-x snap-mandatory [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] sm:mx-0 sm:mt-6 sm:grid-flow-row sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3 xl:grid-cols-4">
+        <div role="region" aria-label="Menu items" tabIndex={0} className="customer-menu-grid -mx-4 mt-5 grid auto-cols-[min(80vw,18rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 scroll-px-4 snap-x snap-mandatory [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] sm:mx-0 sm:mt-6 sm:grid-flow-row sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3 xl:grid-cols-4">
           {filteredMeals.map((meal) => <MealCard key={meal.id} meal={meal} deliveryMealPeriod={period} serviceDate={date} orderingDisabled={!periodAvailability.available} unavailableReason={periodAvailability.reason} />)}
         </div>
       ) : (

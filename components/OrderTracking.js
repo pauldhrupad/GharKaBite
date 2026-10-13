@@ -45,22 +45,22 @@ export default function OrderTracking({ orderId }) {
   }, [order?.paymentMethod, order?.paymentStatus, orderId]);
 
   if (loading) return <LoadingState label="Loading order tracking" rows={2} />;
-  if (loadError) return <main className="container-shell py-12" role="alert"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={() => { setLoading(true); setLoadError(""); setRetryKey((current) => current + 1); }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></main>;
-  if (!order) return <main className="container-shell py-12"><EmptyState title="We couldn’t find this order" description="Check the order number or return to your order history." actionLabel="View My Orders" href="/orders" /></main>;
+  if (loadError) return <section className="container-shell py-12" role="alert"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={() => { setLoading(true); setLoadError(""); setRetryKey((current) => current + 1); }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></section>;
+  if (!order) return <section className="container-shell py-12"><EmptyState title="We couldn’t find this order" description="Check the order number or return to your order history." actionLabel="View My Orders" href="/orders" /></section>;
 
   const currentIndex = getStatusIndex(order.orderStatus);
   const isCancelled = order.orderStatus === "cancelled";
   const address = order.deliveryAddress;
 
   return (
-    <main className="container-shell py-8 md:py-12">
+    <section className="container-shell py-8 md:py-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div><p className="eyebrow">Order tracking</p><h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{order.orderNumber}</h1><p className="mt-2 text-sm text-text-secondary">Placed {formatOrderTimestamp(order.createdAt)}</p></div>
         <div className="flex flex-wrap items-center gap-2"><Badge tone={isCancelled ? "danger" : order.orderStatus === "payment_pending" ? "warning" : "green"}>{isCancelled ? "Cancelled" : order.orderStatus === "payment_pending" ? "Payment Pending" : orderStatuses[currentIndex]?.label || "Received"}</Badge><Badge tone={order.paymentStatus === "paid" ? "green" : order.paymentStatus === "rejected" ? "danger" : order.paymentStatus === "verification_pending" || order.paymentStatus === "pending" ? "warning" : "neutral"}>{order.paymentMethod === "COD" ? "COD" : order.paymentStatus.replaceAll("_", " ")}</Badge></div>
       </div>
 
       <section className="card-surface mt-8 overflow-hidden">
-        <div className="border-b border-border bg-[linear-gradient(120deg,var(--primary),var(--primary-hover))] px-5 py-6 text-white md:px-8">
+        <div className="premium-panel border-b border-border px-5 py-6 text-white md:px-8">
           <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl bg-white/12"><ChefHat className="size-5" aria-hidden="true" /></span><div><h2 className="text-xl font-black">{isCancelled ? "This order was cancelled" : order.orderStatus === "payment_pending" ? "Order created · awaiting payment verification" : "Your meal is in progress"}</h2><p className="mt-1 text-sm text-white/75">{order.serviceDate || "Today"} · {order.mealPeriod} · {order.deliverySlot}</p></div></div>
         </div>
 
@@ -73,7 +73,7 @@ export default function OrderTracking({ orderId }) {
               return (
                 <li key={status.value} className="relative flex gap-4 pb-7 last:pb-0 md:block md:pb-0 md:text-center">
                   {index < orderStatuses.length - 1 && <span className={`absolute left-5 top-10 h-[calc(100%-1.5rem)] w-0.5 md:left-1/2 md:top-5 md:h-0.5 md:w-full ${index < currentIndex ? "bg-success" : "bg-border"}`} aria-hidden="true" />}
-                  <span className={`relative z-10 grid size-10 shrink-0 place-items-center rounded-full border-2 ${index === currentIndex ? "ui-enter" : ""} ${complete ? "border-success bg-success text-white" : "border-border bg-surface text-text-secondary"}`}>{complete ? <Check className="size-4" aria-hidden="true" /> : <Icon className="size-4" aria-hidden="true" />}</span>
+                  <span aria-current={index === currentIndex ? "step" : undefined} className={`relative z-10 grid size-10 shrink-0 place-items-center rounded-full border-2 ${index === currentIndex && order.orderStatus !== "delivered" ? "border-primary bg-primary text-primary" : complete ? "border-success bg-success text-white" : "border-border bg-surface text-text-secondary"}`}>{index < currentIndex || order.orderStatus === "delivered" ? <Check className="size-4" aria-hidden="true" /> : <Icon className="size-4" aria-hidden="true" />}</span>
                   <div className="md:mt-3"><p className={`text-sm font-black ${complete ? "text-text-primary" : "text-text-secondary"}`}>{status.label}</p><p className="mt-1 text-xs text-text-secondary">{timestamp ? formatOrderTimestamp(timestamp) : "Pending"}</p></div>
                 </li>
               );
@@ -97,6 +97,6 @@ export default function OrderTracking({ orderId }) {
 
       {order.paymentProofMethod === "website" && <section className="card-surface mt-6 p-5 md:p-6"><h2 className="font-black">Your submitted payment screenshot</h2><a href={`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-screenshot`} target="_blank" rel="noopener noreferrer" className="mt-4 block w-fit"><Image unoptimized src={`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-screenshot`} alt="Submitted payment screenshot" width={400} height={300} className="max-h-80 w-full rounded-xl border border-border object-contain" /><span className="mt-2 block text-sm font-bold text-primary underline">Open full image</span></a></section>}
       <div className="mt-8 flex flex-wrap gap-3"><Button href="/menu">Browse Menu</Button><Button href="/orders" variant="secondary">My Orders</Button><Link href="/" className="inline-flex min-h-11 items-center px-3 text-sm font-black text-primary">Back home</Link></div>
-    </main>
+    </section>
   );
 }

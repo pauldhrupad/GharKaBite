@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
+@import "./customer.css";
 
 .map-picker-pin { display: block; width: 26px; height: 26px; border: 4px solid white; border-radius: 50% 50% 50% 0; background: var(--primary); box-shadow: 0 2px 8px #0008; transform: rotate(-45deg); }
 
@@ -254,7 +255,7 @@ input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { outlin
 [data-admin-layout] .input-field, [data-owner-auth] .input-field { background: #fffefb; }
 [data-admin-layout] .input-field::placeholder, [data-owner-auth] .input-field::placeholder { color: #6f786f; }
 [data-customer-layout] .card-surface { min-width: 0; }
-[data-customer-layout] .input-field:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+[data-customer-layout] .input-field:focus-visible { outline: 2px solid var(--brand-brown); outline-offset: 2px; }
 [data-customer-layout] .faq-item[open] { background: var(--surface-alt); }
 [data-customer-layout] .faq-item summary { color: var(--text-primary); }
 textarea.input-field { line-height: 1.55; }

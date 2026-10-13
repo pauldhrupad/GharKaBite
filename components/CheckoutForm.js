@@ -246,11 +246,12 @@ export default function CheckoutForm() {
   if (!hydrated) return <LoadingState label="Loading your cart" rows={2} />;
   if (!items.length) return <section className="container-shell py-12"><EmptyState title="Your tiffin box is empty." description="Add a lunch or dinner meal before continuing to checkout." actionLabel="Browse Menu" /></section>;
   if (authStatus === "loading" || (authStatus === "authenticated" && !profileReady && !profileFailed)) return <LoadingState label="Loading your checkout details" rows={2} />;
-  if (authStatus === "unauthenticated") return <section className="container-shell py-10"><div className="card-surface max-w-xl p-6 md:p-8"><h2 className="text-2xl font-black">Sign in to finish your order</h2><p className="mt-2 text-sm leading-6 text-text-secondary">Your saved contact details and delivery addresses will be filled in automatically. Your cart will be waiting when you return.</p><div className="mt-5 flex flex-wrap gap-3"><Button href="/login?callbackUrl=/checkout">Sign in and continue</Button><Button href="/register" variant="secondary">Create an account</Button></div></div></section>;
+  if (authStatus === "unauthenticated") return <section className="container-shell py-10"><div className="card-surface max-w-xl p-6 md:p-8"><h2 className="text-2xl font-black">Sign in to finish your order</h2><p className="mt-2 text-sm leading-6 text-text-secondary">Your saved contact details and delivery addresses will be filled in automatically. Your cart will be waiting when you return.</p><div className="mt-5 flex flex-wrap gap-3"><Button href="/welcome?mode=signin&returnTo=/checkout">Sign in and continue</Button><Button href="/welcome?mode=signup&returnTo=/checkout" variant="secondary">Create an account</Button></div></div></section>;
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="container-shell grid gap-5 py-7 md:py-9 lg:grid-cols-[1fr_23rem] lg:items-start">
+    <form onSubmit={handleSubmit} noValidate className="customer-checkout container-shell grid gap-5 py-7 md:py-9 lg:grid-cols-[1fr_23rem] lg:items-start">
       <div className="space-y-4">
+        <ol className="checkout-overview" aria-label="Checkout sections">{["Address", "Delivery slot", "Payment", "Review"].map((label, index) => <li key={label}><span>{index + 1}</span>{label}</li>)}</ol>
         <CheckoutSection icon={UserRound} number="1" title="Contact Information">
           {profileFailed && <p className="mb-4 rounded-xl bg-warning/10 p-3 text-sm text-text-secondary" role="status">We couldn’t load your saved profile. Please review your details for this order.</p>}
           {profileReady && !editingContact ? (

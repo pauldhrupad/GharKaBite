@@ -1,10 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, Clock3 } from "lucide-react";
-import Badge from "./Badge";
+import { Clock3 } from "lucide-react";
+import MealCard from "./MealCard";
 import FoodCategoryNav from "./FoodCategoryNav";
 import { matchesMenuCategory } from "@/lib/menu-categories";
 import { kolkataDate } from "@/lib/dates";
@@ -12,46 +11,13 @@ import { MEAL_PERIOD_STORAGE_KEY } from "@/lib/constants";
 import { useKitchen } from "@/context/KitchenContext";
 import { formatCutoffTime } from "@/lib/kitchen-operations";
 
-function HomeMealCard({ meal, orderingDisabled, unavailableReason }) {
-
-  return (
-    <article className={`meal-card group snap-start overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_14px_38px_rgba(56,45,31,0.07)] ${orderingDisabled ? "is-sold-out" : ""}`}>
-      <div className="relative aspect-[4/3] overflow-hidden bg-surface-muted">
-        <Image
-          src={meal.image}
-          alt={`${meal.name} with ${meal.description}`}
-          fill
-          sizes="(max-width: 640px) 82vw, (max-width: 1024px) 50vw, 25vw"
-          className="meal-card-image object-cover"
-        />
-        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-          {meal.badges.filter((badge) => badge !== "Limited" && !badge.includes("Left")).slice(0, 2).map((badge) => (
-            <Badge key={badge} onImage tone={badge === "Non-Veg" ? "terracotta" : "green"}>
-              {badge}
-            </Badge>
-          ))}
-        </div>
-      </div>
-      <div className="p-4">
-        <h3 className="text-lg font-black tracking-tight">{meal.name}</h3>
-        <p className="mt-1 min-h-11 text-sm leading-5 text-text-secondary">{meal.description}</p>
-        <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
-          <p className="text-xl font-black text-accent">From ₹{meal.price}</p>
-          {orderingDisabled ? <span className="rounded-xl bg-surface-muted px-4 py-2 text-sm font-extrabold text-text-secondary">Closed</span> : <Link href={`/menu/${meal.id}?date=${kolkataDate()}`} className="ui-action inline-flex min-h-11 items-center gap-1 rounded-xl bg-primary px-4 text-sm font-extrabold text-white">{meal.kind === "dish" ? "View dish" : "Customize"} <ArrowRight className="size-4" aria-hidden="true" /></Link>}
-        </div>
-        {orderingDisabled && <p className="mt-3 text-xs font-bold text-danger">{unavailableReason}</p>}
-      </div>
-    </article>
-  );
-}
-
 export default function HomeMenuSection() {
   const [mealTime, setMealTime] = useState("lunch");
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("All");
   const { settings, hydrated: kitchenHydrated, getAvailability } = useKitchen();
-  const meals = menu.filter((meal) => meal.slots.includes(mealTime === "lunch" ? "Lunch" : "Dinner") && matchesMenuCategory(meal, category)).slice(0, 4).map((meal) => ({ ...meal, description: meal.kind === "dish" ? meal.shortDescription : meal.contents.join(" + "), deliveryMealPeriod: mealTime === "lunch" ? "Lunch" : "Dinner" }));
+  const meals = menu.filter((meal) => meal.slots.includes(mealTime === "lunch" ? "Lunch" : "Dinner") && matchesMenuCategory(meal, category)).slice(0, 4);
   const selectedPeriod = mealTime === "lunch" ? "Lunch" : "Dinner";
   const periodAvailability = kitchenHydrated ? getAvailability(selectedPeriod) : { available: true, reason: "" };
 
@@ -71,11 +37,11 @@ export default function HomeMenuSection() {
   }
 
   return (
-    <section id="todays-menu" aria-busy={loading} className="border-b border-border bg-surface py-9 md:py-16"><div className="container-shell">
+    <section id="todays-menu" aria-busy={loading} className="border-b border-border bg-background py-7 md:py-10"><div className="container-shell">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="eyebrow">Today&apos;s menu</p>
-          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Fresh from the kitchen</h2>
+          <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Today&apos;s Thalis &amp; Dishes</h2>
           <p className="mt-1 font-bold text-accent">আজকের রান্না</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -101,9 +67,9 @@ export default function HomeMenuSection() {
       <FoodCategoryNav meals={menu} selectedCategory={category} onSelect={setCategory} />
       <p aria-live="polite" className="mt-4 text-sm font-bold text-text-secondary">{loading ? "Loading menu…" : `${category === "All" ? "Today's" : category} ${selectedPeriod.toLowerCase()} menu · ${meals.length} ${meals.length === 1 ? "item" : "items"}`}</p>
       {!loading && !meals.length && <p className="mt-4 rounded-xl border border-border bg-background p-4 text-sm text-text-secondary">No matching meals for this period. Try another category or <Link href={`/menu?category=${encodeURIComponent(category)}`} className="font-bold text-primary underline">browse the full menu</Link>.</p>}
-      <div className="-mx-4 mt-6 grid auto-cols-[82%] grid-flow-col gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:mx-0 sm:grid-flow-row sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4">
+      <div className="customer-home-grid -mx-4 mt-6 grid auto-cols-[82%] grid-flow-col gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:mx-0 sm:grid-flow-row sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4">
         {loading && [0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse snap-start bg-surface-muted" aria-hidden="true" />)}
-        {meals.map((meal) => <HomeMealCard key={meal.id} meal={meal} orderingDisabled={!periodAvailability.available || !meal.available} unavailableReason={!meal.available ? "Currently unavailable" : periodAvailability.reason} />)}
+        {meals.map((meal) => <MealCard key={meal.id} meal={meal} deliveryMealPeriod={selectedPeriod} serviceDate={kolkataDate()} orderingDisabled={!periodAvailability.available || !meal.available} unavailableReason={!meal.available ? "Currently unavailable" : periodAvailability.reason} />)}
       </div>
     </div></section>
   );

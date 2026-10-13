@@ -29,6 +29,8 @@ Production values for Cloudinary, Geoapify and the private kitchen center are co
 
 ## Admin and checkout
 
+The customer storefront uses orange, saffron, brown and cream design tokens, self-hosted Poppins headings and Nunito Sans body text, compact mobile meal cards and a shared illustrated category selector. The operational admin theme stays separate. Guest Sign In/Create Account buttons open `/welcome?mode=signin` or `/welcome?mode=signup`; Get Started continues to the existing auth form and preserves an internal `returnTo` destination. Signed-in users bypass Welcome. Homepage, menu, cart and direct login/register URLs retain their normal access behavior. The delivery radius remains 3 km.
+
 - `/admin/meals` is the menu builder. The owner can edit included items, single-choice OR groups, multi-choice groups, option prices, preparation quantities, add-ons, and daily availability. Orders are made to order, not limited by meal stock. Archived items disappear from future menus while past order snapshots remain intact.
 - `/admin/subscriptions` lists customers and lets the owner edit plan offerings and pause, resume or cancel active subscriptions. A pause extends expiry on resume.
 - Customers can select today or tomorrow in `/menu`, customize Thalis, keep distinct variants in a one-date, one-period cart, use one eligible plan credit per order, and track database orders. A plan credit covers one eligible Thali base price and delivery; paid choices and add-ons remain payable.

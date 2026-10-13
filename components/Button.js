@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LoadingSpinner } from "./LoadingState";
 
 const variants = {
-  primary: "border border-primary bg-primary text-white shadow-[0_6px_16px_rgba(35,77,60,0.16)] hover:border-primary-hover hover:bg-primary-hover",
+  primary: "brand-cta border border-primary bg-primary text-white shadow-[0_6px_16px_rgba(35,77,60,0.16)] hover:border-primary-hover hover:bg-primary-hover",
   secondary: "border-[1.5px] border-primary bg-surface text-primary hover:bg-primary/5",
   light: "border border-surface bg-surface text-primary hover:bg-surface-alt",
   ghost: "text-primary hover:bg-primary/8",

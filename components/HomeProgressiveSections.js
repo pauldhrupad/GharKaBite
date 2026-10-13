@@ -79,8 +79,8 @@ export function HomepagePlanCards() {
     {loading ? <div role="status"><span className="sr-only">{near ? "Loading meal plans" : "Meal plans load as you scroll"}</span><div aria-hidden="true" className="grid gap-5 lg:grid-cols-3">{[0, 1, 2].map((index) => <div key={index} className="loading-skeleton h-80 rounded-2xl" />)}</div></div> : error ? <Retry message={error} onRetry={() => { setLoading(true); setAttempt((current) => current + 1); }} /> :
       <div className="grid gap-5 lg:grid-cols-3">{plans.map((plan) => {
         const modes = [["Lunch", plan.lunchAllowed], ["Dinner", plan.dinnerAllowed], ["Mixed", plan.mixedAllowed]].filter(([, allowed]) => allowed).map(([mode]) => mode);
-        return <article key={plan._id} className={`relative rounded-2xl border bg-surface p-5 shadow-[0_4px_14px_rgba(30,40,34,0.07)] md:p-6 ${plan.slug === "monthly" ? "border-2 border-accent" : "border-border"}`}>
-          {plan.slug === "monthly" && <span className="absolute -top-3 left-5 rounded-full bg-accent px-3 py-1 text-xs font-black text-white">Best Value</span>}
+        return <article key={plan._id} className={`customer-plan relative rounded-2xl border bg-surface p-5 shadow-[0_4px_14px_rgba(30,40,34,0.07)] md:p-6 ${plan.slug === "monthly" ? "border-2 border-accent" : "border-border"}`}>
+          {plan.slug === "monthly" && <span className="absolute -top-3 left-5 rounded-full bg-accent px-3 py-1 text-xs font-black text-white">Plan ahead</span>}
           <p className="text-sm font-extrabold text-text-secondary">{plan.mealCount} Meals</p><h3 className="mt-1 text-2xl font-black">{plan.name}</h3>
           <div className="mt-5 flex items-end gap-2"><span className="text-4xl font-black text-accent">₹{plan.price.toLocaleString("en-IN")}</span><span className="pb-1 text-sm font-bold text-text-secondary">₹{(plan.price / plan.mealCount).toFixed(2)} per meal</span></div>
           <p className="mt-2 text-sm text-text-secondary">Valid for {plan.validityDays} days</p>
