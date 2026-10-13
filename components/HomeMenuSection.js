@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, Clock3 } from "lucide-react";
 import Badge from "./Badge";
+import FoodCategoryNav from "./FoodCategoryNav";
+import { matchesMenuCategory } from "@/lib/menu-categories";
 import { kolkataDate } from "@/lib/dates";
 import { MEAL_PERIOD_STORAGE_KEY } from "@/lib/constants";
 import { useKitchen } from "@/context/KitchenContext";
@@ -47,8 +49,9 @@ export default function HomeMenuSection() {
   const [mealTime, setMealTime] = useState("lunch");
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState("All");
   const { settings, hydrated: kitchenHydrated, getAvailability } = useKitchen();
-  const meals = menu.filter((meal) => meal.slots.includes(mealTime === "lunch" ? "Lunch" : "Dinner")).slice(0, 4).map((meal) => ({ ...meal, description: meal.kind === "dish" ? meal.shortDescription : meal.contents.join(" + "), deliveryMealPeriod: mealTime === "lunch" ? "Lunch" : "Dinner" }));
+  const meals = menu.filter((meal) => meal.slots.includes(mealTime === "lunch" ? "Lunch" : "Dinner") && matchesMenuCategory(meal, category)).slice(0, 4).map((meal) => ({ ...meal, description: meal.kind === "dish" ? meal.shortDescription : meal.contents.join(" + "), deliveryMealPeriod: mealTime === "lunch" ? "Lunch" : "Dinner" }));
   const selectedPeriod = mealTime === "lunch" ? "Lunch" : "Dinner";
   const periodAvailability = kitchenHydrated ? getAvailability(selectedPeriod) : { available: true, reason: "" };
 
@@ -95,6 +98,9 @@ export default function HomeMenuSection() {
         </div>
       </div>
 
+      <FoodCategoryNav meals={menu} selectedCategory={category} onSelect={setCategory} />
+      <p aria-live="polite" className="mt-4 text-sm font-bold text-text-secondary">{loading ? "Loading menu…" : `${category === "All" ? "Today's" : category} ${selectedPeriod.toLowerCase()} menu · ${meals.length} ${meals.length === 1 ? "item" : "items"}`}</p>
+      {!loading && !meals.length && <p className="mt-4 rounded-xl border border-border bg-background p-4 text-sm text-text-secondary">No matching meals for this period. Try another category or <Link href={`/menu?category=${encodeURIComponent(category)}`} className="font-bold text-primary underline">browse the full menu</Link>.</p>}
       <div className="-mx-4 mt-6 grid auto-cols-[82%] grid-flow-col gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:mx-0 sm:grid-flow-row sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4">
         {loading && [0, 1, 2, 3].map((index) => <div key={index} className="card-surface h-80 animate-pulse snap-start bg-surface-muted" aria-hidden="true" />)}
         {meals.map((meal) => <HomeMealCard key={meal.id} meal={meal} orderingDisabled={!periodAvailability.available || !meal.available} unavailableReason={!meal.available ? "Currently unavailable" : periodAvailability.reason} />)}

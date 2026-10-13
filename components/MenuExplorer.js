@@ -1,34 +1,32 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, UtensilsCrossed, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Search, UtensilsCrossed, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import MealCard from "./MealCard";
+import FoodCategoryNav from "./FoodCategoryNav";
+import { matchesMenuCategory } from "@/lib/menu-categories";
 import { kolkataDate } from "@/lib/dates";
 import { MEAL_PERIOD_STORAGE_KEY } from "@/lib/constants";
 import { useKitchen } from "@/context/KitchenContext";
 import { formatCutoffTime } from "@/lib/kitchen-operations";
 
 const periods = ["Lunch", "Dinner"];
-const categories = ["All", "Veg", "Egg", "Chicken", "Fish", "Special"];
 
-export default function MenuExplorer({ initialDate, initialSearch = "" }) {
+export default function MenuExplorer({ initialDate, initialSearch = "", initialCategory = "All" }) {
   const [period, setPeriod] = useState("Lunch");
-  const [category, setCategory] = useState("All");
+  const [category, setCategory] = useState(initialCategory);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [date, setDate] = useState(initialDate || kolkataDate());
   const [meals, setMeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const categoryScroller = useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
   const { settings, hydrated: kitchenHydrated, getAvailability } = useKitchen();
   const periodAvailability = kitchenHydrated ? getAvailability(period, date) : { available: true, reason: "" };
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setSearchQuery(initialSearch), 0);
+    const timer = window.setTimeout(() => { setSearchQuery(initialSearch); setCategory(initialCategory); }, 0);
     return () => window.clearTimeout(timer);
-  }, [initialSearch]);
+  }, [initialSearch, initialCategory]);
 
   useEffect(() => {
     let active = true;
@@ -49,28 +47,6 @@ export default function MenuExplorer({ initialDate, initialSearch = "" }) {
     return () => window.clearTimeout(loadSavedPeriod);
   }, []);
 
-  const updateCategoryScroll = useCallback(() => {
-    const scroller = categoryScroller.current;
-    if (!scroller) return;
-    setCanScrollLeft(scroller.scrollLeft > 2);
-    setCanScrollRight(scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 2);
-  }, []);
-
-  useEffect(() => {
-    const scroller = categoryScroller.current;
-    if (!scroller) return;
-    const observer = new ResizeObserver(updateCategoryScroll);
-    observer.observe(scroller);
-    const frame = window.requestAnimationFrame(updateCategoryScroll);
-    return () => { observer.disconnect(); window.cancelAnimationFrame(frame); };
-  }, [updateCategoryScroll]);
-
-  function scrollCategories(direction) {
-    const scroller = categoryScroller.current;
-    if (!scroller) return;
-    scroller.scrollBy({ left: direction * Math.max(160, scroller.clientWidth * 0.75), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-  }
-
   function choosePeriod(nextPeriod) {
     setPeriod(nextPeriod);
     window.localStorage.setItem(MEAL_PERIOD_STORAGE_KEY, nextPeriod);
@@ -81,7 +57,7 @@ export default function MenuExplorer({ initialDate, initialSearch = "" }) {
 
     return meals.filter((meal) => {
       const matchesPeriod = meal.slots.includes(period);
-      const matchesCategory = category === "All" || meal.category === category;
+      const matchesCategory = matchesMenuCategory(meal, category);
       const searchableText = `${meal.name} ${meal.contents.join(" ")} ${meal.choiceGroups.flatMap((group) => group.options.map((option) => option.name)).join(" ")} ${meal.addOns.map((item) => item.name).join(" ")}`.toLowerCase();
       const matchesSearch = !normalizedSearch || searchableText.includes(normalizedSearch);
       return matchesPeriod && matchesCategory && matchesSearch;
@@ -91,7 +67,6 @@ export default function MenuExplorer({ initialDate, initialSearch = "" }) {
   function clearFilters() {
     setCategory("All");
     setSearchQuery("");
-    categoryScroller.current?.scrollTo({ left: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   return (
@@ -134,26 +109,7 @@ export default function MenuExplorer({ initialDate, initialSearch = "" }) {
         </label>
       </div>
 
-      <div className="mt-5">
-        <div className="mb-2 flex items-center justify-between gap-2"><span className="inline-flex items-center gap-2 text-sm font-black"><SlidersHorizontal className="size-4" aria-hidden="true" /> Categories</span><span className="text-xs font-bold text-text-secondary sm:hidden">Swipe to browse</span></div>
-        <div className="flex items-center gap-1.5">
-          <button type="button" onClick={() => scrollCategories(-1)} disabled={!canScrollLeft} aria-label="Scroll categories left" className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-primary disabled:opacity-40 sm:hidden"><ChevronLeft className="size-5" aria-hidden="true" /></button>
-          <div ref={categoryScroller} onScroll={updateCategoryScroll} role="group" aria-label="Filter menu by category" tabIndex={0} className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth pb-2 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] sm:overflow-visible sm:pb-0">
-            {categories.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setCategory(option)}
-                aria-pressed={category === option}
-                className={`min-h-11 shrink-0 snap-start rounded-full px-4 text-sm font-extrabold ${category === option ? "bg-primary text-white" : "border border-border bg-surface text-text-secondary hover:border-primary/40 hover:bg-primary/5 hover:text-primary"}`}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-          <button type="button" onClick={() => scrollCategories(1)} disabled={!canScrollRight} aria-label="Scroll categories right" className="grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-primary disabled:opacity-40 sm:hidden"><ChevronRight className="size-5" aria-hidden="true" /></button>
-        </div>
-      </div>
+      <FoodCategoryNav meals={meals} selectedCategory={category} onSelect={setCategory} />
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <p className="text-sm font-bold text-text-secondary" aria-live="polite">{loading ? "Loading menu…" : `Showing ${filteredMeals.length} ${period.toLowerCase()} ${filteredMeals.length === 1 ? "item" : "items"}`}</p>

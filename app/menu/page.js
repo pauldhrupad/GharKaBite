@@ -11,10 +11,11 @@ export default async function MenuPage({ searchParams }) {
   const query = await searchParams;
   const initialDate = allowedOrderDate(query?.date) ? query.date : kolkataDate();
   const initialSearch = typeof query?.q === "string" ? query.q.slice(0, 100) : "";
+  const initialCategory = typeof query?.category === "string" ? query.category.trim().slice(0, 80) || "All" : "All";
   return (
     <>
       <PageIntro eyebrow="আজকের রান্না" title="Today's Thalis & Dishes" description="Choose lunch or dinner and order before the kitchen cutoff." />
-      <MenuExplorer initialDate={initialDate} initialSearch={initialSearch} />
+      <MenuExplorer initialDate={initialDate} initialSearch={initialSearch} initialCategory={initialCategory} />
     </>
   );
 }
