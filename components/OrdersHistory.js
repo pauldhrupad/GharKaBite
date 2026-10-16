@@ -60,9 +60,9 @@ export default function OrdersHistory() {
       setMessage(`${missing.map(({ item }) => item.name).join(", ")} ${missing.length === 1 ? "is" : "are"} not available today. Choose another meal from the menu.`);
       return;
     }
-    const invalid = selections.find(({ item, meal, customization }) => { try { calculateThaliPrice(meal, customization.selectedChoices, customization.selectedAddOns, item.quantity); return false; } catch { return true; } });
+    const invalid = selections.find(({ item, meal, customization }) => { try { return calculateThaliPrice(meal, customization.selectedChoices, customization.selectedAddOns, item.quantity).unitTotal !== item.price; } catch { return true; } });
     if (invalid) {
-      window.sessionStorage.setItem("gharkabite-restore-thali", JSON.stringify({ mealId: invalid.meal.id, ...invalid.customization, quantity: invalid.item.quantity, period: order.mealPeriod }));
+      window.sessionStorage.setItem("gharkabite-restore-thali", JSON.stringify({ mealId: invalid.meal.id, ...invalid.customization, quantity: invalid.item.quantity, period: order.mealPeriod, price: invalid.item.price, choiceSummary: invalid.item.selectedChoices, addOnSummary: invalid.item.selectedAddOns }));
       router.push(`${mealDetailHref(invalid.meal.id, kolkataDate(), order.mealPeriod)}&restore=1`);
       return;
     }

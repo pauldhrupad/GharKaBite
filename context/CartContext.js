@@ -65,6 +65,7 @@ export function CartProvider({ children }) {
   const [promoCode, setPromoCode] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [periodConflict, setPeriodConflict] = useState(null);
+  const [storageError, setStorageError] = useState("");
 
   useEffect(() => {
     const loadSavedCart = window.setTimeout(() => {
@@ -75,7 +76,8 @@ export function CartProvider({ children }) {
           setItems(sanitizeSavedCart(parsedCart));
         }
       } catch {
-        window.localStorage.removeItem(CART_STORAGE_KEY);
+        try { window.localStorage.removeItem(CART_STORAGE_KEY); } catch { /* Storage may be blocked by the browser. */ }
+        setStorageError("Your saved cart could not be read. Items added now may only last for this visit.");
       } finally {
         setHydrated(true);
       }
@@ -86,7 +88,11 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+    const save = window.setTimeout(() => {
+      try { window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items)); setStorageError(""); }
+      catch { setStorageError("Your browser could not save this cart. Keep this page open; your items may be lost after a reload."); }
+    }, 0);
+    return () => window.clearTimeout(save);
   }, [hydrated, items]);
 
   function addItem(meal, deliveryMealPeriod, quantity = 1, serviceDate = kolkataDate(), customization = {}, editKey = null) {
@@ -172,6 +178,7 @@ export function CartProvider({ children }) {
   }
 
   const value = {
+    storageError,
     items,
     hydrated,
     addItem,

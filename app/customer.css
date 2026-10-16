@@ -457,3 +457,178 @@
   .food-category-row { scroll-behavior: auto; }
   [data-customer-layout] :is(button, a) { scale: none !important; transform: none !important; }
 }
+
+/* Phase 3: the builder uses the shared customer palette and overlay layers. */
+.thali-detail { padding-block: 12px 24px; }
+.thali-detail .thali-back { min-height: 44px; padding: 4px 8px; margin-left: -8px; }
+.thali-detail-intro { position: relative; margin-block: 8px 16px; }
+.thali-detail-intro > div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.thali-kicker { color: var(--brand-brown); font: 700 11px/1.5 var(--font-poppins), sans-serif; text-transform: uppercase; letter-spacing: .1em; }
+.thali-detail-intro h1 { font-size: 30px; line-height: 1.2; margin-top: 8px; overflow-wrap: anywhere; }
+.thali-detail-intro > p { color: var(--text-secondary); font-size: 14px; line-height: 1.5; margin-top: 6px; max-width: 64ch; }
+.thali-base-price { display: inline-block; margin-top: 8px; color: var(--brand-brown); font-size: 20px; font-weight: 800; }
+.thali-base-price small { color: var(--text-secondary); font-size: 13px; font-weight: 600; }
+.thali-builder { display: grid; gap: 18px; align-items: start; min-width: 0; }
+.thali-builder :is(fieldset, section, aside, div) { min-width: 0; }
+.thali-preview { display: grid; grid-template-columns: 116px minmax(0,1fr); gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card-gradient); box-shadow: var(--shadow-card); }
+.thali-preview-image { position: relative; align-self: start; aspect-ratio: 1; overflow: hidden; border-radius: var(--radius-control); background: var(--surface-alt); }
+.thali-preview-image.is-illustration { background: var(--brand-cream); }
+.thali-image-caption { position: absolute; inset: auto 0 0; padding: 3px 4px; background: var(--brand-cream); color: var(--brand-brown); text-align: center; font-size: 10px; line-height: 1.4; }
+.thali-image-fallback { display: grid; align-content: center; justify-items: center; gap: 8px; height: 100%; padding: 12px; color: var(--brand-brown); font-size: 13px; text-align: center; }
+.thali-image-fallback svg { width: 28px; height: 28px; }
+.thali-preview-content h2 { margin-top: 2px; font-size: 18px; line-height: 1.4; }
+.thali-preview-hint { font-size: 13px; color: var(--text-secondary); line-height: 1.4; margin-top: 4px; }
+.thali-selection-summary { margin-top: 8px; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; }
+.thali-selection-summary li { display: grid; border-left: 2px solid var(--brand-orange); padding-left: 8px; overflow-wrap: anywhere; }
+.thali-selection-summary li > span { color: var(--text-secondary); font-size: 12px; }
+.thali-selection-summary strong { color: var(--brand-brown); }
+.thali-included { margin-top: 6px; font-size: 13px; line-height: 1.5; }
+.thali-included summary { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 44px; cursor: pointer; color: var(--brand-brown); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.thali-included summary::before { content: '+'; }
+.thali-included[open] summary::before { content: '−'; }
+.thali-included summary span { font-weight: 600; color: var(--text-secondary); font-size: 12px; text-decoration: none; }
+.thali-included ul { display: grid; gap: 6px; margin-bottom: 10px; }
+.thali-included li { display: flex; align-items: start; gap: 6px; }
+.thali-included li svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--success); margin-top: 3px; }
+.thali-included small { display: block; color: var(--text-secondary); }
+.thali-included > p { color: var(--text-secondary); }
+.thali-preview-quantity { display: none; }
+.thali-controls { display: grid; gap: 18px; }
+.thali-period legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; font-size: 14px; font-weight: 700; }
+.thali-period legend span { color: var(--text-secondary); font: 600 13px/1.5 var(--font-nunito), sans-serif; }
+.thali-period > div { display: flex; gap: 6px; max-width: 360px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-alt); }
+.thali-period label { display: flex; flex: 1; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 8px; cursor: pointer; color: var(--brand-brown); font-size: 14px; font-weight: 800; }
+.thali-period label.is-selected { background: var(--surface); box-shadow: var(--shadow-card); }
+.thali-period input, .thali-option input, .thali-price-consent input { accent-color: var(--brand-brown); width: 18px; height: 18px; flex-shrink: 0; }
+.thali-period label:focus-within, .thali-option:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.thali-progress { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+.thali-progress > span:first-child { color: var(--brand-brown); font-weight: 800; }
+.thali-progress progress { display: block; appearance: none; height: 4px; width: 100%; border: 0; border-radius: 8px; overflow: hidden; margin-top: 4px; background: var(--border); }
+.thali-progress progress::-webkit-progress-bar { background: var(--border); }
+.thali-progress progress::-webkit-progress-value { background: var(--brand-orange); transition: width var(--interaction-normal); }
+.thali-progress progress::-moz-progress-bar { background: var(--brand-orange); }
+.thali-group { border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); padding: 12px; scroll-margin-block: calc(var(--header-height) + 16px) calc(var(--nav-height) + var(--builder-purchase-height) + 16px); }
+.thali-group legend { padding-inline: 4px; max-width: 100%; font-size: 18px; line-height: 1.4; font-weight: 700; overflow-wrap: anywhere; }
+.thali-group-hint { display: flex; flex-wrap: wrap; gap: 5px 10px; align-items: center; color: var(--text-secondary); font-size: 12px; }
+.thali-group-hint > span:first-child { font-weight: 800; }
+.thali-group-hint .thali-required { color: var(--brand-brown); background: var(--surface-alt); padding: 2px 6px; border-radius: 6px; }
+.thali-group-hint > span:last-child { margin-left: auto; }
+.thali-group-description { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
+.thali-option-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 12px; }
+.thali-option { display: flex; align-items: start; gap: 8px; padding: 12px 10px; min-height: 76px; border: 2px solid var(--border); border-radius: var(--radius-control); background: var(--surface); cursor: pointer; transition: background var(--interaction-fast), border-color var(--interaction-fast), box-shadow var(--interaction-normal); }
+.thali-option input { margin-top: 3px; }
+.thali-option-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.thali-option strong { display: block; font-size: 16px; line-height: 1.4; }
+.thali-option small { display: block; margin-top: 4px; font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
+.thali-option.is-selected { border-color: var(--brand-orange); background: var(--surface-alt); box-shadow: var(--shadow-action); }
+.thali-option-check { display: none; color: var(--brand-brown); }
+.thali-option-check svg { width: 16px; height: 16px; }
+.thali-option.is-selected .thali-option-check { display: block; }
+.thali-option.is-disabled { cursor: not-allowed; background: var(--surface-alt); }
+.thali-option.is-disabled .thali-option-copy { opacity: .7; }
+.thali-text-action { min-height: 44px; text-decoration: underline; text-underline-offset: 3px; color: var(--brand-brown); font-size: 14px; font-weight: 700; }
+.thali-section-heading { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.thali-section-heading h2, .thali-quantity-row h2 { font-size: 18px; }
+.thali-section-heading > span { color: var(--text-secondary); font-size: 13px; }
+.thali-extra-list { display: grid; gap: 8px; margin-top: 12px; }
+.thali-extra { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); padding: 10px 12px; transition: background var(--interaction-normal), border-color var(--interaction-normal); }
+.thali-extra.is-selected { background: var(--surface-alt); border-color: var(--brand-orange); }
+.thali-extra h3 { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.thali-extra h3 svg { display: inline-block; width: 14px; height: 14px; vertical-align: middle; }
+.thali-extra p { color: var(--text-secondary); font-size: 13px; line-height: 1.4; margin-top: 3px; }
+.thali-stepper { display: flex; align-items: center; flex-shrink: 0; border: 1px solid var(--border); border-radius: var(--radius-control); overflow: hidden; background: var(--surface); }
+.thali-stepper button { display: grid; place-items: center; min-width: 44px; min-height: 44px; color: var(--brand-brown); }
+.thali-stepper button:disabled { opacity: .4; cursor: not-allowed; }
+.thali-stepper button:focus-visible { outline-offset: -3px; }
+.thali-stepper svg { width: 16px; height: 16px; }
+.thali-stepper output { min-width: 24px; padding-inline: 3px; text-align: center; font-size: 14px; font-weight: 800; }
+.thali-price-panel { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card-gradient); }
+.thali-quantity-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.thali-quantity-row p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.thali-price-breakdown { display: grid; gap: 8px; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; font-size: 14px; }
+.thali-price-breakdown > div { display: flex; justify-content: space-between; gap: 12px; }
+.thali-price-breakdown dd { font-weight: 800; white-space: nowrap; }
+.thali-price-breakdown .thali-price-total { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--brand-brown); font-weight: 800; }
+.thali-price-total dd { font-size: 22px; }
+.thali-provisional { margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
+.thali-notice, .thali-inline-error { margin-block: 10px; border-radius: var(--radius-control); padding: 12px; border: 1px solid var(--brand-orange); background: var(--surface-alt); color: var(--brand-brown); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.thali-notice h2, .thali-notice h3 { font-size: 16px; }
+.thali-notice ul { list-style: disc; padding-left: 18px; margin-block: 6px; }
+.thali-inline-error { color: var(--error-ink); border-color: var(--error-ink); }
+.thali-price-consent { display: flex; gap: 10px; align-items: center; min-height: 44px; cursor: pointer; font-weight: 700; margin-top: 8px; }
+.thali-restored-note { color: var(--text-secondary); font-size: 14px; margin-bottom: 12px; }
+.thali-ready-note { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 14px; }
+.thali-ready-note svg { flex-shrink: 0; width: 18px; color: var(--success); }
+.thali-purchase-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.thali-purchase-total { flex: 0 1 auto; display: grid; }
+.thali-purchase-total span { font-size: 12px; color: var(--text-secondary); }
+.thali-purchase-total strong { font-size: 22px; color: var(--brand-brown); line-height: 1.3; }
+.thali-purchase-action { flex: 1; }
+.thali-purchase-action svg { width: 18px; height: 18px; flex-shrink: 0; }
+.thali-view-cart { min-height: 44px; display: flex; align-items: center; color: var(--brand-brown); font-size: 14px; font-weight: 800; text-decoration: underline; }
+.thali-builder :is(.thali-inline-error, #thali-price-review) { scroll-margin-block: calc(var(--header-height) + 12px) calc(var(--nav-height) + var(--builder-purchase-height) + 16px); }
+@media (hover: hover) and (pointer: fine) {
+  .thali-option:not(.is-disabled):hover { border-color: var(--brand-orange); box-shadow: var(--shadow-card); }
+  .thali-stepper button:not(:disabled):hover { background: var(--surface-alt); }
+}
+@media (max-width: 1023px) {
+  .thali-builder { padding-bottom: calc(var(--builder-purchase-height) + 16px); }
+  .thali-builder .thali-purchase-bar { position: fixed; inset: auto 0 var(--nav-height); z-index: var(--layer-purchase-bar); padding: 12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left)); background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -4px 24px color-mix(in srgb,var(--brand-brown) 10%,transparent); }
+  [data-customer-layout]:has(.thali-builder) footer { padding-bottom: calc(var(--nav-height) + 120px); }
+  .thali-builder[data-keyboard-open="true"] { padding-bottom: 0; }
+  .thali-builder[data-keyboard-open="true"] .thali-purchase-bar { position: static; box-shadow: none; border: 1px solid var(--border); border-radius: var(--radius-control); margin-top: 12px; }
+}
+@media (max-width: 359px) {
+  .thali-preview { grid-template-columns: 88px minmax(0,1fr); padding: 10px; gap: 10px; }
+  .thali-option-grid { grid-template-columns: minmax(0,1fr); }
+  .thali-extra { padding: 10px; gap: 6px; }
+  .thali-extra, .thali-quantity-row { flex-wrap: wrap; }
+  .thali-purchase-total strong { font-size: 18px; }
+  .thali-purchase-action { padding-inline: 12px; }
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .thali-preview { grid-template-columns: 180px minmax(0,1fr); padding: 16px; gap: 20px; }
+  .thali-option-grid { grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); }
+}
+@media (min-width: 1024px) {
+  .thali-detail { padding-block: 24px 40px; }
+  .thali-detail-intro { margin-block: 12px 24px; padding-right: 180px; }
+  .thali-detail-intro h1 { font-size: 40px; }
+  .thali-detail-intro > p { font-size: 16px; }
+  .thali-base-price { position: absolute; top: 30px; right: 0; font-size: 26px; }
+  .thali-builder { grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: 32px; }
+  .thali-preview-column.can-stick { position: sticky; top: calc(var(--header-height) + 24px); }
+  .thali-preview { display: block; padding: 20px; }
+  .thali-preview-image { width: 100%; aspect-ratio: 4/3; }
+  .thali-preview-content { padding-top: 18px; }
+  .thali-preview-content h2 { font-size: 24px; }
+  .thali-selection-summary { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 16px; font-size: 14px; }
+  .thali-selection-summary li > span { font-size: 13px; }
+  .thali-preview-quantity { display: block; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); font-weight: 800; font-size: 14px; color: var(--brand-brown); }
+  .thali-group { padding: 16px; }
+  .thali-controls { gap: 24px; }
+  .thali-purchase-bar { margin-top: 20px; }
+}
+@media (max-width: 639px) {
+  .thali-detail-intro { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 8px; margin-block: 4px 12px; }
+  .thali-detail-intro > div { grid-column: 1/-1; }
+  .thali-detail-intro h1 { grid-column: 1; margin-top: 4px; align-self: center; }
+  .thali-detail-intro > p { grid-column: 1/-1; grid-row: 3; margin-top: 0; }
+  .thali-base-price { grid-column: 2; grid-row: 2; align-self: center; margin-top: 4px; font-size: 18px; }
+  .thali-base-price small { display: block; font-size: 12px; }
+  .thali-preview-content > .thali-kicker, .thali-preview-hint { display: none; }
+  .thali-preview-content h2 { margin-top: 0; font-size: 16px; }
+  .thali-selection-summary { margin-top: 4px; }
+  .thali-included { margin-top: 0; }
+  .thali-builder, .thali-controls { gap: 12px; }
+}
+@media (min-width: 360px) and (max-width: 639px) {
+  .thali-period legend { float: left; display: grid; width: 110px; height: 52px; align-content: center; gap: 2px; margin: 0; }
+  .thali-period > div { margin-left: 118px; }
+}
+.thali-group:focus, .thali-builder #thali-price-review:focus, .thali-builder #thali-customizer-error:focus { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.thali-compact-summary { margin-top: 4px; color: var(--brand-brown); font-size: 14px; line-height: 1.4; font-weight: 700; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.thali-included .thali-selection-summary li { display: grid; }
+.thali-included .thali-selection-summary { margin-bottom: 14px; }
+.thali-included > .thali-kicker { margin-bottom: 8px; }
+@media (min-width: 1024px) { .thali-compact-summary { display: none; } }

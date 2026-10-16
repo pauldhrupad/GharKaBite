@@ -1,19 +1,23 @@
 "use client";
 
 import { Check, Minus, Plus, ShoppingBag } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Button from "./Button";
+import ThaliPreview from "./ThaliPreview";
+import ThaliChoiceGroup from "./ThaliChoiceGroup";
 import { useCart } from "@/context/CartContext";
 import { useKitchen } from "@/context/KitchenContext";
-import { calculateThaliPrice, missingChoiceMessage } from "@/lib/thali";
+import { calculateThaliPrice, previewThaliPrice, missingChoiceMessage } from "@/lib/thali";
+import { reviewThaliSelections, requiredChoiceProgress } from "@/lib/thali-builder";
 import { revealValidationTarget } from "@/lib/validation-navigation";
 import { validMealPeriod } from "@/lib/meal-period";
 
 export default function ThaliCustomizer({ meal, serviceDate, initialPeriod, editKey = "", restore = false }) {
   const router = useRouter();
-  const { items, addItem, hydrated } = useCart();
-  const { hydrated: kitchenHydrated, getAvailability } = useKitchen();
+  const { items, addItem, hydrated, storageError } = useCart();
+  const { hydrated: kitchenHydrated, loadFailed, getAvailability } = useKitchen();
   const [period, setPeriod] = useState(validMealPeriod(initialPeriod, meal.slots) || meal.slots[0]);
   const [quantity, setQuantity] = useState(1);
   const [choices, setChoices] = useState({});
@@ -21,54 +25,98 @@ export default function ThaliCustomizer({ meal, serviceDate, initialPeriod, edit
   const [error, setError] = useState("");
   const [choiceError, setChoiceError] = useState(null);
   const [added, setAdded] = useState(false);
+  const [restored, setRestored] = useState(!editKey && !restore);
+  const [previous, setPrevious] = useState(null);
+  const [periodIssue, setPeriodIssue] = useState("");
+  const [reviewedPrice, setReviewedPrice] = useState(null);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [purchaseHeight, setPurchaseHeight] = useState(96);
+  const [previewFits, setPreviewFits] = useState(false);
+  const purchaseRef = useRef(null);
+  const previewRef = useRef(null);
   const editing = editKey ? items.find((item) => item.key === editKey) : null;
-  const unavailable = !meal.available;
+  const ready = hydrated && restored;
+  const missingEdit = hydrated && Boolean(editKey) && !editing;
   const itemLabel = meal.kind === "dish" ? "dish" : "Thali";
-  const availability = kitchenHydrated ? getAvailability(period, serviceDate) : { available: true, reason: "" };
+  const availability = getAvailability(period, serviceDate);
 
   useEffect(() => {
-    if (!hydrated || !editing) return;
-    const timer = window.setTimeout(() => { setPeriod(editing.deliveryMealPeriod); setQuantity(editing.quantity); setChoices(editing.selectedChoices || {}); setAddOns(editing.selectedAddOns || {}); }, 0);
-    return () => window.clearTimeout(timer);
-  }, [hydrated, editing]);
-  useEffect(() => {
-    if (!restore) return;
+    if (!hydrated || (!editKey && !restore)) return;
     const timer = window.setTimeout(() => {
-      try {
-        const stored = JSON.parse(window.sessionStorage.getItem("gharkabite-restore-thali") || "null");
-        if (stored?.mealId === meal.id) { setChoices(stored.selectedChoices || {}); setAddOns(stored.selectedAddOns || {}); setQuantity(stored.quantity || 1); if (meal.slots.includes(stored.period)) setPeriod(stored.period); setError("Some previous selections are no longer available. Please review this item."); }
-        window.sessionStorage.removeItem("gharkabite-restore-thali");
-      } catch { /* Keep a blank, editable customizer. */ }
+      let source = editing;
+      if (!editKey && restore) {
+        try {
+          const stored = JSON.parse(window.sessionStorage.getItem("gharkabite-restore-thali") || "null");
+          if (stored?.mealId === meal.id) source = stored;
+          window.sessionStorage.removeItem("gharkabite-restore-thali");
+        } catch { setError("Your previous choices could not be restored. Please review this meal."); }
+      }
+      if (source) {
+        setChoices(source.selectedChoices || {});
+        setAddOns(source.selectedAddOns || {});
+        setQuantity(source.quantity ?? 1);
+        setPrevious(source);
+        const savedPeriod = source.deliveryMealPeriod || source.period;
+        if (validMealPeriod(savedPeriod, meal.slots)) setPeriod(savedPeriod);
+        else if (savedPeriod) setPeriodIssue(savedPeriod);
+      }
+      setRestored(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [restore, meal.id, meal.slots]);
+  }, [hydrated, editing, editKey, restore, meal.id, meal.slots]);
 
-  let quote;
-  try { quote = calculateThaliPrice(meal, choices, addOns, quantity); } catch { quote = null; }
-  const previewChoices = meal.choiceGroups.reduce((sum, group) => sum + (choices[group.id] || []).reduce((price, id) => price + (group.options.find((option) => option.id === id)?.priceAdjustment || 0), 0), 0);
-  const previewAddOns = meal.addOns.reduce((sum, addOn) => sum + addOn.price * (addOns[addOn.id] || 0), 0);
-  const unitTotal = quote?.unitTotal ?? meal.price + previewChoices + previewAddOns;
+  useEffect(() => {
+    const purchase = purchaseRef.current;
+    const preview = previewRef.current;
+    function measure() {
+      if (purchase) setPurchaseHeight(purchase.getBoundingClientRect().height);
+      if (preview) setPreviewFits(preview.getBoundingClientRect().height <= window.innerHeight - 112);
+      const viewport = window.visualViewport;
+      const typing = document.activeElement?.matches('input:not([type="radio"]):not([type="checkbox"]), textarea, [contenteditable="true"]');
+      setKeyboardOpen(Boolean(typing && viewport && viewport.height < window.innerHeight * 0.75));
+    }
+    const observer = new ResizeObserver(measure);
+    if (purchase) observer.observe(purchase);
+    if (preview) observer.observe(preview);
+    measure();
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    document.addEventListener("focusin", measure);
+    document.addEventListener("focusout", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); window.visualViewport?.removeEventListener("resize", measure); document.removeEventListener("focusin", measure); document.removeEventListener("focusout", measure); };
+  }, []);
 
+  const { quote, pricingError } = useMemo(() => {
+    try { return { quote: previewThaliPrice(meal, choices, addOns, quantity), pricingError: "" }; }
+    catch (cause) { return { quote: null, pricingError: cause.message }; }
+  }, [meal, choices, addOns, quantity]);
+  const review = useMemo(() => reviewThaliSelections(meal, choices, addOns, previous || {}), [meal, choices, addOns, previous]);
+  const requiredGroups = meal.choiceGroups.filter((group) => (group.minSelections ?? (group.required ? 1 : 0)) > 0);
+  const incomplete = quote?.incompleteGroups || [];
+  const { completed } = requiredChoiceProgress(meal, choices);
+  const priceChanged = Boolean(quote && Number.isFinite(previous?.price) && previous.price !== quote.unitTotal);
+  const priceNeedsReview = priceChanged && reviewedPrice !== quote.unitTotal;
+  const blocked = !ready || missingEdit || !meal.available || !availability.available || !quote || Boolean(periodIssue);
+
+  function changed() { setAdded(false); setError(""); setChoiceError(null); }
   function select(group, optionId) {
-    setAdded(false);
+    changed();
     setChoices((current) => {
-      const selected = current[group.id] || [];
-      const next = group.maxSelections === 1 ? selected.includes(optionId) && group.minSelections === 0 ? [] : [optionId] : selected.includes(optionId) ? selected.filter((id) => id !== optionId) : [...selected, optionId];
+      const selected = Array.isArray(current[group.id]) ? current[group.id] : [];
+      const next = (group.maxSelections ?? 1) === 1 ? [optionId] : selected.includes(optionId) ? selected.filter((id) => id !== optionId) : [...selected, optionId];
       return { ...current, [group.id]: next };
     });
-    setError("");
-    setChoiceError(null);
   }
-
   function addToCart() {
-    if (unavailable || !availability.available) return;
-    const missing = meal.choiceGroups.find((group) => (choices[group.id] || []).length < group.minSelections);
-    if (missing) {
-      setError("");
-      setChoiceError({ id: missing.id, message: missingChoiceMessage(missing) });
-      revealValidationTarget(`choice-error-${missing.id}`, `choice-group-${missing.id}`);
+    if (added) { router.push("/cart"); return; }
+    if (blocked) return;
+    if (incomplete.length) {
+      const group = meal.choiceGroups.find((entry) => entry.id === incomplete[0]);
+      setChoiceError({ id: group.id, message: missingChoiceMessage(group) });
+      revealValidationTarget(`choice-error-${group.id}`, `choice-group-${group.id}`);
       return;
     }
+    if (priceNeedsReview) { revealValidationTarget("thali-price-review"); return; }
     try {
       calculateThaliPrice(meal, choices, addOns, quantity);
       const result = addItem(meal, period, quantity, serviceDate, { selectedChoices: choices, selectedAddOns: addOns }, editKey || null);
@@ -76,27 +124,35 @@ export default function ThaliCustomizer({ meal, serviceDate, initialPeriod, edit
     } catch (cause) { setError(cause.message); revealValidationTarget("thali-customizer-error"); }
   }
 
-  return <div className="customer-customizer mt-4 space-y-4 border-t border-border pt-4 md:mt-5 md:pt-5">
-    <fieldset><legend className="text-sm font-black">Delivery period</legend><div className={`mt-3 grid w-full rounded-xl border border-border bg-surface-alt p-1 sm:inline-grid sm:w-auto ${meal.slots.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>{meal.slots.map((slot) => <label key={slot} className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-5 py-2.5 text-sm font-extrabold transition-colors focus-within:outline-2 focus-within:outline-primary active:scale-[0.99] ${period === slot ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-surface hover:text-primary"}`}><input type="radio" name="thaliPeriod" checked={period === slot} onChange={() => setPeriod(slot)} className="sr-only" />{slot}</label>)}</div></fieldset>
-    {!availability.available && <p className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger">{availability.reason}</p>}
-    {meal.choiceGroups.map((group) => {
-      const selected = choices[group.id] || [];
-      const single = group.maxSelections === 1;
-      return <fieldset key={group.id} id={`choice-group-${group.id}`} tabIndex={-1} aria-invalid={choiceError?.id === group.id} aria-describedby={choiceError?.id === group.id ? `choice-error-${group.id}` : undefined} className="rounded-2xl border border-border bg-surface p-4 shadow-[0_4px_14px_rgba(30,40,34,0.05)] focus:outline-2 focus:outline-primary sm:p-5"><legend className="px-1 text-lg font-black">{group.name}</legend><p className={`text-xs font-bold ${group.minSelections ? "text-accent" : "text-text-secondary"}`}>{group.minSelections ? "Required" : "Optional"} · {single ? "Choose one" : `Choose ${group.minSelections}–${group.maxSelections}`}</p>{group.description && <p className="mt-1 text-sm text-text-secondary">{group.description}</p>}{choiceError?.id === group.id && <p id={`choice-error-${group.id}`} className="mt-2 rounded-lg bg-danger/8 p-2 text-sm font-bold text-danger" role="alert">{choiceError.message}</p>}<div className="mt-4 space-y-2">{group.options.map((option, optionIndex) => {
-        const checked = selected.includes(option.id);
-        const unavailable = option.active === false;
-        const atLimit = !single && selected.length >= group.maxSelections && !checked;
-        return <div key={option.id}>{single && optionIndex > 0 && <p className="py-1 text-center text-xs font-black uppercase tracking-widest text-text-secondary">or</p>}<label className={`flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-xl border bg-surface p-3 transition focus-within:outline-2 focus-within:outline-primary ${checked ? "border-2 border-primary bg-primary/8" : "border-border"} ${unavailable && !checked || atLimit ? "cursor-not-allowed opacity-50" : "hover:border-primary"}`}><span className="flex items-center gap-3"><input type={single ? "radio" : "checkbox"} name={`choice-${group.id}`} checked={checked} disabled={unavailable && !checked || atLimit} onChange={() => select(group, option.id)} className="accent-primary" /><span><span className="block text-sm font-black">{option.name}</span>{option.description && <span className="block text-xs text-text-secondary">{option.description}</span>}</span></span><span className="flex shrink-0 items-center gap-1 text-xs font-bold">{checked && <Check className="size-4 text-primary" aria-hidden="true" />}{unavailable ? "Unavailable" : atLimit ? "Limit reached" : option.priceAdjustment ? `+₹${option.priceAdjustment}` : "Included"}</span></label></div>;
-      })}</div>{single && group.minSelections === 0 && selected.length > 0 && <button type="button" onClick={() => { setChoices((current) => ({ ...current, [group.id]: [] })); setError(""); setAdded(false); }} className="mt-3 text-sm font-bold text-primary underline underline-offset-2">Clear this choice</button>}</fieldset>;
-    })}
-    {meal.addOns.length > 0 && <section className="rounded-2xl border border-border bg-surface p-3 sm:p-5"><h2 className="text-lg font-black">Add extras</h2><p className="mt-1 text-sm text-text-secondary">Optional, priced per {itemLabel}.</p><div className="mt-3 space-y-2 sm:mt-4 sm:space-y-3">{meal.addOns.map((addOn) => {
-      const max = addOn.maxQuantity;
-      const count = addOns[addOn.id] || 0;
-      return <div key={addOn.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border p-2.5 sm:flex sm:flex-wrap sm:justify-between sm:gap-3 sm:p-3"><div className="min-w-0"><p className="text-sm font-black leading-5">{addOn.name} <span className="text-primary">+₹{addOn.price}</span></p>{addOn.description && <p className="text-xs text-text-secondary">{addOn.description}</p>}{(addOn.active === false || max === 0) && <p className="text-xs font-bold text-danger">Unavailable</p>}</div><div className="flex items-center rounded-lg border border-border"><button type="button" disabled={!count} onClick={() => { setAddOns((current) => ({ ...current, [addOn.id]: count - 1 })); setError(""); setAdded(false); }} aria-label={`Remove one ${addOn.name}`} className="grid size-11 place-items-center disabled:opacity-35"><Minus className="size-4" /></button><span className="min-w-7 text-center text-sm font-black" aria-live="polite">{count}</span><button type="button" disabled={addOn.active === false || count >= max} onClick={() => { setAddOns((current) => ({ ...current, [addOn.id]: count + 1 })); setError(""); setAdded(false); }} aria-label={`Add one ${addOn.name}`} className="grid size-11 place-items-center disabled:opacity-35"><Plus className="size-4" /></button></div></div>;
-    })}</div></section>}
-    <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5" aria-label={`Your ${itemLabel} summary`}><h2 className="font-black">Your {meal.name}</h2>{meal.kind !== "dish" && <p className="mt-2 text-sm text-text-secondary">Included: {meal.fixedItems.map((item) => item.name).join(", ")}</p>}{meal.choiceGroups.map((group) => <p key={group.id} className="mt-1 text-sm"><span className="font-bold">{group.name}:</span> {(choices[group.id] || []).map((id) => group.options.find((option) => option.id === id)?.name).filter(Boolean).join(", ") || "Not selected"}</p>)}{Object.entries(addOns).filter(([, count]) => count > 0).map(([id, count]) => <p key={id} className="mt-1 text-sm">{meal.addOns.find((item) => item.id === id)?.name} ×{count}</p>)}<div className="mt-3 space-y-1 border-t border-border pt-3 text-sm"><p>Base ₹{meal.price}</p>{previewChoices > 0 && <p>Choice upgrades +₹{previewChoices}</p>}{previewAddOns > 0 && <p>Extras +₹{previewAddOns}</p>}<p className="text-lg font-black text-accent">₹{unitTotal} per {itemLabel}</p></div></section>
-    <div className="flex items-center justify-between gap-4"><p className="text-sm font-bold">{itemLabel} quantity</p><div className="flex items-center rounded-xl border border-border bg-surface"><button type="button" disabled={quantity <= 1} onClick={() => { setQuantity(Math.max(1, quantity - 1)); setAdded(false); }} aria-label={`Decrease ${itemLabel} quantity`} className="grid size-11 place-items-center disabled:opacity-35"><Minus className="size-4" /></button><span className="min-w-8 text-center font-black" aria-live="polite">{quantity}</span><button type="button" disabled={quantity >= 10} onClick={() => { setQuantity(Math.min(10, quantity + 1)); setAdded(false); }} aria-label={`Increase ${itemLabel} quantity`} className="grid size-11 place-items-center disabled:opacity-35"><Plus className="size-4" /></button></div></div>
-    {error && <p id="thali-customizer-error" tabIndex={-1} role="alert" className="rounded-xl bg-danger/8 p-3 text-sm font-bold text-danger">{error}</p>}
-    <div className="customer-purchase-bar sticky bottom-20 z-[var(--layer-purchase-bar)] -mx-4 flex items-center gap-3 border-t border-border bg-surface p-3 shadow-[0_-8px_24px_rgba(30,40,34,0.12)] sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"><p className="shrink-0 text-lg font-black text-accent sm:hidden">₹{unitTotal * quantity}</p><button type="button" onClick={addToCart} disabled={unavailable || !availability.available} className="purchase-action inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-sm font-extrabold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:px-5">{added ? <Check className="size-4" aria-hidden="true" /> : <ShoppingBag className="size-4" aria-hidden="true" />}{unavailable ? "Currently unavailable" : !availability.available ? "Ordering Closed" : added ? "Added to cart" : <><span className="sm:hidden">{editKey ? "Save changes" : "Add to Cart"}</span><span className="hidden sm:inline">{`${editKey ? "Save customization" : meal.kind === "dish" ? "Add dish to cart" : "Add customized Thali"} · ₹${unitTotal * quantity}`}</span></>}</button>{items.length > 0 && <Link href="/cart" aria-label="View cart" className="grid size-11 shrink-0 place-items-center rounded-xl border border-primary text-primary"><ShoppingBag className="size-5" aria-hidden="true" /></Link>}<span className="sr-only" role="status" aria-live="polite">{added ? `${meal.name} added to cart.` : ""}</span></div>
+  return <div className="thali-builder" data-keyboard-open={keyboardOpen} style={{ "--builder-purchase-height": `${purchaseHeight}px` }}>
+    <div ref={previewRef} className={`thali-preview-column ${previewFits ? "can-stick" : ""}`}><ThaliPreview meal={meal} choices={choices} addOns={addOns} quantity={quantity} /></div>
+    <div className="thali-controls-column">
+      {missingEdit && <p role="alert" className="thali-notice">This cart item is no longer present. <Link href="/cart">Return to your cart</Link>.</p>}
+      {!ready && <p role="status" className="thali-notice">Restoring your meal…</p>}
+      {previous && <p className="thali-restored-note">Your previous choices are restored. Review them before {editKey ? "saving" : "adding this meal"}.</p>}
+      {review.issues.length > 0 && <section className="thali-notice" aria-label="Selections needing review"><h2>Some selections have changed</h2><ul>{review.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul><button type="button" className="thali-text-action" onClick={() => { setChoices(review.cleanChoices); setAddOns(review.cleanAddOns); changed(); }}>Remove unavailable selections</button><p>Your other choices will be kept.</p></section>}
+      {periodIssue && <div className="thali-notice">Your previous {periodIssue} period is no longer supported by this meal. <button type="button" className="thali-text-action" onClick={() => setPeriodIssue("")}>Use {period} instead</button></div>}
+      <fieldset disabled={!ready || missingEdit} className="thali-controls"><legend className="sr-only">Customize {meal.name}</legend>
+        <fieldset className="thali-period"><legend>Delivery period <span>{serviceDate}</span></legend><div>{meal.slots.map((slot) => <label key={slot} className={period === slot ? "is-selected" : ""}><input type="radio" name="thaliPeriod" checked={period === slot} onChange={() => { setPeriod(slot); setPeriodIssue(""); changed(); }} />{slot}</label>)}</div></fieldset>
+        {!availability.available && <p className="thali-notice" role="status">{availability.reason}</p>}
+        {!meal.available && <p className="thali-notice">{meal.choiceUnavailable ? "A required choice is unavailable. This meal cannot currently be ordered." : "This meal is currently unavailable for this date."}</p>}
+        {requiredGroups.length > 0 && <div className="thali-progress"><span>{completed} of {requiredGroups.length} required groups complete</span><span aria-hidden="true">{completed === requiredGroups.length ? "Ready to review" : "Make it yours"}</span><progress value={completed} max={requiredGroups.length} aria-label="Required choices completed" /></div>}
+        {meal.choiceGroups.map((group) => <ThaliChoiceGroup key={group.id} group={group} selected={Array.isArray(choices[group.id]) ? choices[group.id] : []} onSelect={select} onClear={(id) => { setChoices((current) => ({ ...current, [id]: [] })); changed(); }} error={choiceError?.id === group.id ? choiceError.message : ""} />)}
+        {!meal.choiceGroups.length && <p className="thali-ready-note"><Check aria-hidden="true" />All included items are set. Add extras if you like.</p>}
+        {meal.addOns.length > 0 && <section className="thali-extras"><div className="thali-section-heading"><h2>Add a little extra</h2><span>Optional · per {itemLabel}</span></div><div className="thali-extra-list">{meal.addOns.map((extra) => {
+          const count = Number(addOns[extra.id]) || 0;
+          return <div key={extra.id} className={`thali-extra ${count > 0 ? "is-selected" : ""}`}><div><h3>{extra.name} {count > 0 && <Check aria-hidden="true" />}</h3><p>+₹{extra.price} each{extra.active === false ? " · Unavailable" : ` · Up to ${extra.maxQuantity}`}</p>{extra.description && <p>{extra.description}</p>}{count > extra.maxQuantity && <p className="thali-quantity-error">Reduce to {extra.maxQuantity} or fewer.</p>}</div><div className="thali-stepper"><button type="button" disabled={count <= 0} aria-label={`Remove one ${extra.name}`} onClick={() => { setAddOns((current) => ({ ...current, [extra.id]: Math.max(0, count - 1) })); changed(); }}><Minus aria-hidden="true" /></button><output aria-live="off" aria-label={`${extra.name} quantity`}>{count}</output><button type="button" disabled={extra.active === false || count >= extra.maxQuantity} aria-label={`Add one ${extra.name}`} onClick={() => { setAddOns((current) => ({ ...current, [extra.id]: count + 1 })); changed(); }}><Plus aria-hidden="true" /></button></div></div>;
+        })}</div></section>}
+        <section className="thali-price-panel" aria-label="Meal quantity and price"><div className="thali-quantity-row"><div><h2>How many?</h2><p>Same choices in each {itemLabel}.</p></div><div className="thali-stepper"><button type="button" disabled={quantity <= 1} aria-label={`Decrease ${itemLabel} quantity`} onClick={() => { setQuantity(Math.max(1, Number(quantity) - 1)); changed(); }}><Minus aria-hidden="true" /></button><output aria-live="off" aria-label="Meal quantity">{quantity}</output><button type="button" disabled={quantity >= 10} aria-label={`Increase ${itemLabel} quantity`} onClick={() => { setQuantity(Math.min(10, Number(quantity) + 1)); changed(); }}><Plus aria-hidden="true" /></button></div></div>
+          {quote ? <dl className="thali-price-breakdown"><div><dt>Base price</dt><dd>₹{quote.basePrice}</dd></div>{quote.choiceAdjustments > 0 && <div><dt>Choice upgrades</dt><dd>+₹{quote.choiceAdjustments}</dd></div>}{quote.addOnTotal > 0 && <div><dt>Extras per {itemLabel}</dt><dd>+₹{quote.addOnTotal}</dd></div>}<div><dt>₹{quote.unitTotal} × {quantity}</dt><dd>₹{quote.lineTotal}</dd></div><div className="thali-price-total"><dt>{incomplete.length ? "Selections so far" : "Your meal total"}</dt><dd>₹{quote.lineTotal}</dd></div></dl> : <p className="thali-inline-error">{pricingError} Review your selections; no confirmed total is available.</p>}
+          {incomplete.length > 0 && <p className="thali-provisional">Provisional amount · Complete {incomplete.length} required {incomplete.length === 1 ? "group" : "groups"} to confirm your meal price.</p>}
+          {priceChanged && <div id="thali-price-review" tabIndex={-1} className="thali-notice"><h3>Review your updated price</h3><p>Previously ₹{previous.price} each; now ₹{quote.unitTotal} each with the current menu and selections.</p><label className="thali-price-consent"><input type="checkbox" checked={!priceNeedsReview} onChange={(event) => setReviewedPrice(event.target.checked ? quote.unitTotal : null)} />I’ve reviewed the updated price.</label></div>}
+        </section>
+      </fieldset>
+      {error && <p id="thali-customizer-error" tabIndex={-1} role="alert" className="thali-inline-error">{error}</p>}
+      {storageError && <p role="alert" className="thali-notice">{storageError}</p>}
+      <div ref={purchaseRef} className="thali-purchase-bar" aria-label="Add your customized meal"><div className="thali-purchase-total"><span>{quote ? incomplete.length ? "Selections so far" : `${quantity} ${itemLabel}${quantity > 1 ? "s" : ""}` : "Review selections"}</span><strong>{quote ? `₹${quote.lineTotal}` : "Price unavailable"}</strong></div><Button type="button" onClick={addToCart} disabled={blocked} className="thali-purchase-action">{added ? <Check aria-hidden="true" /> : <ShoppingBag aria-hidden="true" />}{!ready ? "Please wait…" : !kitchenHydrated ? "Checking kitchen…" : loadFailed ? "Unavailable" : !meal.available ? "Unavailable" : !availability.available ? "Ordering closed" : added ? "Added to cart" : editKey ? "Save changes" : "Add to Cart"}</Button>{added && <Link href="/cart" className="thali-view-cart">View cart</Link>}</div>
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{added ? `${meal.name} added to cart.` : quote ? `${incomplete.length ? "Provisional" : "Current"} total ₹${quote.lineTotal} for ${quantity}.` : "Price unavailable. Review your selections."}</span>
+    </div>
   </div>;
 }
