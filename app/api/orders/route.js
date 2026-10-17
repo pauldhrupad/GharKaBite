@@ -24,11 +24,10 @@ export async function POST(request) {
   const session = await auth();
   if (!session?.user?.id) return Response.json({ message: "Sign in to place an order." }, { status: 401 });
   try {
-    await enforceRateLimit(request, "create-order", 12, 3600);
     const body = await request.json();
     const method = body.paymentMethod === "manual_online" ? "manual_online" : body.paymentMethod === "COD" ? "COD" : null;
     if (!method) return Response.json({ message: "Choose an available payment method." }, { status: 400 });
-    const order = await createOrder(session.user.id, body, method, { requirePricingReview: true });
+    const order = await createOrder(session.user.id, body, method, { requirePricingReview: true, beforeCreate: () => enforceRateLimit(request, "create-order", 12, 3600) });
     return Response.json({ order }, { status: 201 });
   } catch (error) { return Response.json({ message: error instanceof CheckoutError ? error.message : error.message === "RATE_LIMITED" ? "Too many orders. Try later." : "Unable to place the order right now.", ...error.review }, { status: error.status || (error.message === "RATE_LIMITED" ? 429 : 503) }); }
 }
