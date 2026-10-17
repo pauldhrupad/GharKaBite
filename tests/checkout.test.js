@@ -83,6 +83,8 @@ describe("authoritative checkout quotes", () => {
   it("requires authentication and never creates an order while quoting", async () => {
     const body = { ...request(), paymentMethod: "COD" };
     expect((await quoteRoute(post("/api/orders/quote", body))).status).toBe(401);
+    expect((await orderRoute(post("/api/orders", body))).status).toBe(401);
+    expect(await Order.countDocuments()).toBe(0);
     authState.id = String(user());
     const priced = await quote(body);
     const direct = await createOrder(authState.id, body, "COD", { verifyDelivery: delivery });

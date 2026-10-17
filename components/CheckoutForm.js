@@ -32,7 +32,7 @@ function addressValues(address) { return { ...Object.fromEntries(addressFields.m
 export default function CheckoutForm() {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
-  const { items, hydrated, subtotal, cartPeriod, cartDate, clearCart, promoCode, setPromoCode, storageError, cartNotice, checkoutDraftRef } = useCart();
+  const { items, hydrated, subtotal, cartPeriod, cartDate, completeCheckout, promoCode, setPromoCode, storageError, cartNotice, checkoutDraftRef } = useCart();
   const { getAvailability, settings, now } = useKitchen();
   const [form, setForm] = useState(initialForm);
   const [savedAddresses, setSavedAddresses] = useState([]);
@@ -189,14 +189,15 @@ export default function CheckoutForm() {
       const response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json();
       receivedResponse = true;
-      if (response.status === 401) { setUnknownOutcome(false); saveDraft(); router.push("/welcome?mode=signin&returnTo=/checkout"); return; }
+      // A 401 on this retry does not prove that an earlier request failed to commit.
+      if (response.status === 401) { setUnknownOutcome(true); saveDraft(payload); router.push("/welcome?mode=signin&returnTo=/checkout"); return; }
       if (!response.ok) {
         setUnknownOutcome(response.status >= 500);
         if (response.status < 500) saveDraft();
         if (data.code === "PRICE_REVIEW_REQUIRED") { await fetchQuote(payload, { ...quote, ...(data.previousQuote || {}), pricingRevision: payload.pricingRevision }); return; }
         throw new Error(data.message || "Unable to place this order.");
       }
-      setUnknownOutcome(false); clearCart(); router.push(payload.paymentMethod === "manual_online" ? `/orders/${data.order.orderNumber}/payment` : `/orders/${data.order.orderNumber}`);
+      setUnknownOutcome(false); completeCheckout(payload); router.push(payload.paymentMethod === "manual_online" ? `/orders/${data.order.orderNumber}/payment` : `/orders/${data.order.orderNumber}`);
     } catch (error) { if (!receivedResponse) setUnknownOutcome(true); setSubmitError(!receivedResponse ? "We couldn’t read the order response. Retry the same request to check its result safely." : error.message || "Unable to place this order. Please retry."); revealValidationTarget("checkout-submit-error"); }
     finally { setSubmitting(false); }
   }
@@ -272,10 +273,10 @@ export default function CheckoutForm() {
         {quote && needsAcknowledgement && <label className="checkout-price-ack"><input id="checkout-price-ack" type="checkbox" checked={reviewedRevision === quote.pricingRevision} disabled={locked} onChange={(event) => setReviewedRevision(event.target.checked ? quote.pricingRevision : "")} />I’ve reviewed and accept the updated price.</label>}
         {quote && !needsAcknowledgement && <p className="checkout-support" role="status">{unknownOutcome ? "Original quoted amount. Retry checks the result of that same request." : "Price checked. Review your details, then place your order."}</p>}
       </div>
-      {unknownOutcome && <p role="alert" className="checkout-notice">The order result is uncertain. Retry the same request to retrieve it safely, or check <Link href="/orders" className="checkout-text-action">your orders</Link>. Your checkout inputs are preserved.</p>}
+      {unknownOutcome && <p role="alert" className="checkout-notice">The order result is uncertain. Retry the same request to retrieve it safely, or check <Link href="/orders" className="checkout-text-action">your orders</Link>. Your checkout inputs are preserved. Meals or quantities added afterward will remain in your cart.</p>}
       {recoveryWarning && <p role="status" className="checkout-notice">{recoveryWarning}</p>}
       {submitError && <p id="checkout-submit-error" tabIndex={-1} role="alert" className="checkout-notice checkout-notice--error">{submitError}</p>}
-      <CheckoutActionBar type="submit" total={quote?.total ?? estimate.total} label={unknownOutcome ? "Retry same request" : !quote ? "Review order total" : paymentMethod === "manual_online" ? "Place order & pay" : "Place COD order"} loading={busy} loadingText={quoting ? "Validating order…" : "Placing order…"} disabled={!unknownOutcome && (review.blocked || !availability.available || !paymentSettings || Boolean(promoCode && !promo.valid))}>{review.blocked ? "Review your cart selections before continuing." : !quote ? "Your final price is checked before order creation." : paymentMethod === "manual_online" ? "Payment remains pending until verified." : "Pay cash when your meal arrives."}</CheckoutActionBar>
+      <CheckoutActionBar type="submit" totalLabel={unknownOutcome ? "Original total" : "Total"} total={unknownOutcome ? quoteState?.quote.total : quote?.total ?? estimate.total} label={unknownOutcome ? "Retry same request" : !quote ? "Review order total" : paymentMethod === "manual_online" ? "Place order & pay" : "Place COD order"} loading={busy} loadingText={quoting ? "Validating order…" : "Placing order…"} disabled={!unknownOutcome && (review.blocked || !availability.available || !paymentSettings || Boolean(promoCode && !promo.valid))}>{review.blocked ? "Review your cart selections before continuing." : !quote ? "Your final price is checked before order creation." : paymentMethod === "manual_online" ? "Payment remains pending until verified." : "Pay cash when your meal arrives."}</CheckoutActionBar>
     </aside>
   </form>;
 }

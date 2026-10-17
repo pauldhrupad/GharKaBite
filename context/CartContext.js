@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { CART_STORAGE_KEY } from "@/lib/constants";
 import { kolkataDate, allowedOrderDate } from "@/lib/dates";
 import { calculateThaliPrice, customizationSignature } from "@/lib/thali";
-import { writeCheckoutAttempt } from "@/lib/checkout-attempt";
+import { remainingCartAfterCheckout, writeCheckoutAttempt } from "@/lib/checkout-attempt";
 
 const CartContext = createContext(null);
 const MIN_QUANTITY = 1;
@@ -177,6 +177,14 @@ export function CartProvider({ children }) {
     setPeriodConflict(null);
   }
 
+  function completeCheckout(payload) {
+    checkoutDraftRef.current = null;
+    try { writeCheckoutAttempt(window.sessionStorage, null); } catch { /* The in-memory cart remains usable if tab storage is blocked. */ }
+    setItems((current) => remainingCartAfterCheckout(current, payload));
+    setPromoCode((current) => current === payload.promoCode ? "" : current);
+    setPeriodConflict(null);
+  }
+
   function clearAndSwitchPeriod() {
     if (!periodConflict?.pendingItems?.length) return;
     setItems(periodConflict.pendingItems);
@@ -194,6 +202,7 @@ export function CartProvider({ children }) {
     removeItem,
     updateQuantity,
     clearCart,
+    completeCheckout,
     periodConflict,
     cancelPeriodSwitch,
     clearAndSwitchPeriod,

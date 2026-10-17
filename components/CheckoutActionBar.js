@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Button from "./Button";
 import { formatINR } from "@/lib/cart-pricing";
 
-export default function CheckoutActionBar({ total, label, href, disabled, loading, loadingText, onClick, type = "button", children }) {
+export default function CheckoutActionBar({ total, totalLabel = "Total", label, href, disabled, loading, loadingText, onClick, type = "button", children }) {
   const bar = useRef(null);
   const [height, setHeight] = useState(112);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
@@ -30,5 +30,5 @@ export default function CheckoutActionBar({ total, label, href, disabled, loadin
     document.addEventListener("focusout", measure);
     return () => { observer.disconnect(); layout?.style.removeProperty("--checkout-action-height"); window.removeEventListener("resize", measure); window.visualViewport?.removeEventListener("resize", measure); document.removeEventListener("focusin", measure); document.removeEventListener("focusout", measure); };
   }, []);
-  return <div className="checkout-action-space" data-keyboard-open={keyboardOpen} style={{ "--checkout-action-height": `${height}px` }}><div ref={bar} className="checkout-action-bar"><div className="checkout-action-amount"><span>Total</span><strong>{Number.isFinite(total) ? formatINR(total) : "Review order"}</strong></div><Button type={type} href={disabled || loading ? undefined : href} disabled={disabled} loading={loading} loadingText={loadingText} onClick={onClick}>{label}</Button>{children && <p className="checkout-action-feedback">{children}</p>}</div></div>;
+  return <div className="checkout-action-space" data-keyboard-open={keyboardOpen} style={{ "--checkout-action-height": `${height}px` }}><div ref={bar} className="checkout-action-bar"><div className="checkout-action-amount"><span>{totalLabel}</span><strong>{Number.isFinite(total) ? formatINR(total) : "Review order"}</strong></div><Button type={type} href={disabled || loading ? undefined : href} disabled={disabled} loading={loading} loadingText={loadingText} onClick={onClick}>{label}</Button>{children && <p className="checkout-action-feedback">{children}</p>}</div></div>;
 }
