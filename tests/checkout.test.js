@@ -18,6 +18,7 @@ let createAdminThali;
 let getAdminOrderAlerts, getCustomerNavSummary;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
+process.env.AUTH_SECRET ||= "isolated-quote-test-secret-not-for-production";
 function request(mealId = "veg-home-meal", key = crypto.randomUUID()) {
   return { checkoutKey: key, serviceDate: kolkataDate(1), mealPeriod: "Lunch", deliverySlot: "12–1 PM",
     items: [{ mealId, quantity: 1, selectedChoices: mealId === "fish-curry-meal" ? {} : { base: ["rice"] }, selectedAddOns: {} }], contact: { name: "Test Customer", phone: "9876543210", email: "" },
@@ -66,6 +67,125 @@ beforeAll(async () => {
 });
 afterAll(async () => { if (mongoose?.connection?.readyState) await mongoose.disconnect(); if (replica) await replica.stop(); });
 beforeEach(async () => { authState.role = "customer"; authState.id = null; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
+
+describe("authoritative checkout quotes", () => {
+  let quoteRoute, orderRoute;
+  const post = (path, body) => new Request(`http://localhost${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const quote = async (body) => {
+    const response = await quoteRoute(post("/api/orders/quote", body));
+    expect(response.status).toBe(200);
+    return (await response.json()).quote;
+  };
+  beforeAll(async () => {
+    ({ POST: quoteRoute } = await import("@/app/api/orders/quote/route"));
+    ({ POST: orderRoute } = await import("@/app/api/orders/route"));
+  });
+  it("requires authentication and never creates an order while quoting", async () => {
+    const body = { ...request(), paymentMethod: "COD" };
+    expect((await quoteRoute(post("/api/orders/quote", body))).status).toBe(401);
+    authState.id = String(user());
+    const priced = await quote(body);
+    const direct = await createOrder(authState.id, body, "COD", { verifyDelivery: delivery });
+    expect(priced).toMatchObject({ subtotal: direct.subtotal, deliveryFee: direct.deliveryFee, total: direct.total });
+    expect(await Order.countDocuments()).toBe(1);
+  });
+  it("rejects missing and tampered revisions before creating orders", async () => {
+    authState.id = String(user());
+    const body = { ...request(), paymentMethod: "COD" };
+    expect((await orderRoute(post("/api/orders", body))).status).toBe(409);
+    const priced = await quote(body);
+    const response = await orderRoute(post("/api/orders", { ...body, pricingRevision: `${priced.pricingRevision}tampered` }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe("PRICE_REVIEW_REQUIRED");
+    expect(await Order.countDocuments()).toBe(0);
+  });
+  it.each(["customer", "quantity", "address", "contact", "slot", "period", "date", "choices", "payment", "promo", "credit"])("binds the signed quote to %s", async (field) => {
+    authState.id = String(user());
+    const body = { ...request(), paymentMethod: "COD" };
+    const priced = await quote(body);
+    const changed = structuredClone(body);
+    if (field === "customer") authState.id = String(user());
+    if (field === "quantity") changed.items[0].quantity = 2;
+    if (field === "address") changed.deliveryAddress.house = "99";
+    if (field === "contact") changed.contact.name = "Another Customer";
+    if (field === "slot") changed.deliverySlot = "1–2 PM";
+    if (field === "period") { changed.mealPeriod = "Dinner"; changed.deliverySlot = "7–8 PM"; }
+    if (field === "date") changed.serviceDate = "2000-01-01";
+    if (field === "choices") changed.items[0].selectedChoices = { base: ["roti"] };
+    if (field === "payment") changed.paymentChannel = "phone";
+    if (field === "promo") changed.promoCode = "FORGED";
+    if (field === "credit") changed.subscriptionId = String(user());
+    const response = await orderRoute(post("/api/orders", { ...changed, pricingRevision: priced.pricingRevision }));
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(await Order.countDocuments()).toBe(0);
+  });
+  it("requires explicit acknowledgement and a fresh quote after a price change", async () => {
+    authState.id = String(user());
+    const body = { ...request(), paymentMethod: "COD" };
+    const previous = await quote(body);
+    await Meal.updateOne({ slug: "veg-home-meal" }, { $inc: { price: 10 } });
+    const response = await orderRoute(post("/api/orders", { ...body, pricingRevision: previous.pricingRevision }));
+    expect(response.status).toBe(409);
+    const conflict = await response.json();
+    expect(conflict.code).toBe("PRICE_REVIEW_REQUIRED");
+    expect(conflict.previousQuote.total).toBe(previous.total);
+    expect(await Order.countDocuments()).toBe(0);
+    const fresh = await quote({ ...body, previousRevision: previous.pricingRevision });
+    expect(fresh.requiresAcknowledgement).toBe(true);
+    expect((await orderRoute(post("/api/orders", { ...body, pricingRevision: fresh.pricingRevision }))).status).toBe(409);
+    expect((await orderRoute(post("/api/orders", { ...body, pricingRevision: fresh.pricingRevision, reviewedRevision: fresh.pricingRevision }))).status).toBe(201);
+  });
+  it("returns the same order on a lost-response retry even after pricing changes", async () => {
+    authState.id = String(user());
+    const body = { ...request(), paymentMethod: "COD" };
+    const priced = await quote(body);
+    body.pricingRevision = priced.pricingRevision;
+    const first = await orderRoute(post("/api/orders", body));
+    expect(first.status).toBe(201);
+    const created = (await first.json()).order;
+    await Meal.updateOne({ slug: "veg-home-meal" }, { $inc: { price: 25 } });
+    await KitchenSettings.updateOne({ key: "primary" }, { acceptingOrders: false }, { upsert: true });
+    const replay = await orderRoute(post("/api/orders", body));
+    expect(replay.status).toBe(201);
+    expect((await replay.json()).order.orderNumber).toBe(created.orderNumber);
+    expect(await Order.countDocuments()).toBe(1);
+  });
+  it("keeps expired signed quotes from creating an order", async () => {
+    authState.id = String(user());
+    const body = { ...request(), paymentMethod: "COD" };
+    const priced = await quote(body);
+    const now = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 11 * 60 * 1000);
+    try {
+      expect((await orderRoute(post("/api/orders", { ...body, pricingRevision: priced.pricingRevision }))).status).toBe(409);
+      expect(await Order.countDocuments()).toBe(0);
+    } finally { now.mockRestore(); }
+  });
+  it("quotes credit coverage and extras without spending credits; stale quotes spend nothing", async () => {
+    authState.id = String(user());
+    const plan = await SubscriptionPlan.findOne({ slug: "trial" });
+    const subscription = await purchaseSubscription(authState.id, { planId: String(plan._id), mode: "Mixed", purchaseKey: crypto.randomUUID() });
+    const body = { ...request("egg-curry-meal"), paymentMethod: "COD", subscriptionId: String(subscription._id), coveredMealId: "egg-curry-meal" };
+    body.items[0].selectedAddOns = { "extra-egg": 1 };
+    const priced = await quote(body);
+    expect(priced).toMatchObject({ subtotal: 159, coveredBasePrice: 139, total: 20, deliveryFee: 0 });
+    expect((await Subscription.findById(subscription._id)).remainingMeals).toBe(subscription.remainingMeals);
+    await Meal.updateOne({ slug: "egg-curry-meal" }, { $set: { "addOns.0.price": 30 } });
+    expect((await orderRoute(post("/api/orders", { ...body, pricingRevision: priced.pricingRevision }))).status).toBe(409);
+    expect(await Order.countDocuments()).toBe(0);
+    expect((await Subscription.findById(subscription._id)).remainingMeals).toBe(subscription.remainingMeals);
+  });
+  it("rejects concurrent replay duplicates and binds a key to its original payload", async () => {
+    authState.id = String(user());
+    const body = { ...request(), paymentMethod: "COD" };
+    body.pricingRevision = (await quote(body)).pricingRevision;
+    const responses = await Promise.all([orderRoute(post("/api/orders", body)), orderRoute(post("/api/orders", body))]);
+    const orders = await Promise.all(responses.map((response) => response.json()));
+    expect(orders[0].order.orderNumber).toBe(orders[1].order.orderNumber);
+    expect(await Order.countDocuments()).toBe(1);
+    body.items[0].quantity = 2;
+    expect((await orderRoute(post("/api/orders", body))).status).toBe(409);
+  });
+});
 
 describe("daily menu and checkout", () => {
   it("alerts admins only to orders awaiting a first action", async () => {

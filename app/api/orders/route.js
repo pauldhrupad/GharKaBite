@@ -28,7 +28,7 @@ export async function POST(request) {
     const body = await request.json();
     const method = body.paymentMethod === "manual_online" ? "manual_online" : body.paymentMethod === "COD" ? "COD" : null;
     if (!method) return Response.json({ message: "Choose an available payment method." }, { status: 400 });
-    const order = await createOrder(session.user.id, body, method);
+    const order = await createOrder(session.user.id, body, method, { requirePricingReview: true });
     return Response.json({ order }, { status: 201 });
-  } catch (error) { return Response.json({ message: error instanceof CheckoutError ? error.message : error.message === "RATE_LIMITED" ? "Too many orders. Try later." : "Unable to place the order right now." }, { status: error.status || (error.message === "RATE_LIMITED" ? 429 : 503) }); }
+  } catch (error) { return Response.json({ message: error instanceof CheckoutError ? error.message : error.message === "RATE_LIMITED" ? "Too many orders. Try later." : "Unable to place the order right now.", ...error.review }, { status: error.status || (error.message === "RATE_LIMITED" ? 429 : 503) }); }
 }
