@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { CART_STORAGE_KEY } from "@/lib/constants";
 import { kolkataDate, allowedOrderDate } from "@/lib/dates";
 import { calculateThaliPrice, customizationSignature } from "@/lib/thali";
+import { writeCheckoutAttempt } from "@/lib/checkout-attempt";
 
 const CartContext = createContext(null);
 const MIN_QUANTITY = 1;
@@ -66,6 +67,8 @@ export function CartProvider({ children }) {
   const [hydrated, setHydrated] = useState(false);
   const [periodConflict, setPeriodConflict] = useState(null);
   const [storageError, setStorageError] = useState("");
+  const [cartNotice, setCartNotice] = useState("");
+  const checkoutDraftRef = useRef(null);
 
   useEffect(() => {
     const loadSavedCart = window.setTimeout(() => {
@@ -73,6 +76,7 @@ export function CartProvider({ children }) {
         const savedCart = window.localStorage.getItem(CART_STORAGE_KEY);
         if (savedCart) {
           const parsedCart = JSON.parse(savedCart);
+          if (Array.isArray(parsedCart) && parsedCart.some((item) => item?.serviceDate && !allowedOrderDate(item.serviceDate))) setCartNotice("Your previous delivery date expired. Those meals were not restored; choose an available date from the menu.");
           setItems(sanitizeSavedCart(parsedCart));
         }
       } catch {
@@ -162,6 +166,8 @@ export function CartProvider({ children }) {
   }
 
   function clearCart() {
+    checkoutDraftRef.current = null;
+    try { writeCheckoutAttempt(window.sessionStorage, null); } catch { /* The in-memory cart still clears if storage is blocked. */ }
     setItems([]);
     setPromoCode("");
     setPeriodConflict(null);
@@ -178,6 +184,8 @@ export function CartProvider({ children }) {
   }
 
   const value = {
+    cartNotice,
+    checkoutDraftRef,
     storageError,
     items,
     hydrated,

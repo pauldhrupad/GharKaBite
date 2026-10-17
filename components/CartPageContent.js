@@ -1,181 +1,57 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
-import { CheckCircle2, Minus, Plus, ShieldCheck, Tag, Trash2, Truck } from "lucide-react";
+import { useRef, useState } from "react";
 import Button from "./Button";
 import EmptyState from "./EmptyState";
+import LoadingState from "./LoadingState";
+import CartItemSummary from "./CartItemSummary";
+import PromoCodeControl from "./PromoCodeControl";
+import OrderSummary from "./OrderSummary";
+import CheckoutActionBar from "./CheckoutActionBar";
 import { useCart } from "@/context/CartContext";
 import { useKitchen } from "@/context/KitchenContext";
-import { mealDetailHref } from "@/lib/meal-period";
 import { usePromoQuote } from "@/lib/use-promo-quote";
-import {
-  amountUntilFreeDelivery,
-  calculateDeliveryFee,
-} from "@/lib/cart-pricing";
+import { useCartReview } from "@/lib/use-cart-review";
+import { amountUntilFreeDelivery, calculateDeliveryFee, formatINR, savedCartBreakdown } from "@/lib/cart-pricing";
 
 export default function CartPageContent() {
-  const { items, hydrated, removeItem, updateQuantity, clearCart, subtotal, promoCode, setPromoCode } = useCart();
-  const { settings } = useKitchen();
-  const [promoInput, setPromoInput] = useState(promoCode);
-  const freeDeliveryThreshold = settings.freeDeliveryThreshold ?? 399;
-  const promo = usePromoQuote(promoCode, subtotal);
-
-  if (!hydrated) {
-    return (
-      <section className="container-shell grid gap-7 py-10 lg:grid-cols-[1fr_22rem]">
-        <div className="h-36 animate-pulse rounded-2xl bg-surface-muted" />
-        <div className="h-64 animate-pulse rounded-2xl bg-surface-muted" />
-      </section>
-    );
-  }
-
-  if (items.length === 0) {
-    return (
-      <section className="container-shell py-12">
-        <EmptyState
-          title="Your tiffin box is empty."
-          description="Pick a freshly prepared lunch or dinner and it will be saved here for you."
-          actionLabel="Browse Menu"
-        />
-      </section>
-    );
-  }
-
-  const deliveryFee = calculateDeliveryFee(subtotal, freeDeliveryThreshold);
-  const freeDeliveryRemaining = amountUntilFreeDelivery(subtotal, freeDeliveryThreshold);
-  const freeDeliveryProgress = freeDeliveryThreshold === 0 ? 100 : Math.min(100, (subtotal / freeDeliveryThreshold) * 100);
+  const { items, hydrated, removeItem, updateQuantity, clearCart, subtotal, promoCode, setPromoCode, cartDate, cartPeriod, storageError, cartNotice } = useCart();
+  const { settings, getAvailability } = useKitchen();
+  const [promoRetry, setPromoRetry] = useState(0);
+  const [notice, setNotice] = useState("");
+  const list = useRef(null);
+  const review = useCartReview(items, cartDate);
+  const promo = usePromoQuote(promoCode, subtotal, promoRetry);
+  if (!hydrated) return <LoadingState label="Loading your cart" rows={2} />;
+  if (!items.length) return <section className="container-shell cart-page"><EmptyState title="Your tiffin box is waiting." description="Choose a homemade lunch or dinner. Your selections will be saved here." actionLabel="Explore Today’s Menu" /><p role="status" className="checkout-status">{notice || cartNotice || storageError}</p></section>;
+  const threshold = settings.freeDeliveryThreshold;
+  const deliveryFee = calculateDeliveryFee(subtotal, threshold);
+  const remaining = amountUntilFreeDelivery(subtotal, threshold);
   const discount = promo.valid ? promo.discount : 0;
-  const total = Math.max(0, subtotal - discount + deliveryFee);
-  const needsReview = items.some((item) => item.needsReview);
-
-  function applyPromo(event) {
-    event.preventDefault();
-    setPromoCode(promoInput.trim().toUpperCase());
+  const quote = { items: savedCartBreakdown(items), subtotal, deliveryFee, discount, promoCode, total: Math.max(0, subtotal - discount + deliveryFee) };
+  const availability = getAvailability(cartPeriod, cartDate);
+  const blocked = review.blocked || !availability.available || Boolean(promoCode && !promo.valid);
+  function remove(item) {
+    removeItem(item.key);
+    setNotice(`${item.name} removed from your cart.`);
+    window.requestAnimationFrame(() => { const target = list.current?.querySelector("button, a") || document.querySelector(".cart-page a"); target?.focus(); });
   }
-
-  return (
-    <section className="container-shell grid gap-5 py-7 md:py-9 lg:grid-cols-[1fr_22rem] lg:items-start">
-      <div>
-        <p className="customer-cart-period mb-4">One delivery · {items[0].serviceDate} · {items[0].deliveryMealPeriod}</p>
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <p className="text-sm font-bold text-text-secondary">{items.length} {items.length === 1 ? "menu item" : "menu items"}</p>
-          <button type="button" onClick={clearCart} className="min-h-10 rounded-lg px-2 text-sm font-black text-danger hover:bg-danger/8">Clear cart</button>
-        </div>
-
-        <div className="space-y-4">
-          {items.map((item) => (
-            <article key={item.key} className="customer-cart-item ui-enter card-surface flex gap-4 p-4">
-              <div className="relative size-24 shrink-0 overflow-hidden rounded-xl bg-surface-muted sm:size-28">
-                <Image src={item.image} alt={item.name} fill sizes="112px" className="object-cover" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h2 className="font-black sm:text-lg">{item.name}</h2>
-                    <p className="mt-1 text-xs font-bold text-text-secondary">{item.deliveryMealPeriod} · {item.serviceDate}</p>
-                    <p className="mt-2 text-sm font-extrabold text-accent">₹{item.price} each</p>
-                    {item.needsReview && <p className="mt-2 text-xs font-bold text-warning">Please review this older selection before checkout.</p>}
-                    {item.choiceSummary?.flatMap((group) => group.options.map((option) => <p key={`${group.groupId}-${option.id}`} className="mt-1 text-xs text-text-secondary">{group.groupName}: {option.name}</p>))}
-                    {item.addOnSummary?.map((addOn) => <p key={addOn.id} className="mt-1 text-xs text-text-secondary">{addOn.name} ×{addOn.quantity} per {item.kind === "dish" ? "dish" : "Thali"}</p>)}
-                    <Link href={`${mealDetailHref(item.mealId, item.serviceDate, item.deliveryMealPeriod)}&edit=${encodeURIComponent(item.key)}`} className="mt-2 inline-block text-sm font-bold text-primary underline underline-offset-4">Edit customization</Link>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.key)}
-                    className="grid size-11 shrink-0 place-items-center rounded-lg text-text-secondary hover:bg-danger/8 hover:text-danger"
-                    aria-label={`Remove ${item.name} from cart`}
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <p className="mb-1.5 text-xs font-bold text-text-secondary">Quantity</p>
-                    <div className="flex items-center rounded-lg border border-border bg-surface-alt text-primary">
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.key, item.quantity - 1)}
-                        disabled={item.quantity <= 1}
-                        className="grid size-11 place-items-center rounded-l-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
-                        aria-label={`Decrease ${item.name} quantity`}
-                      >
-                        <Minus className="size-3.5" aria-hidden="true" />
-                      </button>
-                      <span className="min-w-9 text-center text-sm font-black" aria-live="polite">{item.quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.key, item.quantity + 1)}
-                        disabled={item.quantity >= 10}
-                        className="grid size-11 place-items-center rounded-r-lg hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-35"
-                        aria-label={`Increase ${item.name} quantity`}
-                      >
-                        <Plus className="size-3.5" aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-text-secondary">Subtotal</p>
-                    <p className="text-lg font-black text-accent">₹{item.price * item.quantity}</p>
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <aside className="card-surface border-primary/35 p-5 lg:sticky lg:top-24">
-        <h2 className="text-xl font-black">Order summary</h2>
-
-        <div className="mt-5 rounded-xl border border-border bg-surface-muted p-4">
-          <div className="flex items-center gap-2 text-sm font-black">
-            {freeDeliveryRemaining > 0 ? <Truck className="size-4 text-accent" aria-hidden="true" /> : <CheckCircle2 className="size-4 text-success" aria-hidden="true" />}
-            {freeDeliveryRemaining > 0 ? `Add ₹${freeDeliveryRemaining} more for free delivery` : "You’ve unlocked free delivery"}
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-border" aria-hidden="true">
-            <div className="h-full rounded-full bg-success transition-[width]" style={{ width: `${freeDeliveryProgress}%` }} />
-          </div>
-          <p className="mt-2 text-xs font-semibold text-text-secondary">{freeDeliveryThreshold === 0 ? "Free local delivery on every order." : `Free local delivery on orders of ₹${freeDeliveryThreshold} or more.`}</p>
-        </div>
-
-        <form onSubmit={applyPromo} className="mt-5">
-          <label htmlFor="promo-code" className="text-sm font-black">Promo code</label>
-          <div className="mt-2 flex gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Tag className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
-              <input
-                id="promo-code"
-                name="promoCode"
-                type="text"
-                value={promoInput}
-                onChange={(event) => setPromoInput(event.target.value.toUpperCase())}
-                className="input-field with-leading-icon uppercase"
-                placeholder="Enter promo code"
-                autoComplete="off"
-                autoCapitalize="characters"
-                spellCheck={false}
-              />
-            </div>
-            <button type="submit" className="min-h-12 rounded-xl border border-primary px-4 text-sm font-black text-primary hover:bg-primary/8">Apply</button>
-          </div>
-          <p className={`mt-2 flex min-h-5 items-center gap-1.5 text-xs font-bold ${promo.valid ? "text-success" : "text-text-secondary"}`} role="status" aria-live="polite">{promo.valid && <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />}{promoCode ? promo.valid ? `Promo applied · ${promo.message}` : promo.message : "Enter a code shared by GharKaBite."}</p>
-          {promoCode && <button type="button" onClick={() => { setPromoCode(""); setPromoInput(""); }} className="mt-1 text-xs font-bold text-danger underline">Remove code</button>}
-        </form>
-
-        <div className="mt-5 space-y-3 border-t border-border pt-5 text-sm">
-          <div className="flex justify-between text-text-secondary"><span>Subtotal</span><span>₹{subtotal}</span></div>
-          <div className="flex justify-between text-text-secondary"><span>Local delivery</span><span className={deliveryFee === 0 ? "font-black text-success" : ""}>{deliveryFee === 0 ? "Free" : `₹${deliveryFee}`}</span></div>
-          {discount > 0 && <div className="flex justify-between font-bold text-success"><span>{promo.code}</span><span>−₹{discount}</span></div>}
-          <div className="flex justify-between border-t border-border pt-4 text-lg font-black"><span>Total</span><span className="text-accent">₹{total}</span></div>
-        </div>
-        {promoCode && !promo.valid ? <p className="mt-4 text-xs font-semibold text-warning">Remove or correct the promo code to continue.</p> : null}
-        {needsReview && <p className="mt-4 text-xs font-semibold text-warning">Edit the older cart selection to review its options.</p>}
-        {(needsReview || promoCode && !promo.valid) ? <button type="button" disabled className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-black text-white opacity-50">Continue to checkout</button> : <Button href="/checkout" className="mt-5 w-full">Continue to checkout</Button>}
-        <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs font-bold text-text-secondary"><ShieldCheck className="size-4 shrink-0 text-success" aria-hidden="true" /> Checkout offers manually verified Online Payment and Cash on Delivery when enabled.</p>
-      </aside>
-    </section>
-  );
+  return <section className="container-shell cart-page checkout-grid"><div ref={list}>
+    <div className="cart-delivery-summary"><span>One delivery</span><strong>{cartPeriod} · {cartDate}</strong></div>
+    <div className="cart-list-heading"><p>{items.reduce((sum, item) => sum + item.quantity, 0)} {items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? "meal" : "meals"} in your cart</p><button type="button" className="checkout-text-action" onClick={() => { clearCart(); setNotice("Cart cleared."); }}>Clear cart</button></div>
+    <p role="status" className="checkout-status">{notice || storageError || cartNotice}</p>
+    {review.loading && <p role="status" className="checkout-notice">Checking current menu…</p>}
+    {review.error && <p role="alert" className="checkout-notice checkout-notice--error">{review.error} <button type="button" onClick={review.retry} className="checkout-text-action">Try again</button></p>}
+    {!availability.available && <p role="status" className="checkout-notice">{availability.reason} <Link href={`/menu?period=${cartPeriod}`} className="checkout-text-action">Explore available meals</Link></p>}
+    <div className="cart-items">{items.map((item) => <CartItemSummary key={item.key} item={item} review={review.reviews.find((entry) => entry.key === item.key)} onQuantity={updateQuantity} onRemove={remove} />)}</div>
+    <Link href={`/menu?date=${cartDate}&period=${cartPeriod}`} className="checkout-text-action cart-add-more">Add more meals</Link>
+  </div><aside className="checkout-summary card-surface"><h2>Order summary</h2>
+    <p className="cart-delivery-incentive">{remaining > 0 ? `${formatINR(remaining)} more for free local delivery` : "Free local delivery included"}</p>
+    <PromoCodeControl code={promoCode} onApply={(code) => { setPromoCode(code); setPromoRetry((value) => value + 1); }} onRemove={() => setPromoCode("")} promo={promo} />
+    <OrderSummary quote={quote} label="Estimated total" />
+    <p className="checkout-support">Prices and availability are checked again before you place the order.</p>
+    <CheckoutActionBar total={quote.total} label="Proceed to checkout" href="/checkout" disabled={blocked}>{review.blocked ? "Review your meals before continuing." : !availability.available ? availability.reason : promoCode && !promo.valid ? "Apply a valid code or remove it to continue." : ""}</CheckoutActionBar>
+    <p className="checkout-support">Manual online payment or Cash on Delivery, when available.</p>
+  </aside></section>;
 }

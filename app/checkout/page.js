@@ -6,7 +6,7 @@ export const metadata = { title: "Checkout | GharKaBite" };
 export default function CheckoutPage() {
   return (
     <>
-      <PageIntro eyebrow="Fast checkout" title="Complete your order" description="Review your contact and delivery details, choose a convenient slot, and place your order." />
+      <div className="checkout-page-intro"><PageIntro title="Checkout" description="A few details, then we’ll get cooking." /></div>
       <CheckoutForm />
     </>
   );

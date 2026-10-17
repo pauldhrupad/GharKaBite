@@ -199,6 +199,16 @@ describe("authoritative checkout quotes", () => {
     body.items[0].quantity = 2;
     expect((await orderRoute(post("/api/orders", body))).status).toBe(409);
   });
+  it("still rate-limits new purchase attempts", async () => {
+    authState.id = String(user());
+    for (let index = 0; index < 13; index += 1) {
+      const body = { ...request(), paymentMethod: "COD" };
+      body.pricingRevision = (await quote(body)).pricingRevision;
+      body.reviewedRevision = body.pricingRevision;
+      expect((await orderRoute(post("/api/orders", body))).status).toBe(index < 12 ? 201 : 429);
+    }
+    expect(await Order.countDocuments()).toBe(12);
+  });
   it.each(["choice", "extra", "delivery", "discount"])("requires review when %s pricing changes", async (part) => {
     authState.id = String(user());
     const body = { ...request("egg-curry-meal"), paymentMethod: "COD" };
