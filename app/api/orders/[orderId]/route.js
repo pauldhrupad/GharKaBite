@@ -14,8 +14,13 @@ export async function GET(request, { params }) {
   const { orderId } = await params;
   try {
     await dbConnect();
+    const view = new URL(request.url).searchParams.get("view");
+    if (view === "reorder") {
+      const order = await Order.findOne({ orderNumber: orderId, user: session.user.id }).select("-_id orderNumber serviceDate mealPeriod items.mealId items.name items.quantity items.price items.fixedItems items.selectedChoices items.selectedAddOns").lean();
+      return order ? json({ order }) : json({ message: "Order not found." }, { status: 404 });
+    }
     const query = Order.findOne(session.user.role === "admin" ? { orderNumber: orderId } : { orderNumber: orderId, user: session.user.id });
-    const order = await (new URL(request.url).searchParams.get("view") === "status" ? query.select(statusFields) : query).lean();
+    const order = await (view === "status" ? query.select(statusFields) : query).lean();
     if (!order) return json({ message: "Order not found." }, { status: 404 });
     const settings = order.paymentMethod === "manual_online" ? await KitchenSettings.findOne({ key: "primary" }).select("onlinePaymentEnabled upiId upiPhoneNumber upiDisplayName upiQrImage businessWhatsApp").lean().catch(() => null) : null;
     const proofUploadAvailable = Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);

@@ -3,6 +3,7 @@ import Button from "@/components/Button";
 import DeliveryChecker from "@/components/DeliveryChecker";
 import HomeHero from "@/components/HomeHero";
 import HomeMenuSection from "@/components/HomeMenuSection";
+import HomeCustomerShortcut from "@/components/HomeCustomerShortcut";
 import { HomepagePlanCards, HomepageTomorrowPreview } from "@/components/HomeProgressiveSections";
 import KolkataSkyline from "@/components/KolkataSkyline";
 
@@ -34,6 +35,7 @@ export default function Home() {
     <HomeHero />
     <div className="container-shell"><DeliveryChecker /></div>
     <HomeMenuSection />
+    <HomeCustomerShortcut />
     <section className="home-support container-shell" aria-labelledby="home-promo-title">
       <div className="home-brand-banner"><div><p className="eyebrow">A little planning, a comforting meal</p><h2 id="home-promo-title" className="type-section-title">Make tomorrow feel like home.</h2><p>Discover what&apos;s cooking next. Choose your meal before its ordering cutoff.</p></div><HomepageTomorrowPreview /></div>
     </section>

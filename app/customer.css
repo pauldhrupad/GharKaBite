@@ -770,3 +770,26 @@
   [data-customer-layout]:has(.cart-page .checkout-action-bar) footer { padding-bottom: calc(var(--nav-height) + var(--checkout-action-height,140px) + 16px); }
 }
 @media (max-width: 359px) { .cart-item { padding: 10px; } .cart-item-image { width: 60px; height: 60px; } .cart-item-heading { gap: 8px; } .checkout-action-bar > .gkb-button { font-size: 13px; padding-inline: 10px; } }
+.retention-page { padding-block: 12px 36px; }
+.retention-stack, .retention-grid { display: grid; gap: 12px; min-width: 0; }
+.retention-card { padding: clamp(14px, 3vw, 22px); min-width: 0; overflow-wrap: anywhere; }
+.retention-card .type-section-title { font-size: 20px; }
+.retention-row, .retention-actions, .repeat-line-action { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.retention-row { justify-content: space-between; align-items: start; }
+.retention-row > div { min-width: 0; }
+.retention-favorite-heading { display: grid; grid-template-columns: 72px minmax(0,1fr); gap: 12px; align-items: center; }
+.retention-favorite-image { display: grid; place-items: center; position: relative; width: 72px; height: 72px; overflow: hidden; border-radius: var(--radius-control); background: var(--surface-alt); font-size: 13px; }
+.retention-favorite-save { margin: 12px 0; }
+.retention-days { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.retention-days button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); font-size: 14px; font-weight: 700; }
+.retention-days button[aria-pressed="true"] { color: var(--brand-brown); background: var(--surface-alt); border-color: var(--brand-orange); }
+.retention-actions, .repeat-line-action { margin-top: 12px; }
+.retention-actions .gkb-button { max-width: 100%; text-align: left; }
+.retention-options { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+.retention-options legend { margin-bottom: 4px; font-weight: 700; }
+.retention-options label:has(:checked) { border-color: var(--brand-orange); background: var(--surface-alt); }
+.thali-builder.repeat-line-builder { margin-top: 14px; padding-bottom: 0; gap: 12px; }
+.repeat-line-builder .thali-preview-column { display: none; }
+.repeat-line-builder .thali-controls-column { grid-column: 1 / -1; }
+.repeat-line-action { justify-content: space-between; }
+@media (min-width: 640px) { .retention-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }

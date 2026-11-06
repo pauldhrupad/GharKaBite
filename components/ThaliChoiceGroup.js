@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 export default function ThaliChoiceGroup({ group, selected, onSelect, onClear, error }) {
   const min = group.minSelections ?? (group.required ? 1 : 0);
   const max = group.maxSelections ?? 1;
-  const single = max === 1;
+  const single = max === 1 && selected.length <= 1;
   const hintId = `choice-hint-${group.id}`;
   const errorId = `choice-error-${group.id}`;
   return <fieldset id={`choice-group-${group.id}`} tabIndex={-1} aria-invalid={Boolean(error)} aria-describedby={`${hintId}${error ? ` ${errorId}` : ""}`} className="thali-group">

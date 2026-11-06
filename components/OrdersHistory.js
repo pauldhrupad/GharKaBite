@@ -1,21 +1,15 @@
 "use client";
-import { mealDetailHref } from "@/lib/meal-period";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ArrowRight, CalendarDays, RotateCcw, UtensilsCrossed } from "lucide-react";
 import Button from "./Button";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
-import { useCart } from "@/context/CartContext";
 import { formatOrderTimestamp, orderStatusLabel, paymentPresentation } from "@/lib/order-utils";
 import { canSubmitProof } from "@/lib/payment-settings";
 import { formatINR } from "@/lib/cart-pricing";
-import { kolkataDate } from "@/lib/dates";
-import { calculateThaliPrice } from "@/lib/thali";
-import { useKitchen } from "@/context/KitchenContext";
 
 export default function OrdersHistory() {
   const { data, status } = useSession();
@@ -25,13 +19,8 @@ export default function OrdersHistory() {
 }
 
 function OrdersHistoryView() {
-  const router = useRouter();
-  const { addOrderItems } = useCart();
-  const { getAvailability } = useKitchen();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [reordering, setReordering] = useState("");
-  const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
   const [expired, setExpired] = useState(false);
@@ -41,7 +30,7 @@ function OrdersHistoryView() {
     const controller = new AbortController();
     const loadOrders = window.setTimeout(async () => {
       try {
-        const response = await fetch("/api/orders", { cache: "no-store", signal: controller.signal });
+        const response = await fetch("/api/orders?view=mine", { cache: "no-store", signal: controller.signal });
         if ([401, 403, 404].includes(response.status)) { if (active) { setOrders([]); setExpired(true); setLoading(false); } return; }
         if (!response.ok) throw new Error("ORDERS_UNAVAILABLE");
         const databaseOrders = (await response.json()).orders || [];
@@ -57,36 +46,6 @@ function OrdersHistoryView() {
     return () => { active = false; controller.abort(); window.clearTimeout(loadOrders); };
   }, [retryKey]);
 
-  async function reorder(order) {
-    if (reordering) return;
-    setReordering(order.orderNumber);
-    try {
-    const availability = getAvailability(order.mealPeriod, kolkataDate());
-    if (!availability.available) { setMessage(availability.reason); return; }
-    const response = await fetch(`/api/menu?date=${kolkataDate()}`);
-    if (!response.ok) { setMessage("Today's menu is unavailable. Try again shortly."); return; }
-    const meals = (await response.json()).meals || [];
-    const legacyMap = { "veg-roti-meal": "veg-home-meal", "chicken-roti-meal": "chicken-home-meal", "light-dinner-meal": "veg-home-meal" };
-    const selections = order.items.map((item) => ({ item, meal: meals.find((entry) => entry.id === (legacyMap[item.mealId] || item.mealId)), customization: { selectedChoices: Object.fromEntries((item.selectedChoices || []).map((group) => [group.groupId, group.options.map((option) => option.id)])), selectedAddOns: Object.fromEntries((item.selectedAddOns || []).map((addOn) => [addOn.id, addOn.quantity])) } }));
-    const missing = selections.filter(({ meal }) => !meal || !meal.available || !meal.slots.includes(order.mealPeriod));
-    if (missing.length) {
-      setMessage(`${missing.map(({ item }) => item.name).join(", ")} ${missing.length === 1 ? "is" : "are"} not available today. Choose another meal from the menu.`);
-      return;
-    }
-    const invalid = selections.find(({ item, meal, customization }) => { try { return calculateThaliPrice(meal, customization.selectedChoices, customization.selectedAddOns, item.quantity).unitTotal !== item.price; } catch { return true; } });
-    if (invalid) {
-      window.sessionStorage.setItem("gharkabite-restore-thali", JSON.stringify({ mealId: invalid.meal.id, ...invalid.customization, quantity: invalid.item.quantity, period: order.mealPeriod, price: invalid.item.price, choiceSummary: invalid.item.selectedChoices, addOnSummary: invalid.item.selectedAddOns }));
-      router.push(`${mealDetailHref(invalid.meal.id, kolkataDate(), order.mealPeriod)}&restore=1`);
-      return;
-    }
-    try {
-      const result = addOrderItems(selections.map(({ item, meal, customization }) => ({ meal, quantity: item.quantity, customization })), order.mealPeriod, kolkataDate());
-      setMessage(result.status === "conflict" ? `Your existing cart uses another meal period. Confirm the switch to reorder this ${order.mealPeriod.toLowerCase()}.` : "Previous menu items and their choices added to your cart.");
-    } catch { setMessage("Some previous selections are no longer available. Please review your menu items."); }
-    } catch { setMessage("Today's menu could not be checked. Please try again."); }
-    finally { setReordering(""); }
-  }
-
   if (loading) return <LoadingState label="Loading your orders" rows={2} />;
   if (expired) return <section className="container-shell py-6"><Button href="/welcome?mode=signin&returnTo=/orders">Sign in to view your orders</Button></section>;
   if (loadError) return <section className="container-shell py-10" role="alert"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={() => { setLoading(true); setRetryKey((current) => current + 1); }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></section>;
@@ -94,11 +53,10 @@ function OrdersHistoryView() {
 
   return (
     <section className="container-shell py-8 md:py-10">
-      {message && <p className="mb-5 rounded-xl border border-primary/15 bg-primary/7 p-4 text-sm font-bold text-primary" aria-live="polite">{message}</p>}
       <div className="space-y-5">{orders.map((order) => (
         <article key={order.orderNumber} className="order-card card-surface overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-border bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><Link href={`/orders/${order.orderNumber}`} className="font-black text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 flex items-center gap-1.5 text-xs text-text-secondary"><CalendarDays className="size-3.5" aria-hidden="true" /> {formatOrderTimestamp(order.createdAt)}</p></div><span data-status={order.orderStatus} className="order-state w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-black capitalize text-primary">{orderStatusLabel(order)}</span></div>
-          <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:p-5"><div><p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-text-secondary"><UtensilsCrossed className="size-4" aria-hidden="true" /> {order.mealPeriod} · {order.deliverySlot}</p><p className="mt-3 font-black">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(" · ")}</p><p className="mt-2 text-sm text-text-secondary">Total <strong className="text-accent">{formatINR(order.total)}</strong> · {order.paymentMethod === "COD" ? "Cash on delivery" : order.paymentMethod === "manual_online" ? "Online payment" : "Earlier order payment"}</p><p className="mt-2 text-sm font-bold">{paymentPresentation(order).label}</p></div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" loading={reordering === order.orderNumber} loadingText="Checking menu…" disabled={Boolean(reordering)} onClick={() => reorder(order)}><RotateCcw className="size-4" aria-hidden="true" /> Order Again</Button>{canSubmitProof(order) && order.total > 0 && <Button href={`/orders/${order.orderNumber}/payment`}>{order.paymentStatus === "rejected" ? "Review or resubmit proof" : "Payment instructions"}</Button>}<Button href={`/orders/${order.orderNumber}`}>View Details <ArrowRight className="size-4" aria-hidden="true" /></Button></div></div>
+          <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:p-5"><div><p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-text-secondary"><UtensilsCrossed className="size-4" aria-hidden="true" /> {order.mealPeriod} · {order.deliverySlot}</p><p className="mt-3 font-black">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(" · ")}</p><p className="mt-2 text-sm text-text-secondary">Total <strong className="text-accent">{formatINR(order.total)}</strong> · {order.paymentMethod === "COD" ? "Cash on delivery" : order.paymentMethod === "manual_online" ? "Online payment" : "Earlier order payment"}</p><p className="mt-2 text-sm font-bold">{paymentPresentation(order).label}</p></div><div className="flex flex-wrap gap-2"><Button href={`/profile/reorder?order=${encodeURIComponent(order.orderNumber)}`} variant="secondary"><RotateCcw className="size-4" aria-hidden="true" /> Order Again</Button>{canSubmitProof(order) && order.total > 0 && <Button href={`/orders/${order.orderNumber}/payment`}>{order.paymentStatus === "rejected" ? "Review or resubmit proof" : "Payment instructions"}</Button>}<Button href={`/orders/${order.orderNumber}`}>View Details <ArrowRight className="size-4" aria-hidden="true" /></Button></div></div>
         </article>
       ))}</div>
     </section>

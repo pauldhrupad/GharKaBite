@@ -16,6 +16,7 @@ let getAdminAvatar, uploadAdminAvatar;
 let getCustomerProfile, uploadCustomerAvatar;
 let createAdminThali;
 let getAdminOrderAlerts, getCustomerNavSummary;
+let getFavorites, postFavorite, getFavorite, patchFavorite, deleteFavorite, getCustomerShortcut;
 const user = () => new mongoose.Types.ObjectId();
 const delivery = async () => ({ serviceable: true });
 process.env.AUTH_SECRET ||= "isolated-quote-test-secret-not-for-production";
@@ -62,12 +63,131 @@ beforeAll(async () => {
   ({ POST: createAdminThali } = await import("@/app/api/admin/meals/route"));
   ({ GET: getAdminOrderAlerts } = await import("@/app/api/admin/order-alerts/route"));
   ({ GET: getCustomerNavSummary } = await import("@/app/api/orders/nav-summary/route"));
+  ({ GET: getFavorites, POST: postFavorite } = await import("@/app/api/favorites/route"));
+  ({ GET: getFavorite, PATCH: patchFavorite, DELETE: deleteFavorite } = await import("@/app/api/favorites/[id]/route"));
+  ({ GET: getCustomerShortcut } = await import("@/app/api/customer-shortcut/route"));
   const { default: dbConnect } = await import("@/lib/dbConnect");
   await dbConnect();
   await Promise.all([Meal.init(), DailyMenu.init(), DailyCapacity.init(), Order.init(), Subscription.init(), SubscriptionPlan.init(), KitchenSettings.init(), DemoPayment.init(), PromoCode.init()]);
 });
 afterAll(async () => { if (mongoose?.connection?.readyState) await mongoose.disconnect(); if (replica) await replica.stop(); });
 beforeEach(async () => { authState.role = "customer"; authState.id = null; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
+
+describe("private customer meals", () => {
+  const jsonRequest = (method, body) => new Request("http://localhost/api/favorites", { method, headers: { "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  const favoriteBody = { name: "My usual", mealId: "veg-home-meal", preferredPeriod: "Lunch", quantity: 1, selectedChoices: { base: ["rice"] }, selectedAddOns: {} };
+  const context = (id) => ({ params: Promise.resolve({ id }) });
+  const account = (index) => User.create({ name: `Repeat buyer ${index}`, email: `repeat-${index}@example.test`, phone: `987654320${index}`, passwordHash: "test" });
+
+  it("saves actual selections and the current server price, renames and removes only owned favorites", async () => {
+    expect((await getFavorites()).status).toBe(401);
+    expect((await postFavorite(jsonRequest("POST", favoriteBody))).status).toBe(401);
+    const [owner, stranger] = await Promise.all([account(1), account(2)]);
+    authState.id = String(owner._id);
+    const meal = await Meal.findOne({ slug: favoriteBody.mealId }).lean();
+    const extra = meal.addOns.find((item) => item.active);
+    const selection = { ...favoriteBody, selectedAddOns: extra ? { [extra.id]: 1 } : {} };
+    const created = await postFavorite(jsonRequest("POST", { ...selection, price: 1, user: String(stranger._id) }));
+    expect(created.status).toBe(201);
+    expect(created.headers.get("cache-control")).toBe("private, no-store");
+    const { favorite } = await created.json();
+    expect(favorite).toMatchObject({ name: "My usual", price: meal.price + (extra?.price || 0), selectedChoices: { base: ["rice"] }, selectedAddOns: selection.selectedAddOns });
+    expect(favorite.fixedItems.length).toBeGreaterThan(0);
+    expect(favorite).not.toHaveProperty("signature");
+    expect((await (await getCustomerShortcut()).json()).shortcut).toMatchObject({ type: "favorite", id: favorite.id });
+    const repeat = await postFavorite(jsonRequest("POST", { ...selection, name: "Don’t overwrite" }));
+    expect((await repeat.json())).toMatchObject({ favorite: { id: favorite.id, name: favorite.name }, duplicate: true });
+    expect((await getFavorite(jsonRequest("GET"), context(favorite.id))).status).toBe(200);
+    authState.id = String(stranger._id); authState.role = "admin";
+    expect((await (await getFavorites()).json()).favorites).toEqual([]);
+    expect((await getFavorite(jsonRequest("GET"), context(favorite.id))).status).toBe(404);
+    expect((await patchFavorite(jsonRequest("PATCH", { name: "Other account" }), context(favorite.id))).status).toBe(404);
+    expect((await deleteFavorite(jsonRequest("DELETE"), context(favorite.id))).status).toBe(404);
+    authState.id = String(owner._id); authState.role = "customer";
+    expect((await patchFavorite(jsonRequest("PATCH", { name: "Weekday lunch" }), context(favorite.id))).status).toBe(200);
+    expect((await (await getFavorites()).json()).favorites).toMatchObject([{ id: favorite.id, name: "Weekday lunch" }]);
+    expect((await deleteFavorite(jsonRequest("DELETE"), context(favorite.id))).status).toBe(200);
+    expect((await (await getFavorites()).json()).favorites).toEqual([]);
+    expect(await Order.countDocuments()).toBe(0);
+  });
+
+  it("atomically prevents duplicates and limits concurrent writes at 20", async () => {
+    authState.id = String((await account(1))._id);
+    const save = (body) => postFavorite(jsonRequest("POST", body));
+    const duplicate = await Promise.all([save(favoriteBody), save(favoriteBody)]);
+    expect(duplicate.map((response) => response.status).sort()).toEqual([200, 201]);
+    for (const period of ["Lunch", "Dinner"]) {
+      for (let quantity = period === "Lunch" ? 2 : 1; quantity <= (period === "Lunch" ? 10 : 9); quantity++) {
+        expect((await save({ ...favoriteBody, preferredPeriod: period, quantity })).status).toBe(201);
+      }
+    }
+    const last = await Promise.all([save({ ...favoriteBody, preferredPeriod: "Dinner", quantity: 10 }), save({ ...favoriteBody, mealId: "chicken-home-meal" })]);
+    expect(last.map((response) => response.status).sort()).toEqual([201, 409]);
+    expect((await (await getFavorites()).json()).favorites).toHaveLength(20);
+  });
+
+  it("rejects invalid IDs, unavailable choices and wrong periods when saving", async () => {
+    authState.id = String((await account(1))._id);
+    expect((await postFavorite(jsonRequest("POST", { ...favoriteBody, selectedChoices: { base: ["not-a-base"] } }))).status).toBe(400);
+    expect((await postFavorite(jsonRequest("POST", { ...favoriteBody, quantity: 11 }))).status).toBe(400);
+    await Meal.updateOne({ slug: favoriteBody.mealId }, { $set: { slots: ["Dinner"] } });
+    expect((await postFavorite(jsonRequest("POST", favoriteBody))).status).toBe(409);
+    expect((await getFavorite(jsonRequest("GET"), context("not-an-id"))).status).toBe(404);
+  });
+
+  it("resolves owned order numbers, projects all original lines and keeps the customer history private", async () => {
+    const [owner, other] = await Promise.all([account(1), account(2)]);
+    const original = request();
+    original.items.push({ ...original.items[0], quantity: 2, selectedChoices: { base: ["roti"] } });
+    const own = await createOrder(owner._id, original, "COD", { verifyDelivery: delivery });
+    const foreign = await createOrder(other._id, request(), "COD", { verifyDelivery: delivery });
+    const read = (orderId) => getOrder(new Request("http://localhost/order?view=reorder"), { params: Promise.resolve({ orderId }) });
+    authState.id = String(owner._id); authState.role = "admin";
+    const result = await read(own.orderNumber);
+    expect(result.status).toBe(200);
+    expect(result.headers.get("cache-control")).toBe("private, no-store");
+    const { order } = await result.json();
+    expect(order.items.map((item) => item.quantity)).toEqual([1, 2]);
+    expect(order.items[1].selectedChoices[0].options[0].id).toBe("roti");
+    expect(order).not.toHaveProperty("deliveryAddress");
+    expect((await read(String(own._id))).status).toBe(404);
+    expect((await read(foreign.orderNumber)).status).toBe(404);
+    const history = await getOrders(new Request("http://localhost/orders?view=mine"));
+    expect((await history.json()).orders.map((item) => item.orderNumber)).toEqual([own.orderNumber]);
+    expect((await (await getCustomerShortcut()).json()).shortcut).toBeNull();
+    await Order.updateOne({ _id: own._id }, { $set: { orderStatus: "delivered" } });
+    expect((await (await getCustomerShortcut()).json()).shortcut).toMatchObject({ type: "order", id: own.orderNumber, count: 2 });
+  });
+
+  it("reports only recorded service dates and states, with an explicit calendar cap", async () => {
+    const [owner, other] = await Promise.all([account(1), account(2)]);
+    const placed = await createOrder(owner._id, request(), "COD", { verifyDelivery: delivery });
+    const template = await Order.findById(placed._id).lean();
+    delete template._id; delete template.checkoutKey;
+    const rows = [
+      { ...template, orderNumber: "QA-PENDING", orderStatus: "payment_pending", paymentStatus: "pending", paymentMethod: "manual_online" },
+      { ...template, orderNumber: "QA-CANCELLED", orderStatus: "cancelled" },
+      { ...template, orderNumber: "QA-DELIVERED", orderStatus: "delivered" },
+      { ...template, orderNumber: "QA-FOREIGN", user: other._id },
+      { ...template, orderNumber: "QA-NO-DATE", serviceDate: null },
+      { ...template, orderNumber: "QA-OUTSIDE", serviceDate: kolkataDate(7) },
+    ];
+    await Order.collection.insertMany(rows);
+    authState.id = String(owner._id); authState.role = "admin";
+    const read = () => getOrders(new Request("http://localhost/orders?view=calendar"));
+    const result = await read();
+    expect(result.headers.get("cache-control")).toBe("private, no-store");
+    const calendar = await result.json();
+    expect(calendar.days).toHaveLength(7);
+    expect(calendar.orders.map((item) => item.orderStatus).sort()).toEqual(["cancelled", "confirmed", "delivered", "payment_pending"]);
+    expect(calendar.truncated).toBe(false);
+    expect(calendar.orders[0]).not.toHaveProperty("customer");
+    await Order.collection.insertMany(Array.from({ length: 47 }, (_, index) => ({ ...template, orderNumber: `QA-CAP-${index}` })));
+    const capped = await (await read()).json();
+    expect(capped.truncated).toBe(true);
+    expect(capped.orders).toHaveLength(50);
+  });
+});
 
 describe("authoritative checkout quotes", () => {
   let quoteRoute, orderRoute;
