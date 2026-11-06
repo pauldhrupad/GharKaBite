@@ -157,8 +157,7 @@ export function CartProvider({ children }) {
   }
 
   function clearCart() {
-    checkoutDraftRef.current = null;
-    try { writeCheckoutAttempt(window.sessionStorage, null); } catch { /* The in-memory cart still clears if storage is blocked. */ }
+    if (!checkoutDraftRef.current?.attempt) checkoutDraftRef.current = null;
     setItems([]);
     setPromoCode("");
     setPeriodConflict(null);

@@ -30,16 +30,30 @@ const channelLabels = { qr: "Scan QR", upi_id: "UPI ID", phone: "UPI phone" };
 function addressValues(address) { return { ...Object.fromEntries(addressFields.map((field) => [field, address[field] || (field === "city" ? "Kolkata" : "")])), location: address.location || null }; }
 
 export default function CheckoutForm() {
+  const { data: session, status } = useSession();
+  const { items, hydrated } = useCart();
+  if (!hydrated || status === "loading") return <LoadingState label="Loading your checkout details" rows={2} />;
+  if (status !== "authenticated" || !session?.user?.id) {
+    if (!items.length) return <EmptyCart />;
+    return <section className="container-shell cart-page"><div className="card-surface p-5"><h2>Sign in to finish your order</h2><p className="checkout-support">Your cart will be waiting when you return.</p><div className="flex flex-wrap gap-3 mt-4"><Button href="/welcome?mode=signin&returnTo=/checkout">Sign in and continue</Button><Button href="/welcome?mode=signup&returnTo=/checkout" variant="outline">Create an account</Button></div></div></section>;
+  }
+  return <AccountCheckout key={session.user.id} user={session.user} />;
+}
+
+function EmptyCart() {
+  return <section className="container-shell cart-page"><EmptyState title="Your tiffin box is waiting." description="Choose a homemade meal before checkout." actionLabel="Explore Today’s Menu" /></section>;
+}
+
+function AccountCheckout({ user }) {
   const router = useRouter();
-  const { data: session, status: authStatus } = useSession();
-  const { items, hydrated, subtotal, cartPeriod, cartDate, completeCheckout, promoCode, setPromoCode, storageError, cartNotice, checkoutDraftRef } = useCart();
+  const { items, subtotal, cartPeriod, cartDate, completeCheckout, promoCode, setPromoCode, storageError, cartNotice, checkoutDraftRef } = useCart();
   const { getAvailability, settings, now } = useKitchen();
   const [form, setForm] = useState(initialForm);
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState("custom");
   const [editingContact, setEditingContact] = useState(false);
   const [editingAddress, setEditingAddress] = useState(true);
-  const [profileState, setProfileState] = useState({ userId: "", status: "loading" });
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [deliverySlot, setDeliverySlot] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentChannel, setPaymentChannel] = useState("");
@@ -68,6 +82,7 @@ export default function CheckoutForm() {
   const inFlight = useRef(false);
   const attempt = useRef(null);
   const addressVersion = useRef(0);
+  const requestScope = useRef(null);
   const mealPeriod = cartPeriod || "Lunch";
   const serviceDate = cartDate || kolkataDate();
   const review = useCartReview(items, cartDate);
@@ -82,7 +97,6 @@ export default function CheckoutForm() {
   const deliveryFee = selectedSubscription && coveredItem ? 0 : calculateDeliveryFee(subtotal, settings.freeDeliveryThreshold);
   const estimate = { items: savedCartBreakdown(items), subtotal, coveredBasePrice, discount, deliveryFee, total: Math.max(0, subtotal - coveredBasePrice - discount + deliveryFee), promoCode };
   const availability = getAvailability(mealPeriod, serviceDate);
-  const profileLoaded = profileState.userId === session?.user?.id && ["ready", "error"].includes(profileState.status);
   const selectedAddress = savedAddresses.find((address, index) => addressKey(address, index) === selectedAddressId);
   const inputPayload = {
     items: items.map((item) => ({ mealId: item.mealId, quantity: item.quantity, selectedChoices: item.selectedChoices, selectedAddOns: item.selectedAddOns })),
@@ -98,6 +112,11 @@ export default function CheckoutForm() {
   const busy = submitting || quoting;
   useEffect(() => {
     const controller = new AbortController();
+    requestScope.current = controller;
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
     fetch("/api/payment-settings", { cache: "no-store", signal: controller.signal }).then(async (response) => { if (!response.ok) throw new Error("Payment options are unavailable."); return response.json(); }).then((data) => {
       if (controller.signal.aborted) return;
       setPaymentSettings(data.payment); setPaymentSettingsError("");
@@ -107,26 +126,33 @@ export default function CheckoutForm() {
     return () => controller.abort();
   }, [paymentRetry]);
   useEffect(() => {
-    if (authStatus !== "authenticated" || !session?.user?.id) return;
     const controller = new AbortController();
     let persisted = null;
-    try { persisted = readCheckoutAttempt(window.sessionStorage, session.user.id); } catch { /* Keep the in-memory recovery when tab storage is blocked. */ }
-    const saved = checkoutDraftRef.current?.userId === session.user.id ? checkoutDraftRef.current : persisted;
+    try { persisted = readCheckoutAttempt(window.sessionStorage, user.id); } catch { /* Keep the in-memory recovery when tab storage is blocked. */ }
+    const saved = checkoutDraftRef.current?.userId === user.id ? checkoutDraftRef.current : persisted;
     if (checkoutDraftRef.current && !saved) checkoutDraftRef.current = null;
     function restoreSaved() {
       if (saved) { setDeliverySlot(saved.deliverySlot); setPaymentMethod(saved.paymentMethod); setPaymentChannel(saved.paymentChannel); setSubscriptionId(saved.subscriptionId); setCoveredMealId(saved.coveredMealId); setPromoCode(saved.promoCode || ""); setQuoteState(saved.quoteState || null); setReviewedRevision(saved.reviewedRevision || ""); checkoutKey.current = saved.checkoutKey; checkoutSignature.current = saved.signature; attempt.current = saved.attempt; setUnknownOutcome(Boolean(saved.attempt)); }
     }
-    fetch("/api/profile", { cache: "no-store", signal: controller.signal }).then(async (response) => { if (!response.ok) throw new Error(); return response.json(); }).then(({ user }) => {
-      if (controller.signal.aborted) return;
-      const addresses = user?.addresses || []; const first = addresses[0];
+    fetch("/api/profile", { cache: "no-store", signal: controller.signal }).then(async (response) => {
+      if (response.status === 401 && !controller.signal.aborted) {
+        router.replace("/welcome?mode=signin&returnTo=/checkout");
+        return null;
+      }
+      if (!response.ok) throw new Error();
+      return response.json();
+    }).then((data) => {
+      if (!data || controller.signal.aborted) return;
+      const profile = data.user;
+      const addresses = profile?.addresses || []; const first = addresses[0];
       setSavedAddresses(addresses); setSelectedAddressId(saved ? "custom" : first ? addressKey(first, 0) : "custom");
-      setForm(saved?.form || { ...initialForm, fullName: user?.name || "", mobile: user?.phone || "", email: user?.email || "", ...(first ? addressValues(first) : {}) });
+      setForm(saved?.form || { ...initialForm, fullName: profile?.name || "", mobile: profile?.phone || "", email: profile?.email || "", ...(first ? addressValues(first) : {}) });
       restoreSaved();
-      setEditingContact(!user?.name || !user?.phone); setEditingAddress(Boolean(saved) || !first); setProfileState({ userId: session.user.id, status: "ready" });
-    }).catch(() => { if (!controller.signal.aborted) { setForm(saved?.form || { ...initialForm, fullName: session.user.name || "", mobile: session.user.phone || "", email: session.user.email || "" }); restoreSaved(); setEditingContact(true); setEditingAddress(true); setProfileState({ userId: session.user.id, status: "error" }); } });
+      setEditingContact(!profile?.name || !profile?.phone); setEditingAddress(Boolean(saved) || !first); setProfileLoaded(true);
+    }).catch(() => { if (!controller.signal.aborted) { setForm(saved?.form || { ...initialForm, fullName: user.name || "", mobile: user.phone || "", email: user.email || "" }); restoreSaved(); setEditingContact(true); setEditingAddress(true); setProfileLoaded(true); } });
     fetch("/api/subscriptions", { cache: "no-store", signal: controller.signal }).then(async (response) => { if (!response.ok) throw new Error(); return response.json(); }).then((data) => { if (!controller.signal.aborted) { setSubscriptions(data.subscriptions || []); setSubscriptionError(""); } }).catch(() => { if (!controller.signal.aborted) setSubscriptionError("Existing plan credits could not be loaded. Retry checkout before using a credit."); });
     return () => controller.abort();
-  }, [authStatus, session?.user?.id, session?.user?.name, session?.user?.phone, session?.user?.email, checkoutDraftRef, setPromoCode]);
+  }, [user.id, user.name, user.phone, user.email, checkoutDraftRef, setPromoCode, router]);
   useEffect(() => {
     if (addressQuery.trim().length < 3) return;
     const controller = new AbortController();
@@ -146,7 +172,7 @@ export default function CheckoutForm() {
     invalidateAddress(); setSelectedAddressId(id); setAddressQuery(""); setSuggestions([]); setForm((current) => ({ ...current, ...addressValues(address || initialForm) })); setEditingAddress(!address);
   }
   function saveDraft(pendingAttempt = null) {
-    const draft = { userId: session?.user?.id, form, deliverySlot, paymentMethod, paymentChannel, subscriptionId, coveredMealId, promoCode, quoteState, reviewedRevision, checkoutKey: checkoutKey.current, signature: inputSignature, attempt: pendingAttempt };
+    const draft = { userId: user.id, form, deliverySlot, paymentMethod, paymentChannel, subscriptionId, coveredMealId, promoCode, quoteState, reviewedRevision, checkoutKey: checkoutKey.current, signature: inputSignature, attempt: pendingAttempt };
     checkoutDraftRef.current = draft;
     try { if (!writeCheckoutAttempt(window.sessionStorage, draft) && pendingAttempt) setRecoveryWarning("Tab storage is unavailable. Keep this page open until the order result is resolved."); }
     catch { if (pendingAttempt) setRecoveryWarning("Tab storage is unavailable. Keep this page open until the order result is resolved."); }
@@ -170,24 +196,30 @@ export default function CheckoutForm() {
     return !first;
   }
   async function fetchQuote(payload, previous = quoteState?.quote) {
+    const signal = requestScope.current?.signal;
+    if (!signal || signal.aborted) return;
     setQuoting(true); setReviewedRevision("");
     try {
-      const response = await fetch("/api/orders/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, previousRevision: previous?.pricingRevision }) });
+      const response = await fetch("/api/orders/quote", { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, previousRevision: previous?.pricingRevision }) });
       const data = await response.json();
+      if (signal.aborted) return;
       if (response.status === 401) { saveDraft(); router.push("/welcome?mode=signin&returnTo=/checkout"); return; }
       if (!response.ok) throw new Error(data.message);
       const old = quoteCurrent && previous ? previous : estimate;
       setQuoteState({ signature: inputSignature, quote: data.quote, previous: old, changes: priceBreakdownChanges(old, data.quote) });
       setSubmitError(""); revealValidationTarget("checkout-price-review");
-    } catch (error) { setSubmitError(error.message || "Unable to validate this order."); revealValidationTarget("checkout-submit-error"); }
-    finally { setQuoting(false); }
+    } catch (error) { if (!signal.aborted) { setSubmitError(error.message || "Unable to validate this order."); revealValidationTarget("checkout-submit-error"); } }
+    finally { if (!signal.aborted) setQuoting(false); }
   }
   async function placeOrder(payload) {
+    const signal = requestScope.current?.signal;
+    if (!signal || signal.aborted) return;
     setSubmitting(true); attempt.current = payload; saveDraft(payload);
     let receivedResponse = false;
     try {
-      const response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const response = await fetch("/api/orders", { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json();
+      if (signal.aborted) return;
       receivedResponse = true;
       // A 401 on this retry does not prove that an earlier request failed to commit.
       if (response.status === 401) { setUnknownOutcome(true); saveDraft(payload); router.push("/welcome?mode=signin&returnTo=/checkout"); return; }
@@ -198,8 +230,8 @@ export default function CheckoutForm() {
         throw new Error(data.message || "Unable to place this order.");
       }
       setUnknownOutcome(false); completeCheckout(payload); router.push(payload.paymentMethod === "manual_online" ? `/orders/${data.order.orderNumber}/payment` : `/orders/${data.order.orderNumber}`);
-    } catch (error) { if (!receivedResponse) setUnknownOutcome(true); setSubmitError(!receivedResponse ? "We couldn’t read the order response. Retry the same request to check its result safely." : error.message || "Unable to place this order. Please retry."); revealValidationTarget("checkout-submit-error"); }
-    finally { setSubmitting(false); }
+    } catch (error) { if (!signal.aborted) { if (!receivedResponse) setUnknownOutcome(true); setSubmitError(!receivedResponse ? "We couldn’t read the order response. Retry the same request to check its result safely." : error.message || "Unable to place this order. Please retry."); revealValidationTarget("checkout-submit-error"); } }
+    finally { if (!signal.aborted) setSubmitting(false); }
   }
   async function handleSubmit(event) {
     event.preventDefault(); if (inFlight.current) return;
@@ -217,19 +249,25 @@ export default function CheckoutForm() {
     } finally { inFlight.current = false; }
   }
   async function checkAddress() {
+    const signal = requestScope.current?.signal;
+    if (!signal || signal.aborted) return;
     const version = ++addressVersion.current;
     setCheckingAddress(true); setDeliveryResult(null);
     try {
-      const response = await fetch("/api/delivery/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: inputPayload.deliveryAddress }) });
+      const response = await fetch("/api/delivery/check", { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: inputPayload.deliveryAddress }) });
       const data = await response.json();
-      if (version === addressVersion.current) setDeliveryResult(response.ok ? data : { serviceable: false, reason: data.reason || data.message || "Address checking is unavailable. Try again." });
-    } catch { if (version === addressVersion.current) setDeliveryResult({ serviceable: false, reason: "Unable to verify this address. Please retry." }); }
-    finally { if (version === addressVersion.current) setCheckingAddress(false); }
+      if (!signal.aborted && version === addressVersion.current) setDeliveryResult(response.ok ? data : { serviceable: false, reason: data.reason || data.message || "Address checking is unavailable. Try again." });
+    } catch { if (!signal.aborted && version === addressVersion.current) setDeliveryResult({ serviceable: false, reason: "Unable to verify this address. Please retry." }); }
+    finally { if (!signal.aborted && version === addressVersion.current) setCheckingAddress(false); }
   }
-  if (!hydrated) return <LoadingState label="Loading your cart" rows={2} />;
-  if (!items.length) return <section className="container-shell cart-page"><EmptyState title="Your tiffin box is waiting." description="Choose a homemade meal before checkout." actionLabel="Explore Today’s Menu" /></section>;
-  if (authStatus === "loading" || authStatus === "authenticated" && !profileLoaded) return <LoadingState label="Loading your checkout details" rows={2} />;
-  if (authStatus === "unauthenticated") return <section className="container-shell cart-page"><div className="card-surface p-5"><h2>Sign in to finish your order</h2><p className="checkout-support">Your cart will be waiting when you return.</p><div className="flex flex-wrap gap-3 mt-4"><Button href="/welcome?mode=signin&returnTo=/checkout">Sign in and continue</Button><Button href="/welcome?mode=signup&returnTo=/checkout" variant="outline">Create an account</Button></div></div></section>;
+  if (!profileLoaded) return <LoadingState label="Loading your checkout details" rows={2} />;
+  if (!items.length && !unknownOutcome) return <EmptyCart />;
+  if (!items.length) return <section className="container-shell cart-page"><form className="card-surface p-5 space-y-3" onSubmit={handleSubmit}>
+    <h2 className="type-section-title">Check your previous order</h2>
+    <p>The result is uncertain. Retry the same request to recover it, or check <Link className="underline" href="/orders">your orders</Link>.</p>
+    {submitError && <p id="checkout-submit-error" role="alert" tabIndex={-1}>{submitError}</p>}
+    <Button type="submit" loading={submitting} loadingText="Checking order…">Retry same request</Button>
+  </form></section>;
   const locked = busy || unknownOutcome;
   const slotInvalid = deliverySlot && slotExpired(serviceDate, mealPeriod, deliverySlot, new Date(now));
   return <form onSubmit={handleSubmit} noValidate className="customer-checkout container-shell checkout-grid cart-page">

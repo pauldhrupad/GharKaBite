@@ -14,6 +14,7 @@ describe("tab-scoped uncertain checkout recovery", () => {
   it("does not restore another account's contact details or invalid storage", () => {
     const storage = memoryStorage(); writeCheckoutAttempt(storage, draft);
     expect(readCheckoutAttempt(storage, "customer-b")).toBe(null);
+    expect(readCheckoutAttempt(storage, "customer-a")).toBe(null);
     writeCheckoutAttempt(storage, { ...draft, form: {} });
     expect(readCheckoutAttempt(storage, "customer-a")).toBe(null);
   });
