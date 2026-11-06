@@ -1,33 +1,48 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- QR codes must keep their original pixels. */
+/* eslint-disable @next/next/no-img-element -- Keep the original QR pixels and aspect ratio. */
 
-import { useState } from "react";
-import { Check, Copy, QrCode, Smartphone } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Copy } from "lucide-react";
+import { validUpiId } from "@/lib/payment-settings";
+import Button from "./Button";
 
 export function availableChannels(payment) {
   return [payment?.upiQrImage && "qr", payment?.upiId && "upi_id", payment?.upiPhoneNumber && "phone"].filter(Boolean);
 }
 
-export default function PaymentOptions({ payment, channel, onChange, amount, orderNumber }) {
-  const [copied, setCopied] = useState("");
-  const [copyError, setCopyError] = useState("");
-  if (!payment) return null;
-  const channels = availableChannels(payment);
-  if (!channels.length) return <p className="rounded-xl bg-warning/10 p-4 text-sm font-bold">Online payment is temporarily unavailable. Please choose another payment method.</p>;
-  async function copy(value, key) {
-    try { await navigator.clipboard.writeText(value); setCopied(key); setCopyError(""); window.setTimeout(() => setCopied(""), 1800); }
-    catch { setCopied(""); setCopyError("Could not copy automatically. Select and copy the details above."); }
+export function CopyPaymentValue({ value, label }) {
+  const [message, setMessage] = useState("");
+  const timer = useRef(null);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  async function copy() {
+    window.clearTimeout(timer.current);
+    try {
+      await navigator.clipboard.writeText(value);
+      setMessage("Copied ✓");
+      timer.current = window.setTimeout(() => setMessage(""), 1800);
+    } catch { setMessage("Copy unavailable. Select and copy the displayed value."); }
   }
-  const labels = { qr: "Scan QR", upi_id: "UPI ID", phone: "Phone Number" };
-  const icons = { qr: QrCode, upi_id: Copy, phone: Smartphone };
-  return <div><h3 className="text-lg font-black">Choose how you want to pay</h3><p className="mt-1 text-sm leading-6 text-text-secondary">Pay using the details below. Your order will be confirmed after payment verification.</p>
-    <div className="payment-channels mt-4 grid grid-cols-3 gap-2">{channels.map((item) => { const Icon = icons[item]; return <button type="button" key={item} onClick={() => onChange(item)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-black ${channel === item ? "border-primary bg-primary/8 text-primary shadow-sm" : "border-border hover:border-primary/40 hover:bg-primary/5"}`} aria-pressed={channel === item}><Icon className="size-4" aria-hidden="true" />{labels[item]}{channel === item && <Check className="size-4" aria-hidden="true" />}</button>; })}</div>
-    <p className="sr-only" role="status" aria-live="polite">{copied ? "Payment detail copied." : copyError}</p>
-    <div className="mt-4 rounded-2xl border border-border bg-surface-alt p-4 text-sm">
-      {channel === "qr" && payment.upiQrImage && <div className="flex flex-col items-center text-center"><img src={payment.upiQrImage} alt="GharKaBite UPI payment QR" className="aspect-square w-full max-w-72 rounded-xl bg-white object-contain p-2" /><p className="mt-3 font-bold">UPI Name: {payment.upiDisplayName || "GharKaBite"}</p><a href={payment.upiQrImage} target="_blank" rel="noopener noreferrer" className="mt-2 font-bold text-primary underline">Enlarge QR</a></div>}
-      {channel === "upi_id" && payment.upiId && <div><p className="font-bold">UPI ID</p><p className="mt-1 break-all text-lg font-black">{payment.upiId}</p><button type="button" onClick={() => copy(payment.upiId, "upi")} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-black text-primary">{copied === "upi" ? "Copied ✓" : "Copy UPI ID"}</button>{orderNumber && <a href={`upi://pay?pa=${encodeURIComponent(payment.upiId)}&pn=${encodeURIComponent(payment.upiDisplayName || "GharKaBite")}&am=${encodeURIComponent(String(amount))}&cu=INR&tn=${encodeURIComponent(orderNumber)}`} className="ml-3 inline-flex min-h-11 items-center font-black text-primary underline">Open UPI App</a>}</div>}
-      {channel === "phone" && payment.upiPhoneNumber && <div><p className="font-bold">UPI-linked Phone Number</p><p className="mt-1 text-lg font-black">+91 {payment.upiPhoneNumber}</p><button type="button" onClick={() => copy(payment.upiPhoneNumber, "phone")} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-black text-primary">{copied === "phone" ? "Copied ✓" : "Copy Number"}</button></div>}
-      <p className="mt-4 border-t border-border pt-3 font-black">Amount: <span className="text-lg text-accent">₹{Number(amount || 0).toLocaleString("en-IN")}</span></p><p className="mt-1 text-xs text-text-secondary">Please pay the exact amount shown. This is your stored order total.</p>
+  return <div className="payment-copy"><Button type="button" variant="outline" onClick={copy}><Copy className="size-4" aria-hidden="true" />{label}</Button><span className="type-meta text-text-secondary" role="status">{message}</span></div>;
+}
+
+const labels = { qr: "Scan QR", upi_id: "UPI ID", phone: "Phone number" };
+
+export default function PaymentOptions({ payment, defaultChannel, amount, orderNumber }) {
+  const [selected, setSelected] = useState("");
+  const [failedQr, setFailedQr] = useState("");
+  const channels = availableChannels(payment);
+  if (!channels.length) return null;
+  const channel = channels.includes(selected) ? selected : channels.includes(defaultChannel) ? defaultChannel : channels[0];
+  const upiLink = validUpiId(payment.upiId) && Number.isFinite(amount) && amount > 0 ? `upi://pay?${new URLSearchParams({ pa: payment.upiId, ...(payment.upiDisplayName ? { pn: payment.upiDisplayName } : {}), am: amount.toFixed(2), cu: "INR", tn: orderNumber })}` : "";
+  return <fieldset className="payment-methods">
+    <legend className="type-section-title">How to pay</legend>
+    <div className="payment-channels">{channels.map((item) => <label className="checkout-choice" key={item}><input type="radio" name="order-payment-channel" checked={channel === item} onChange={() => setSelected(item)} /><span>{labels[item]}</span></label>)}</div>
+    <div className="payment-destination">
+      {channel === "qr" && (failedQr === payment.upiQrImage ? <p role="status" className="type-supporting text-danger">The QR could not load. Try another available channel or contact support.</p> : <><img src={payment.upiQrImage} alt="Configured GharKaBite UPI payment QR" className="payment-qr" onError={() => setFailedQr(payment.upiQrImage)} /><a href={payment.upiQrImage} target="_blank" rel="noopener noreferrer" className="checkout-text-action">Enlarge QR</a></>)}
+      {channel === "upi_id" && <><p className="type-meta text-text-secondary">UPI ID</p><p className="break-all text-lg font-bold">{payment.upiId}</p><CopyPaymentValue value={payment.upiId} label="Copy UPI ID" />{upiLink && <a href={upiLink} className="checkout-text-action">Open UPI app</a>}</>}
+      {channel === "phone" && <><p className="type-meta text-text-secondary">UPI-linked phone</p><p className="text-lg font-bold">+91 {payment.upiPhoneNumber}</p><CopyPaymentValue value={`+91${payment.upiPhoneNumber}`} label="Copy phone number" /></>}
+      {payment.upiDisplayName && <p className="type-supporting text-text-secondary">Payee: <strong>{payment.upiDisplayName}</strong></p>}
     </div>
-  </div>;
+    <p className="type-supporting mt-3 text-text-secondary">Pay the exact order amount. Keep your screenshot and Transaction ID so GharKaBite can verify the payment.</p>
+  </fieldset>;
 }

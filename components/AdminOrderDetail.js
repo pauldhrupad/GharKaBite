@@ -1,11 +1,12 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Payment proof is served from an authenticated no-store route. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Clock3, MapPin, NotebookPen, Phone, UserRound } from "lucide-react";
 import Link from "next/link";
 import { adminStatusOptions } from "@/data/order-statuses";
-import { formatOrderTimestamp, isOrderComplete } from "@/lib/order-utils";
+import { formatOrderTimestamp, isOrderComplete, proofImageHref } from "@/lib/order-utils";
+import { formatINR } from "@/lib/cart-pricing";
 import { whatsappUrl } from "@/lib/payment-settings";
 import CustomSelect from "./CustomSelect";
 import ThaliOrderDetails from "./ThaliOrderDetails";
@@ -24,6 +25,9 @@ export default function AdminOrderDetail({ orderId, initialOrder }) {
   const [verificationAction, setVerificationAction] = useState("");
   const [rejectionReason, setRejectionReason] = useState("Transaction not found");
   const [businessWhatsApp, setBusinessWhatsApp] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [verificationStale, setVerificationStale] = useState(false);
+  const review = useRef({ revision: null, busy: false });
   const cashDialogRef = useModalFocus(confirmingPayment, () => { if (!savingPayment) setConfirmingPayment(false); });
   const verificationDialogRef = useModalFocus(Boolean(verificationAction), () => { if (!savingPayment) setVerificationAction(""); });
 
@@ -39,7 +43,7 @@ export default function AdminOrderDetail({ orderId, initialOrder }) {
         setOrder(data.order);
         setSelectedStatus(data.order.orderStatus);
       }
-    }).finally(() => { if (active) setLoading(false); });
+    }).catch(() => {}).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [initialOrder, orderId]);
 
@@ -80,15 +84,39 @@ export default function AdminOrderDetail({ orderId, initialOrder }) {
     }
   }
 
+  function openVerification(action) {
+    review.current.revision = order.paymentProofRevision ?? null;
+    setPaymentMessage("");
+    setVerificationAction(action);
+  }
+
+  async function refreshVerification() {
+    try {
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: "no-store" });
+      if ([401, 403, 404].includes(response.status)) { setVerificationAction(""); setOrder(null); return; }
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      setOrder(data.order); setSelectedStatus(data.order.orderStatus); setVerificationStale(false);
+    } catch { setVerificationStale(true); }
+  }
+
   async function verifyOnlinePayment() {
+    if (review.current.busy) return;
+    review.current.busy = true;
     setSavingPayment(true); setPaymentMessage("");
     try {
-      const response = await fetch(`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-verification`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: verificationAction, reason: rejectionReason }) });
+      const response = await fetch(`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-verification`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: verificationAction, reason: rejectionReason, expectedProofRevision: review.current.revision }) });
       const data = await response.json();
+      if ([401, 403, 404].includes(response.status)) { setVerificationAction(""); setOrder(null); return; }
+      if (response.status === 409) {
+        setVerificationAction(""); setVerificationStale(true); setPaymentMessage(data.message);
+        await refreshVerification();
+        return;
+      }
       if (!response.ok) throw new Error(data.message || "Could not update this payment.");
       setOrder(data.order); setSelectedStatus(data.order.orderStatus); setVerificationAction(""); setPaymentMessage(data.message);
     } catch (error) { setPaymentMessage(error.message || "Could not update this payment."); }
-    finally { setSavingPayment(false); }
+    finally { review.current.busy = false; setSavingPayment(false); }
   }
 
   if (loading) return <LoadingState label="Loading order details" variant="section" rows={2} />;
@@ -96,6 +124,7 @@ export default function AdminOrderDetail({ orderId, initialOrder }) {
 
   const address = order.deliveryAddress;
   const completed = isOrderComplete(order);
+  const proofHref = proofImageHref(order);
   return (
     <>
       <Link href="/admin/orders" className="inline-flex min-h-10 items-center gap-2 text-sm font-black text-primary"><ArrowLeft className="size-4" aria-hidden="true" /> Back to orders</Link>
@@ -111,8 +140,8 @@ export default function AdminOrderDetail({ orderId, initialOrder }) {
         <aside className="space-y-6 xl:sticky xl:top-6">
           <section className="rounded-2xl border border-border bg-white p-5"><h2 className="text-lg font-black">Update status</h2><label className="mt-4 block text-sm font-bold">Current stage<CustomSelect value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)} disabled={completed} className="input-field mt-2 disabled:opacity-60">{adminStatusOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</CustomSelect></label><button type="button" onClick={updateStatus} disabled={saving || completed || selectedStatus === order.orderStatus} className="mt-4 min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{saving ? "Updating…" : "Update order"}</button>{completed && <p className="mt-2 text-xs text-text-secondary">Delivery and payment are complete.</p>}{message && <p className="mt-3 text-xs font-bold text-text-secondary" aria-live="polite">{message}</p>}</section>
           <section className="rounded-2xl border border-border bg-white p-5"><h2 className="text-lg font-black">Order timeline</h2><ol className="mt-4 space-y-4">{order.statusHistory.map((entry, index) => <li key={`${entry.status}-${entry.timestamp}-${index}`} className="relative flex gap-3"><span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-primary" /><div><p className="text-sm font-black capitalize">{entry.status.replaceAll("_", " ")}</p><p className="text-xs text-text-secondary">{formatOrderTimestamp(entry.timestamp)}</p></div></li>)}</ol></section>
-          <section className="rounded-2xl border border-border bg-white p-5"><h2 className="font-black">{order.paymentMethod === "manual_online" ? "Payment Verification" : "Payment"}</h2><p className="mt-2 text-sm text-text-secondary">{order.paymentMethod === "COD" ? "Cash on Delivery" : "Online Payment"} · <span className={`font-black capitalize ${order.paymentStatus === "paid" ? "text-success" : ""}`}>{order.paymentStatus.replaceAll("_", " ")}</span></p>{order.paymentMethod === "manual_online" && <><dl className="mt-4 space-y-2 text-sm"><div><dt className="font-bold">Order</dt><dd className="break-all">{order.orderNumber}</dd></div><div><dt className="font-bold">Customer</dt><dd>{order.customer.name} · {order.customer.phone}</dd></div><div><dt className="font-bold">Amount</dt><dd>₹{order.total}</dd></div><div><dt className="font-bold">Payment option</dt><dd>{({ qr: "Scan QR", upi_id: "UPI ID", phone: "Phone Number" })[order.paymentChannel] || "Online Payment"}</dd></div><div><dt className="font-bold">Proof method</dt><dd className="capitalize">{order.paymentProofMethod || "Not submitted"}</dd></div>{order.paymentReference && <div><dt className="font-bold">Transaction ID / UTR</dt><dd className="break-all">{order.paymentReference}</dd></div>}{order.paymentSubmittedAt && <div><dt className="font-bold">Submitted</dt><dd>{formatOrderTimestamp(order.paymentSubmittedAt)}</dd></div>}</dl>{order.paymentProofMethod === "website" && <><a href={`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-screenshot`} target="_blank" rel="noopener noreferrer" className="mt-4 block overflow-hidden rounded-xl border border-border"><img src={`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-screenshot`} alt="Customer payment screenshot" className="max-h-80 w-full object-contain" /></a><a href={`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-screenshot`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm font-bold text-primary underline">Open Full Image</a></>}{order.paymentProofMethod === "whatsapp" && <p className="mt-3 text-sm text-text-secondary">Customer reported sending payment proof through WhatsApp. Check your Business WhatsApp before verifying.</p>}{order.paymentNote && <p className="mt-3 text-sm"><strong>Customer note:</strong> {order.paymentNote}</p>}{order.paymentRejectionReason && <p className="mt-3 text-sm text-danger">Rejection reason: {order.paymentRejectionReason}</p>}{order.paymentVerifiedAt && <p className="mt-3 text-xs text-text-secondary">Verified {formatOrderTimestamp(order.paymentVerifiedAt)}</p>}{order.paymentStatus === "verification_pending" && <div className="mt-4 grid gap-2"><button type="button" onClick={() => setVerificationAction("confirm")} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-black text-white">Confirm Payment</button><button type="button" onClick={() => setVerificationAction("reject")} className="min-h-11 rounded-xl border border-danger px-4 text-sm font-black text-danger">Reject Payment</button></div>}</>}{order.paymentReceivedAt && order.paymentMethod === "COD" && <p className="mt-2 text-xs text-text-secondary">Cash received {formatOrderTimestamp(order.paymentReceivedAt)}</p>}{order.paymentMethod === "COD" && order.paymentStatus === "pending" && order.orderStatus !== "cancelled" && (order.orderStatus === "delivered" ? <><p className="mt-3 text-xs text-text-secondary">Confirm only after you have collected ₹{order.total} in cash.</p><button type="button" onClick={() => { setPaymentMessage(""); setConfirmingPayment(true); }} disabled={savingPayment} className="mt-3 min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-black text-white disabled:opacity-50">Record cash received</button></> : <p className="mt-3 text-xs text-text-secondary">Mark the order as delivered before confirming cash received.</p>)}{paymentMessage && <p className="mt-3 text-xs font-bold text-text-secondary" role="status">{paymentMessage}</p>}</section>
-          {order.paymentProofMethod === "whatsapp" && (order.paymentDetails?.businessWhatsApp || businessWhatsApp) && <a href={whatsappUrl(order.paymentDetails?.businessWhatsApp || businessWhatsApp, `Hi, I am checking payment proof for GharKaBite order ${order.orderNumber}.`)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl border border-primary bg-white px-4 text-sm font-black text-primary">Open Business WhatsApp</a>}
+          <section className="rounded-2xl border border-border bg-white p-5"><h2 className="font-black">{order.paymentMethod === "manual_online" ? "Payment Verification" : "Payment"}</h2><p className="mt-2 text-sm text-text-secondary">{order.paymentMethod === "COD" ? "Cash on Delivery" : "Online Payment"} · <span className={`font-black capitalize ${order.paymentStatus === "paid" ? "text-success" : ""}`}>{order.paymentStatus.replaceAll("_", " ")}</span></p>{order.paymentMethod === "manual_online" && <><dl className="mt-4 space-y-2 text-sm"><div><dt className="font-bold">Order</dt><dd className="break-all">{order.orderNumber}</dd></div><div><dt className="font-bold">Customer</dt><dd>{order.customer.name} · {order.customer.phone}</dd></div><div><dt className="font-bold">Expected amount</dt><dd className="text-xl font-black">{formatINR(order.total)}</dd></div><div><dt className="font-bold">Payment option</dt><dd>{({ qr: "Scan QR", upi_id: "UPI ID", phone: "Phone Number" })[order.paymentChannel] || "Online Payment"}</dd></div><div><dt className="font-bold">Proof method</dt><dd className="capitalize">{order.paymentProofMethod || "Not submitted"}</dd></div>{order.paymentReference && <div><dt className="font-bold">Transaction ID / UTR</dt><dd className="break-all">{order.paymentReference}</dd></div>}{order.paymentSubmittedAt && <div><dt className="font-bold">Submitted</dt><dd>{formatOrderTimestamp(order.paymentSubmittedAt)}</dd></div>}</dl>{order.paymentProofMethod === "website" && (preview?.href === proofHref && !preview.loaded || !order.paymentHasScreenshot ? <p className="mt-3 text-sm text-danger" role="status">Proof image unavailable. Refresh the evidence before approving.</p> : <a href={proofHref} target="_blank" rel="noopener noreferrer" className="mt-4 block overflow-hidden rounded-xl border border-border"><img key={proofHref} src={proofHref} alt="Customer payment screenshot" className="max-h-80 w-full object-contain" onLoad={() => setPreview({ href: proofHref, loaded: true })} onError={() => setPreview({ href: proofHref, loaded: false })} /><span className="block p-2 text-sm font-bold text-primary underline">Open full image</span></a>)}{order.paymentProofMethod === "whatsapp" && <p className="mt-3 text-sm text-text-secondary">Customer reported sending payment proof through WhatsApp. Check your Business WhatsApp before verifying.</p>}{order.paymentNote && <p className="mt-3 text-sm"><strong>Customer note:</strong> {order.paymentNote}</p>}{order.paymentRejectionReason && <p className="mt-3 text-sm text-danger">Rejection reason: {order.paymentRejectionReason}</p>}{order.paymentVerifiedAt && <p className="mt-3 text-xs text-text-secondary">Verified {formatOrderTimestamp(order.paymentVerifiedAt)}</p>}{order.paymentStatus === "verification_pending" && order.orderStatus === "payment_pending" && <div className="mt-4 grid gap-2"><button type="button" onClick={() => { setPreview(null); refreshVerification(); }} className="min-h-11 rounded-xl border border-border px-4 text-sm font-black">Refresh evidence</button><button type="button" onClick={() => openVerification("confirm")} disabled={verificationStale || savingPayment || (order.paymentProofMethod === "website" && !(preview?.href === proofHref && preview.loaded))} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-black text-white disabled:opacity-50">Confirm Payment</button><button type="button" onClick={() => openVerification("reject")} disabled={verificationStale || savingPayment} className="min-h-11 rounded-xl border border-danger px-4 text-sm font-black text-danger disabled:opacity-50">Reject Payment</button></div>}</>}{order.paymentReceivedAt && order.paymentMethod === "COD" && <p className="mt-2 text-xs text-text-secondary">Cash received {formatOrderTimestamp(order.paymentReceivedAt)}</p>}{order.paymentMethod === "COD" && order.paymentStatus === "pending" && order.orderStatus !== "cancelled" && (order.orderStatus === "delivered" ? <><p className="mt-3 text-xs text-text-secondary">Confirm only after you have collected ₹{order.total} in cash.</p><button type="button" onClick={() => { setPaymentMessage(""); setConfirmingPayment(true); }} disabled={savingPayment} className="mt-3 min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-black text-white disabled:opacity-50">Record cash received</button></> : <p className="mt-3 text-xs text-text-secondary">Mark the order as delivered before confirming cash received.</p>)}{paymentMessage && <p className="mt-3 text-xs font-bold text-text-secondary" role="status">{paymentMessage}</p>}</section>
+          {order.paymentProofMethod === "whatsapp" && businessWhatsApp && <a href={whatsappUrl(businessWhatsApp, `Hi, I am checking payment proof for GharKaBite order ${order.orderNumber}.`)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl border border-primary bg-white px-4 text-sm font-black text-primary">Open Business WhatsApp</a>}
         </aside>
       </div>
       {confirmingPayment && <div className="ui-modal-backdrop fixed inset-0 z-[var(--layer-modal-backdrop)] grid place-items-center bg-black/60 p-4" onPointerDown={(event) => dismissOnBackdrop(event, () => { if (!savingPayment) setConfirmingPayment(false); })}><section ref={cashDialogRef} role="alertdialog" aria-modal="true" aria-labelledby="cash-confirm-title" aria-describedby="cash-confirm-description" className="ui-dialog relative z-[var(--layer-modal-dialog)] w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h2 id="cash-confirm-title" className="text-xl font-black">Confirm cash received?</h2><p id="cash-confirm-description" className="mt-3 text-sm leading-6 text-text-secondary">Only mark order {order.orderNumber} as paid if you have collected ₹{order.total} in cash. This will complete the order.</p>{paymentMessage && <p className="mt-3 text-sm font-bold text-danger" role="alert">{paymentMessage}</p>}<div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" autoFocus onClick={() => setConfirmingPayment(false)} disabled={savingPayment} className="min-h-11 rounded-xl border border-border px-4 text-sm font-black disabled:opacity-50">Cancel</button><button type="button" onClick={confirmCashReceived} disabled={savingPayment} aria-busy={savingPayment} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-black text-white disabled:opacity-50">{savingPayment ? "Saving…" : `Yes, ₹${order.total} received`}</button></div></section></div>}

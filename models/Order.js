@@ -64,6 +64,7 @@ const orderSchema = new mongoose.Schema({
   paymentReference: { type: String, trim: true, default: null },
   paymentScreenshotUrl: { type: String, default: "" },
   paymentProofMethod: { type: String, enum: ["website", "whatsapp", null], default: null },
+  paymentProofRevision: { type: String, default: null },
   paymentSubmittedAt: { type: Date, default: null },
   paymentVerifiedAt: { type: Date, default: null },
   paymentVerifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

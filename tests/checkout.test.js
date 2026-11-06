@@ -9,7 +9,7 @@ vi.mock("@/lib/delivery", () => ({ checkDelivery: async () => ({ serviceable: tr
 let replica, mongoose, Meal, DailyMenu, DailyCapacity, Order, Subscription, SubscriptionPlan, KitchenSettings, DemoPayment, PromoCode, User;
 let getMenu, seedCatalog, kolkataDate, createOrder, updateOrderStatus, markCodPaymentReceived, purchaseSubscription, setSubscriptionStatus;
 let createDemoPayment, completeDemoPayment, submitPaymentProof, signPaymentProof, verifyPayment, getPaymentScreenshot, signedProofDownloadUrl;
-let patchOrder;
+let patchOrder, getOrder, getOrders, postOrder;
 let getPublicPaymentSettings, patchAdminPaymentSettings;
 let getPublicSettings, patchAdminSettings, getAdminPromos, createAdminPromo, updateAdminPromo, deleteAdminPromo, validateCustomerPromo;
 let getAdminAvatar, uploadAdminAvatar;
@@ -42,7 +42,8 @@ beforeAll(async () => {
   ({ getMenu, seedCatalog } = await import("@/lib/catalog"));
   ({ kolkataDate } = await import("@/lib/dates"));
   ({ createOrder, updateOrderStatus, markCodPaymentReceived } = await import("@/lib/order-service"));
-  ({ PATCH: patchOrder } = await import("@/app/api/orders/[orderId]/route"));
+  ({ GET: getOrder, PATCH: patchOrder } = await import("@/app/api/orders/[orderId]/route"));
+  ({ GET: getOrders, POST: postOrder } = await import("@/app/api/orders/route"));
   ({ purchaseSubscription, setSubscriptionStatus } = await import("@/lib/subscription-service"));
   ({ POST: createDemoPayment } = await import("@/app/api/demo-payments/route"));
   ({ POST: completeDemoPayment } = await import("@/app/api/demo-payments/[id]/route"));
@@ -472,6 +473,8 @@ describe("daily menu and checkout", () => {
     const makeRequest = () => new Request(`http://localhost/api/orders/${order.orderNumber}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "confirm_cod_received" }) });
     expect((await patchOrder(makeRequest(), { params: Promise.resolve({ orderId: order.orderNumber }) })).status).toBe(403);
     authState.role = "admin";
+    expect((await patchOrder(makeRequest(), { params: Promise.resolve({ orderId: order.orderNumber }) })).status).toBe(403);
+    authState.id = String(user());
     const response = await patchOrder(makeRequest(), { params: Promise.resolve({ orderId: order.orderNumber }) });
     expect(response.status).toBe(200);
     expect((await response.json()).order.paymentStatus).toBe("paid");
@@ -702,35 +705,99 @@ describe("manual online payment", () => {
     const order = await createOrder(buyer, { ...request(), paymentChannel: "upi_id" }, "manual_online", { verifyDelivery: delivery });
     return order;
   }
-  function proof(orderNumber, method = "whatsapp") {
-    return submitPaymentProof(new Request(`http://localhost/api/orders/${orderNumber}/payment-proof`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method }) }), { params: Promise.resolve({ orderId: orderNumber }) });
+  function proof(orderNumber, expectedProofRevision = null, method = "whatsapp") {
+    return submitPaymentProof(new Request(`http://localhost/api/orders/${orderNumber}/payment-proof`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method, expectedProofRevision }) }), { params: Promise.resolve({ orderId: orderNumber }) });
   }
-  function verify(orderNumber, action, reason) {
-    return verifyPayment(new Request(`http://localhost/api/orders/${orderNumber}/payment-verification`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, reason }) }), { params: Promise.resolve({ orderId: orderNumber }) });
+  function verify(orderNumber, action, expectedProofRevision, reason) {
+    return verifyPayment(new Request(`http://localhost/api/orders/${orderNumber}/payment-verification`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, reason, expectedProofRevision }) }), { params: Promise.resolve({ orderId: orderNumber }) });
   }
   it("creates an unpaid order and blocks kitchen progress until admin verification", async () => {
     const order = await setupOrder();
     expect(order).toMatchObject({ paymentMethod: "manual_online", paymentStatus: "pending", orderStatus: "payment_pending", paymentChannel: "upi_id", paymentDetails: { upiId: "kitchen@upi" } });
     await expect(updateOrderStatus(order.orderNumber, "confirmed")).rejects.toMatchObject({ status: 409 });
-    expect((await proof(order.orderNumber)).status).toBe(200);
+    const submitted = await proof(order.orderNumber);
+    expect(submitted.status).toBe(200);
+    const revision = (await submitted.json()).order.paymentProofRevision;
+    expect(revision).toMatch(/^[\da-f-]{36}$/);
     expect((await Order.findById(order._id)).paymentStatus).toBe("verification_pending");
     expect((await verify(order.orderNumber, "confirm")).status).toBe(403);
     authState.role = "admin";
-    const confirmed = await verify(order.orderNumber, "confirm");
+    const confirmed = await verify(order.orderNumber, "confirm", revision);
     expect(confirmed.status).toBe(200);
     expect((await Order.findById(order._id)).toObject()).toMatchObject({ paymentStatus: "paid", orderStatus: "confirmed", paymentProofMethod: "whatsapp" });
-    expect((await verify(order.orderNumber, "confirm")).status).toBe(409);
+    expect((await verify(order.orderNumber, "confirm", revision)).status).toBe(409);
   });
   it("lets a rejected payment be resubmitted on the same order", async () => {
     const order = await setupOrder();
-    await proof(order.orderNumber);
+    const firstRevision = (await (await proof(order.orderNumber)).json()).order.paymentProofRevision;
     authState.role = "admin";
-    expect((await verify(order.orderNumber, "reject", "Transaction not found")).status).toBe(200);
+    expect((await verify(order.orderNumber, "reject", firstRevision, "Transaction not found")).status).toBe(200);
     expect((await Order.findById(order._id)).paymentStatus).toBe("rejected");
     authState.role = "customer";
-    expect((await proof(order.orderNumber)).status).toBe(200);
-    expect((await Order.findById(order._id)).paymentStatus).toBe("verification_pending");
+    expect((await proof(order.orderNumber)).status).toBe(409);
+    const resubmitted = await proof(order.orderNumber, firstRevision);
+    expect(resubmitted.status).toBe(200);
+    const secondRevision = (await resubmitted.json()).order.paymentProofRevision;
+    expect(secondRevision).not.toBe(firstRevision);
+    authState.role = "admin";
+    expect((await verify(order.orderNumber, "confirm", firstRevision)).status).toBe(409);
+    const racing = await Promise.all([verify(order.orderNumber, "confirm", secondRevision), verify(order.orderNumber, "reject", secondRevision, "Wrong amount paid")]);
+    expect(racing.map((response) => response.status).sort()).toEqual([200, 409]);
+    const result = await Order.findById(order._id);
+    expect(["paid:confirmed", "rejected:payment_pending"]).toContain(`${result.paymentStatus}:${result.orderStatus}`);
     expect(await Order.countDocuments()).toBe(1);
+  });
+  it("requires an explicit revision for legacy proof submission and verification", async () => {
+    const order = await setupOrder();
+    const context = { params: Promise.resolve({ orderId: order.orderNumber }) };
+    const request = new Request("http://localhost/proof", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "whatsapp" }) });
+    expect((await submitPaymentProof(request, context)).status).toBe(400);
+    await Order.updateOne({ _id: order._id }, { $set: { paymentStatus: "verification_pending", paymentProofMethod: "whatsapp" }, $unset: { paymentProofRevision: 1 } });
+    authState.role = "admin";
+    expect((await verify(order.orderNumber, "confirm")).status).toBe(400);
+    expect((await verify(order.orderNumber, "confirm", null)).status).toBe(200);
+  });
+  it("accepts only one concurrent submission for the same proof revision", async () => {
+    const order = await setupOrder();
+    const attempts = await Promise.all([proof(order.orderNumber), proof(order.orderNumber)]);
+    expect(attempts.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(await Order.findById(order._id).lean()).toMatchObject({ paymentStatus: "verification_pending", orderStatus: "payment_pending" });
+  });
+  it("projects private order reads, rejects other customers, and pauses obsolete destinations without blocking proof", async () => {
+    const order = await setupOrder();
+    const context = { params: Promise.resolve({ orderId: order.orderNumber }) };
+    const load = (query = "") => getOrder(new Request(`http://localhost/order${query}`), context);
+    expect((await (await load()).json()).payment.destinations.upiId).toBe("kitchen@upi");
+    await KitchenSettings.updateOne({ key: "primary" }, { $set: { upiId: "replacement@upi" } });
+    const read = await load("?view=status");
+    expect(read.headers.get("cache-control")).toBe("private, no-store");
+    const result = await read.json();
+    expect(result.payment).toMatchObject({ availability: "paused", destinations: {} });
+    expect(result.order).not.toHaveProperty("deliveryAddress");
+    expect(JSON.stringify(result)).not.toMatch(/kitchen@upi|replacement@upi/);
+    expect((await proof(order.orderNumber)).status).toBe(200);
+    authState.id = String(user());
+    expect((await load()).status).toBe(404);
+    expect((await proof(order.orderNumber)).status).toBe(404);
+    authState.id = null;
+    expect((await load()).status).toBe(401);
+  });
+  it("does not serialize proof URLs or old destinations through lists, status mutations or checkout replay", async () => {
+    const order = await setupOrder();
+    await Order.updateOne({ _id: order._id }, { $set: { paymentScreenshotUrl: "https://res.cloudinary.com/private-fixture", paymentStatus: "paid", orderStatus: "confirmed" } });
+    const replay = await postOrder(new Request("http://localhost/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...request("veg-home-meal", order.checkoutKey), paymentChannel: "upi_id", paymentMethod: "manual_online" }) }));
+    expect(replay.status).toBe(201);
+    const replayed = (await replay.json()).order;
+    expect(replayed.orderNumber).toBe(order.orderNumber);
+    expect(replayed).not.toHaveProperty("paymentScreenshotUrl");
+    expect(replayed).not.toHaveProperty("paymentDetails");
+    const listed = await getOrders(new Request("http://localhost/api/orders"));
+    expect(listed.headers.get("cache-control")).toBe("private, no-store");
+    expect((await listed.json()).orders[0]).not.toHaveProperty("paymentDetails");
+    authState.role = "admin";
+    const response = await patchOrder(new Request("http://localhost/order", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "cooking" }) }), { params: Promise.resolve({ orderId: order.orderNumber }) });
+    expect(response.status).toBe(200);
+    expect((await response.json()).order).not.toHaveProperty("paymentScreenshotUrl");
   });
   it("rejects an unavailable online method and disabled COD", async () => {
     const buyer = user();
@@ -755,12 +822,15 @@ describe("manual online payment", () => {
     const second = await createOrder(new mongoose.Types.ObjectId(authState.id), { ...request(), paymentChannel: "upi_id" }, "manual_online", { verifyDelivery: delivery });
     const previous = { cloud: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY, secret: process.env.CLOUDINARY_API_SECRET };
     process.env.CLOUDINARY_CLOUD_NAME = "testcloud"; process.env.CLOUDINARY_API_KEY = "testkey"; process.env.CLOUDINARY_API_SECRET = "testsecret";
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ secure_url: "https://res.cloudinary.com/testcloud/image/authenticated/v1/gharkabite/payment-proofs/proof.png" })));
-    const makeProof = (orderNumber, reference) => {
-      const form = new FormData(); form.set("paymentReference", reference); form.set("screenshot", new File([Uint8Array.from([137,80,78,71,13,10,26,10])], "proof.png", { type: "image/png" }));
+    vi.stubGlobal("fetch", vi.fn(async (_url, { body }) => Response.json({ public_id: body.get("public_id"), resource_type: "image", type: "authenticated", bytes: 1024, format: "png", secure_url: `https://res.cloudinary.com/testcloud/image/authenticated/v1/${body.get("public_id")}.png` })));
+    const makeProof = (orderNumber, reference, bytes = Uint8Array.from([137,80,78,71,13,10,26,10])) => {
+      const form = new FormData(); form.set("expectedProofRevision", ""); form.set("paymentReference", reference); form.set("screenshot", new File([bytes], "proof.png", { type: "image/png" }));
       return submitPaymentProof(new Request(`http://localhost/api/orders/${orderNumber}/payment-proof`, { method: "POST", body: form }), { params: Promise.resolve({ orderId: orderNumber }) });
     };
     try {
+      expect((await makeProof(first.orderNumber, "UTR123456", "fake PNG")).status).toBe(400);
+      expect((await makeProof(first.orderNumber, "UTR123456", new Uint8Array(5 * 1024 * 1024 + 1))).status).toBe(400);
+      expect(fetch).not.toHaveBeenCalled();
       expect((await makeProof(first.orderNumber, "UTR123456")).status).toBe(200);
       expect((await Order.findById(first._id)).paymentScreenshotUrl).toContain("payment-proofs");
       const duplicate = await makeProof(second.orderNumber, "UTR123456");
@@ -783,14 +853,21 @@ describe("manual online payment", () => {
       const signed = await signedResponse.json();
       expect(signed.publicId).toContain(String(order._id));
       expect(signed.type).toBe("authenticated");
+      expect(signed.overwrite).toBe("false");
+      expect(signed.allowed_formats).toBe("jpg,jpeg,png,webp");
+      expect(signed.signature).toBe(crypto.createHash("sha1").update(`allowed_formats=${signed.allowed_formats}&overwrite=false&public_id=${signed.publicId}&timestamp=${signed.timestamp}&type=authenticatedtestsecret`).digest("hex"));
       expect(signed).not.toHaveProperty("secret");
       const screenshotUrl = `https://res.cloudinary.com/testcloud/image/authenticated/v1/${signed.publicId}.png`;
       let metadataBytes = 5 * 1024 * 1024 + 1;
-      vi.stubGlobal("fetch", vi.fn(async () => Response.json({ secure_url: screenshotUrl, bytes: metadataBytes, format: "png" })));
-      const submit = (url) => submitPaymentProof(new Request(`http://localhost/api/orders/${order.orderNumber}/payment-proof`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "website", paymentReference: "UTR987654", screenshotUrl: url }) }), context);
+      let assetId = signed.publicId;
+      vi.stubGlobal("fetch", vi.fn(async () => Response.json({ public_id: assetId, resource_type: "image", type: "authenticated", secure_url: screenshotUrl, bytes: metadataBytes, format: "png" })));
+      const submit = (url) => submitPaymentProof(new Request(`http://localhost/api/orders/${order.orderNumber}/payment-proof`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "website", expectedProofRevision: null, paymentReference: "UTR987654", screenshotUrl: url }) }), context);
       expect((await submit("https://evil.example/proof.png")).status).toBe(400);
       expect((await submit(screenshotUrl)).status).toBe(400);
       metadataBytes = 1024;
+      assetId = "another-proof";
+      expect((await submit(screenshotUrl)).status).toBe(400);
+      assetId = signed.publicId;
       expect((await submit(screenshotUrl)).status).toBe(200);
       expect((await Order.findById(order._id)).paymentScreenshotUrl).toBe(screenshotUrl);
     } finally {
@@ -809,11 +886,17 @@ describe("manual online payment", () => {
     const previous = { cloud: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY, secret: process.env.CLOUDINARY_API_SECRET };
     process.env.CLOUDINARY_CLOUD_NAME = "testcloud"; process.env.CLOUDINARY_API_KEY = "testkey"; process.env.CLOUDINARY_API_SECRET = "testsecret";
     vi.stubGlobal("fetch", vi.fn(async () => new Response(Uint8Array.from([137,80,78,71,13,10,26,10]), { headers: { "content-type": "image/png" } })));
-    const retrieve = () => getPaymentScreenshot(new Request(`http://localhost/api/orders/${order.orderNumber}/payment-screenshot`), { params: Promise.resolve({ orderId: order.orderNumber }) });
+    const retrieve = (query = "") => getPaymentScreenshot(new Request(`http://localhost/api/orders/${order.orderNumber}/payment-screenshot${query}`), { params: Promise.resolve({ orderId: order.orderNumber }) });
     try {
+      authState.id = null;
+      const guest = await retrieve();
+      expect(guest.status).toBe(401);
+      expect(guest.headers.get("cache-control")).toBe("private, no-store");
       authState.id = String(user());
       expect((await retrieve()).status).toBe(404);
       authState.id = String(order.user);
+      expect((await retrieve("?proofRevision=old")).status).toBe(409);
+      expect(fetch).not.toHaveBeenCalled();
       expect((await retrieve()).status).toBe(200);
       authState.role = "admin";
       authState.id = String(user());

@@ -1,102 +1,61 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { useEffect, useState } from "react";
-import { Check, ChefHat, CircleCheckBig, Clock3, CookingPot, House, MapPin, PackageCheck, ReceiptText, Truck } from "lucide-react";
+import { Check, Circle, ClipboardCheck, CookingPot, House, PackageCheck, ReceiptText, Truck } from "lucide-react";
 import Badge from "./Badge";
 import Button from "./Button";
-import EmptyState from "./EmptyState";
-import LoadingState from "./LoadingState";
+import OrderPaymentStatus, { OrderRefreshFeedback } from "./OrderPaymentStatus";
+import OrderSummary from "./OrderSummary";
 import ThaliOrderDetails from "./ThaliOrderDetails";
-import { orderStatuses } from "@/data/order-statuses";
-import { formatOrderTimestamp, getStatusIndex } from "@/lib/order-utils";
+import { formatINR } from "@/lib/cart-pricing";
+import { formatOrderTimestamp, orderStatusLabel, proofImageHref, trackingSteps } from "@/lib/order-utils";
+import { canSubmitProof, whatsappUrl } from "@/lib/payment-settings";
+import { useOrderRefresh } from "@/lib/use-order-refresh";
 
-const statusIcons = [ReceiptText, CircleCheckBig, CookingPot, PackageCheck, Truck, House];
+const icons = [ReceiptText, ClipboardCheck, CookingPot, PackageCheck, Truck, House];
 
 export default function OrderTracking({ orderId }) {
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [retryKey, setRetryKey] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    const loadOrder = window.setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (active) setOrder(data.order);
-        } else if (response.status !== 404) throw new Error("ORDER_UNAVAILABLE");
-      } catch {
-        if (active) setLoadError("Order tracking is temporarily unavailable. Please try again.");
-      } finally {
-        if (active) setLoading(false);
-      }
-    }, 0);
-    return () => { active = false; window.clearTimeout(loadOrder); };
-  }, [orderId, retryKey]);
-
-  useEffect(() => {
-    if (order?.paymentMethod !== "manual_online" || !["pending", "verification_pending", "rejected"].includes(order.paymentStatus)) return undefined;
-    const timer = window.setInterval(() => { fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : null).then((data) => { if (data?.order) setOrder(data.order); }).catch(() => {}); }, 15000);
-    return () => window.clearInterval(timer);
-  }, [order?.paymentMethod, order?.paymentStatus, orderId]);
-
-  if (loading) return <LoadingState label="Loading order tracking" rows={2} />;
-  if (loadError) return <section className="container-shell py-12" role="alert"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={() => { setLoading(true); setLoadError(""); setRetryKey((current) => current + 1); }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></section>;
-  if (!order) return <section className="container-shell py-12"><EmptyState title="We couldn’t find this order" description="Check the order number or return to your order history." actionLabel="View My Orders" href="/orders" /></section>;
-
-  const currentIndex = getStatusIndex(order.orderStatus);
-  const isCancelled = order.orderStatus === "cancelled";
+  const read = useOrderRefresh(orderId);
+  const { order, payment } = read;
+  if (!order || read.access) return <div className="container-shell py-4"><OrderRefreshFeedback read={read} orderId={orderId} /></div>;
+  const cancelled = order.orderStatus === "cancelled";
+  const waiting = order.orderStatus === "payment_pending";
+  const status = orderStatusLabel(order);
   const address = order.deliveryAddress;
-
-  return (
-    <section className="container-shell py-8 md:py-12">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div><p className="eyebrow">Order tracking</p><h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{order.orderNumber}</h1><p className="mt-2 text-sm text-text-secondary">Placed {formatOrderTimestamp(order.createdAt)}</p></div>
-        <div className="flex flex-wrap items-center gap-2"><Badge tone={isCancelled ? "cancelled" : order.orderStatus === "payment_pending" ? "pending" : ["confirmed", "delivered"].includes(order.orderStatus) ? "success" : "informational"}>{isCancelled ? "Cancelled" : order.orderStatus === "payment_pending" ? "Payment Pending" : orderStatuses[currentIndex]?.label || "Received"}</Badge><Badge tone={order.paymentMethod === "COD" ? "neutral" : order.paymentStatus === "paid" ? "success" : order.paymentStatus === "rejected" ? "error" : order.paymentStatus === "verification_pending" || order.paymentStatus === "pending" ? "pending" : "neutral"}>{order.paymentMethod === "COD" ? "COD" : order.paymentStatus.replaceAll("_", " ")}</Badge></div>
-      </div>
-
-      <section className="card-surface mt-8 overflow-hidden">
-        <div className="premium-panel border-b border-border px-5 py-6 text-white md:px-8">
-          <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl bg-white/12"><ChefHat className="size-5" aria-hidden="true" /></span><div><h2 className="text-xl font-black">{isCancelled ? "This order was cancelled" : order.orderStatus === "payment_pending" ? "Order created · awaiting payment verification" : "Your meal is in progress"}</h2><p className="mt-1 text-sm text-white/75">{order.serviceDate || "Today"} · {order.mealPeriod} · {order.deliverySlot}</p></div></div>
-        </div>
-
-        {!isCancelled && order.orderStatus === "payment_pending" ? <div className="p-6 text-sm leading-7 text-text-secondary">This order has been created, but cooking and delivery have not started. It will enter the kitchen queue only after GharKaBite verifies your online payment.</div> : !isCancelled ? (
-          <ol className="grid gap-0 px-5 py-7 md:grid-cols-6 md:px-8" aria-label="Order progress">
-            {orderStatuses.map((status, index) => {
-              const Icon = statusIcons[index];
-              const complete = index <= currentIndex;
-              const timestamp = order.statusHistory?.find((entry) => entry.status === status.value)?.timestamp;
-              return (
-                <li key={status.value} className="relative flex gap-4 pb-7 last:pb-0 md:block md:pb-0 md:text-center">
-                  {index < orderStatuses.length - 1 && <span className={`absolute left-5 top-10 h-[calc(100%-1.5rem)] w-0.5 md:left-1/2 md:top-5 md:h-0.5 md:w-full ${index < currentIndex ? "bg-success" : "bg-border"}`} aria-hidden="true" />}
-                  <span aria-current={index === currentIndex ? "step" : undefined} className={`relative z-10 grid size-10 shrink-0 place-items-center rounded-full border-2 ${index === currentIndex && order.orderStatus !== "delivered" ? "border-primary bg-primary text-primary" : complete ? "border-success bg-success text-white" : "border-border bg-surface text-text-secondary"}`}>{index < currentIndex || order.orderStatus === "delivered" ? <Check className="size-4" aria-hidden="true" /> : <Icon className="size-4" aria-hidden="true" />}</span>
-                  <div className="md:mt-3"><p className={`text-sm font-black ${complete ? "text-text-primary" : "text-text-secondary"}`}>{status.label}</p><p className="mt-1 text-xs text-text-secondary">{timestamp ? formatOrderTimestamp(timestamp) : "Pending"}</p></div>
-                </li>
-              );
-            })}
-          </ol>
-        ) : <div className="p-6 text-sm leading-7 text-text-secondary">This order will not be prepared. Contact GharKaBite if you need help with the cancellation.</div>}
-      </section>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <section className="card-surface p-5 md:p-6">
-          <h2 className="text-xl font-black">Order details</h2>
-          <div className="mt-5 divide-y divide-border">{order.items.map((item, index) => <div key={`${item.mealId}-${index}`} className="flex items-start justify-between gap-4 py-4 first:pt-0"><div><p className="font-black">{item.name}</p><p className="text-xs text-text-secondary">Quantity {item.quantity} · ₹{item.price} each</p><ThaliOrderDetails item={item} /></div><p className="shrink-0 font-black text-accent">₹{item.price * item.quantity}</p></div>)}</div>
-          {order.notes && <div className="mt-5 rounded-xl bg-surface-muted p-4"><p className="text-xs font-extrabold uppercase tracking-wide text-text-secondary">Order note</p><p className="mt-1 text-sm font-semibold">{order.notes}</p></div>}
+  const paymentUrl = `/orders/${encodeURIComponent(order.orderNumber)}/payment`;
+  const support = whatsappUrl(!read.error && payment?.businessWhatsApp, `Hi GharKaBite, I need help with order ${order.orderNumber}.`);
+  return <section className="container-shell post-checkout">
+    <Link href="/orders" className="checkout-text-action">← My orders</Link>
+    <header className="post-checkout-header"><div><p className="eyebrow">Order tracking</p><h1 className="type-page-title break-all">{order.orderNumber}</h1><p className="mt-1 type-supporting text-text-secondary">{[order.serviceDate, order.mealPeriod, order.deliverySlot].filter(Boolean).join(" · ")}</p></div><Badge tone={cancelled ? "cancelled" : order.orderStatus === "delivered" ? "success" : "pending"}>{status}</Badge></header>
+    <div className="post-checkout-grid">
+      <div className="post-checkout-stack">
+        <section className="card-surface post-checkout-card">
+          <h2 className="type-section-title">Order progress</h2>
+          {cancelled ? <p className="type-body mt-3">This order was cancelled. Contact GharKaBite if you have a payment or refund question.</p> :
+            waiting ? <p className="type-body mt-3">Your order was created. The kitchen has not started preparing it.</p> :
+              <ol aria-label="Kitchen and delivery stages" className="tracking-steps">
+                {trackingSteps(order).map(({ value, label, state, timestamp }, index) => {
+                  const Icon = state === "recorded" ? Check : state === "skipped" ? Circle : icons[index];
+                  return <li key={value} data-state={state} aria-current={state === "current" ? "step" : undefined}>
+                    <span className="tracking-step-icon"><Icon className="size-5" aria-hidden="true" /></span>
+                    <div><p className="type-label">{label}</p><p className="type-meta text-text-secondary">{state === "skipped" ? "Not recorded" : state === "upcoming" ? "Upcoming" : [state === "current" ? "Current stage" : "Recorded", timestamp].filter(Boolean).join(" · ")}</p></div>
+                  </li>;
+                })}
+              </ol>}
+          <OrderRefreshFeedback read={read} orderId={orderId} />
         </section>
-
-        <aside className="space-y-5">
-          <section className="card-surface p-5"><h2 className="flex items-center gap-2 font-black"><MapPin className="size-4 text-primary" aria-hidden="true" /> Delivery address</h2><address className="mt-3 text-sm not-italic leading-6 text-text-secondary">{address.house}, {address.street}<br />{address.area}{address.landmark ? `, ${address.landmark}` : ""}<br />{address.city} – {address.pinCode}</address></section>
-          <section className="card-surface p-5"><h2 className="flex items-center gap-2 font-black"><Clock3 className="size-4 text-primary" aria-hidden="true" /> Payment & total</h2><div className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-2 text-text-secondary"><span>{order.paymentMethod === "COD" ? "Cash on Delivery" : "Online Payment"}</span><span className="font-black capitalize">{order.paymentMethod === "manual_online" && order.paymentStatus === "paid" ? "Payment Verified ✓" : order.paymentStatus.replaceAll("_", " ")}</span></div><div className="flex justify-between border-t border-border pt-3 text-lg font-black"><span>Total</span><span className="text-accent">₹{order.total}</span></div></div>{order.paymentMethod === "manual_online" && <><p className="mt-3 text-sm text-text-secondary">{order.paymentStatus === "paid" ? "Your payment has been verified and your order is confirmed." : order.paymentStatus === "verification_pending" ? "Payment submitted for verification. Your order is not confirmed yet." : order.paymentStatus === "rejected" ? `Payment could not be verified: ${order.paymentRejectionReason || "Contact us."}` : "Complete payment to confirm your order."}</p>{["pending", "rejected"].includes(order.paymentStatus) && order.orderStatus !== "cancelled" && <Button href={`/orders/${order.orderNumber}/payment`} className="mt-4 w-full">{order.paymentStatus === "rejected" ? "Resubmit Payment Details" : "Complete Payment"}</Button>}{order.paymentStatus === "verification_pending" && order.paymentProofMethod === "website" && <a href={`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-screenshot`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm font-bold text-primary underline">View submitted screenshot</a>}</>}</section>
-        </aside>
+        <details className="card-surface post-checkout-card">
+          <summary className="post-checkout-disclosure"><span>Order details</span><strong>{formatINR(order.total)}</strong></summary>
+          <div className="tracking-items divide-y divide-border">{order.items.map((item, index) => <div key={`${item.mealId}-${index}`} className="tracking-item"><div><p className="type-label">{item.name}</p><p className="type-meta text-text-secondary">{item.quantity} × {formatINR(item.price)}</p><ThaliOrderDetails item={item} /></div><strong>{formatINR(item.quantity * item.price)}</strong></div>)}</div>
+          {order.notes && <p className="type-supporting my-3">Order note: {order.notes}</p>}
+          <OrderSummary storedOrder={order} />
+        </details>
       </div>
-
-      {order.paymentProofMethod === "website" && <section className="card-surface mt-6 p-5 md:p-6"><h2 className="font-black">Your submitted payment screenshot</h2><a href={`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-screenshot`} target="_blank" rel="noopener noreferrer" className="mt-4 block w-fit"><Image unoptimized src={`/api/orders/${encodeURIComponent(order.orderNumber)}/payment-screenshot`} alt="Submitted payment screenshot" width={400} height={300} className="max-h-80 w-full rounded-xl border border-border object-contain" /><span className="mt-2 block text-sm font-bold text-primary underline">Open full image</span></a></section>}
-      <div className="mt-8 flex flex-wrap gap-3"><Button href="/menu">Browse Menu</Button><Button href="/orders" variant="secondary">My Orders</Button><Link href="/" className="inline-flex min-h-11 items-center px-3 text-sm font-black text-primary">Back home</Link></div>
-    </section>
-  );
+      <aside className="post-checkout-stack">
+        <section className="card-surface post-checkout-card"><h2 className="type-card-title">Payment</h2><p className="type-supporting my-2 text-text-secondary">{order.paymentMethod === "COD" ? "Cash on delivery" : order.paymentMethod === "manual_online" ? "Online payment · manually verified" : "Earlier order payment"}</p><OrderPaymentStatus order={order} />{order.paymentReceivedAt && <p className="type-meta mt-2 text-text-secondary">Recorded {formatOrderTimestamp(order.paymentReceivedAt)}</p>}{canSubmitProof(order) && order.total > 0 && <Button href={paymentUrl} className="mt-3">{order.paymentStatus === "rejected" ? "Review or resubmit proof" : "Payment instructions"}</Button>}{order.paymentHasScreenshot && <a href={proofImageHref(order)} target="_blank" rel="noopener noreferrer" className="checkout-text-action mt-2">View submitted screenshot</a>}</section>
+        {address && <section className="card-surface post-checkout-card"><h2 className="type-card-title">Delivery</h2><p className="type-supporting mt-2">{order.deliverySlot}</p><address className="type-supporting mt-2 not-italic text-text-secondary">{[address.house, address.street, address.area, address.landmark, address.city, address.pinCode].filter(Boolean).join(", ")}</address></section>}
+        <section className="card-surface post-checkout-card"><h2 className="type-card-title">Need help with this order?</h2>{support ? <a className="checkout-text-action mt-2" href={support} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a> : <Link className="checkout-text-action mt-2" href="/contact">Contact GharKaBite</Link>}</section>
+      </aside>
+    </div>
+  </section>;
 }

@@ -1,94 +1,153 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { CheckCircle2, Clock3, MessageCircle, Upload } from "lucide-react";
-import PaymentOptions, { availableChannels } from "./PaymentOptions";
+import Badge from "./Badge";
+import Button from "./Button";
+import PaymentOptions, { CopyPaymentValue } from "./PaymentOptions";
 import PaymentScreenshotPicker from "./PaymentScreenshotPicker";
-import LoadingState from "./LoadingState";
-import { whatsappUrl } from "@/lib/payment-settings";
-import { formatOrderTimestamp } from "@/lib/order-utils";
+import OrderPaymentStatus, { OrderRefreshFeedback } from "./OrderPaymentStatus";
+import { canSubmitProof, whatsappUrl } from "@/lib/payment-settings";
+import { formatINR } from "@/lib/cart-pricing";
+import { formatOrderTimestamp, orderStatusLabel, paymentPresentation, proofImageHref } from "@/lib/order-utils";
 import { revealValidationTarget } from "@/lib/validation-navigation";
+import { useOrderRefresh } from "@/lib/use-order-refresh";
+
+const fileTypes = ["image/jpeg", "image/png", "image/webp"];
 
 export default function OrderPayment({ orderId }) {
-  const [order, setOrder] = useState(null);
-  const [payment, setPayment] = useState(null);
-  const [channel, setChannel] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [retryKey, setRetryKey] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const read = useOrderRefresh(orderId);
+  if (!read.order || read.access) return <div className="container-shell py-4"><OrderRefreshFeedback read={read} orderId={orderId} payment /></div>;
+  return <PaymentDetails key={read.key} read={read} />;
+}
+
+function PaymentDetails({ read }) {
+  const { order, payment } = read;
+  const [showProof, setShowProof] = useState(false);
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
   const [screenshot, setScreenshot] = useState(null);
-  const [showProof, setShowProof] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState({});
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  const [unresolved, setUnresolved] = useState(false);
+  const pending = useRef(null);
+  const uploaded = useRef(null);
+  useEffect(() => () => pending.current?.abort(), []);
 
-  useEffect(() => {
-    Promise.all([fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: "no-store" }), fetch("/api/payment-settings", { cache: "no-store" })]).then(async ([orderResponse, paymentResponse]) => {
-      if (!orderResponse.ok) throw new Error("Order not found or unavailable.");
-      const orderData = await orderResponse.json();
-      setOrder(orderData.order);
-      if (paymentResponse.ok || orderData.order.paymentDetails) { const data = paymentResponse.ok ? await paymentResponse.json() : null; const details = orderData.order.paymentDetails || data?.payment; setPayment(details); setChannel(availableChannels(details).includes(orderData.order.paymentChannel) ? orderData.order.paymentChannel : availableChannels(details)[0] || ""); }
-    }).catch((failure) => setError(failure.message)).finally(() => setLoading(false));
-  }, [orderId, retryKey]);
+  const canSubmit = canSubmitProof(order) && order.total > 0;
+  const businessWhatsApp = read.error ? "" : payment?.businessWhatsApp;
+  const proofUrl = whatsappUrl(businessWhatsApp, `Hi GharKaBite, I’m sending payment proof for order ${order.orderNumber} (${formatINR(order.total)}).`);
+  const helpUrl = whatsappUrl(businessWhatsApp, `Hi GharKaBite, I need help with order ${order.orderNumber}.`);
+  const orderHref = `/orders/${encodeURIComponent(order.orderNumber)}`;
+  const paymentStatus = paymentPresentation(order);
 
-  useEffect(() => {
-    if (order?.paymentStatus !== "verification_pending") return undefined;
-    const timer = window.setInterval(() => { fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : null).then((data) => { if (data?.order) setOrder(data.order); }).catch(() => {}); }, 15000);
-    return () => window.clearInterval(timer);
-  }, [order?.paymentStatus, orderId]);
-
-  async function submitWebsite(event) {
-    event.preventDefault(); setError(""); setNotice("");
+  async function submit(method) {
+    if (pending.current || !canSubmit || unresolved) return;
+    const transaction = reference.trim().toUpperCase();
     const nextErrors = {};
-    if (reference.trim().length < 6 || reference.trim().length > 50) nextErrors.reference = "Enter the 6–50 character Transaction ID / UTR.";
-    if (!screenshot) nextErrors.screenshot = "Choose a payment screenshot.";
-    else if (screenshot.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(screenshot.type)) nextErrors.screenshot = "Choose a JPG, PNG or WebP screenshot up to 5 MB.";
-    setFieldErrors(nextErrors);
-    const firstError = Object.keys(nextErrors)[0];
-    if (firstError) { revealValidationTarget(`payment-${firstError}-error`, `payment-${firstError}`); return; }
-    setBusy(true);
+    if (method === "website") {
+      if (!/^[A-Z0-9-]{6,50}$/.test(transaction)) nextErrors.reference = "Enter 6–50 letters, digits or hyphens from your payment app.";
+      if (!screenshot || !screenshot.size || screenshot.size > 5 * 1024 * 1024 || !fileTypes.includes(screenshot.type)) nextErrors.screenshot = "Choose a JPG, PNG or WebP screenshot up to 5 MB.";
+    }
+    setErrors(nextErrors);
+    const first = Object.keys(nextErrors)[0];
+    if (first) { revealValidationTarget(`payment-${first}-error`, `payment-${first}`); return; }
+    setError("");
+    const controller = new AbortController();
+    pending.current = controller;
+    const deadline = window.setTimeout(() => controller.abort("PROOF_TIMEOUT"), 45000);
+    const finish = read.beginMutation();
+    const endpoint = `/api/orders/${encodeURIComponent(order.orderNumber)}/payment-proof`;
+    const revision = order.paymentProofRevision;
+    let phase = "upload", status = 0, result, failure = "";
     try {
-      const signatureResponse = await fetch(`/api/orders/${encodeURIComponent(orderId)}/payment-proof`, { cache: "no-store" });
-      const signed = await signatureResponse.json(); if (!signatureResponse.ok) throw new Error(signed.message);
-      const upload = new FormData(); upload.set("file", screenshot); upload.set("api_key", signed.apiKey); upload.set("timestamp", signed.timestamp); upload.set("public_id", signed.publicId); upload.set("type", signed.type); upload.set("signature", signed.signature);
-      const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(signed.cloud)}/image/upload`, { method: "POST", body: upload });
-      const uploaded = await uploadResponse.json(); if (!uploadResponse.ok) throw new Error(uploaded.error?.message || "Screenshot upload failed.");
-      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/payment-proof`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "website", paymentReference: reference, paymentNote: note, screenshotUrl: uploaded.secure_url }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.message);
-      setOrder(data.order); setNotice(data.message); setShowProof(false);
-    } catch (failure) { setError(failure.message || "Could not submit payment proof."); revealValidationTarget("payment-form-error"); }
-    finally { setBusy(false); }
+      let screenshotUrl;
+      if (method === "website") {
+        if (uploaded.current?.file === screenshot && uploaded.current.revision === revision) {
+          screenshotUrl = uploaded.current.url;
+        } else {
+          setBusy("Uploading screenshot…");
+          const signature = await fetch(endpoint, { signal: controller.signal, cache: "no-store" });
+          status = signature.status;
+          const signed = await signature.json();
+          if (!signature.ok) throw new Error(signed.message);
+          const upload = new FormData();
+          for (const [name, value] of Object.entries({ file: screenshot, api_key: signed.apiKey, timestamp: signed.timestamp, public_id: signed.publicId, type: signed.type, signature: signed.signature, overwrite: signed.overwrite, allowed_formats: signed.allowed_formats })) upload.set(name, value);
+          const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(signed.cloud)}/image/upload`, { method: "POST", body: upload, signal: controller.signal });
+          if (!response.ok) throw new Error("Screenshot upload failed. Try again.");
+          screenshotUrl = (await response.json()).secure_url;
+          if (!screenshotUrl) throw new Error("The upload could not be confirmed. Try again.");
+          uploaded.current = { file: screenshot, revision, url: screenshotUrl };
+        }
+      }
+      phase = "submit"; status = 0;
+      setBusy("Submitting proof…");
+      const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ method, expectedProofRevision: revision, ...(method === "website" ? { paymentReference: transaction, paymentNote: note, screenshotUrl } : {}) }) });
+      status = response.status;
+      const data = await response.json();
+      if (!response.ok || !data.order) {
+        if (status === 400) uploaded.current = null;
+        throw new Error(data.message || "Could not confirm the submission.");
+      }
+      result = data.order;
+    } catch (problem) { failure = controller.signal.reason === "PROOF_TIMEOUT" ? "The request timed out. Check your connection and try again." : problem.message || "Could not submit proof."; }
+    finally { window.clearTimeout(deadline); }
+
+    if (controller.signal.aborted && controller.signal.reason !== "PROOF_TIMEOUT") return;
+    const refreshed = await finish?.(result, status);
+    if (controller.signal.aborted && controller.signal.reason !== "PROOF_TIMEOUT") return;
+    if (result) {
+      setReference(""); setNote(""); setScreenshot(null); setShowProof(false); uploaded.current = null;
+    } else if (![401, 403, 404].includes(status)) {
+      if (phase === "submit" && (!status || status >= 500 || status < 300) && !refreshed) {
+        setUnresolved(true);
+        setError("We couldn’t check whether your proof was received. Refresh the order before retrying.");
+      } else if (failure) {
+        setError(failure);
+        revealValidationTarget("payment-form-error");
+      }
+    }
+    setBusy(""); pending.current = null;
   }
 
-  async function submitWhatsApp() {
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/payment-proof`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: "whatsapp" }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.message);
-      setOrder(data.order); setNotice(data.message);
-    } catch (failure) { setError(failure.message || "Could not update payment status."); revealValidationTarget("payment-form-error"); }
-    finally { setBusy(false); }
+  async function refresh() {
+    if (await read.refresh()) { setUnresolved(false); setError(""); }
   }
 
-  if (loading) return <LoadingState label="Loading payment details" rows={2} />;
-  if (!order) return <section className="container-shell py-10"><p role="alert">{error || "Order not found."}</p><div className="mt-4 flex flex-wrap items-center gap-4"><button type="button" onClick={() => { setError(""); setLoading(true); setRetryKey((current) => current + 1); }} className="min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button><Link href="/orders" className="font-black text-primary underline">My Orders</Link></div></section>;
-  if (order.paymentMethod !== "manual_online") return <section className="container-shell py-10"><p>This order uses Cash on Delivery.</p><Link href={`/orders/${orderId}`} className="font-black text-primary underline">View order</Link></section>;
-  const canSubmit = ["pending", "rejected"].includes(order.paymentStatus) && order.orderStatus !== "cancelled";
-  const proofUrl = whatsappUrl(payment?.businessWhatsApp, `Hi GharKaBite,\n\nI have completed payment for my order.\n\nOrder Number: ${order.orderNumber}\nAmount: ₹${order.total}\n\nI am sending the payment screenshot here for verification.`);
-  const helpUrl = whatsappUrl(payment?.businessWhatsApp, `Hi GharKaBite, I need help completing payment for Order ${order.orderNumber}.`);
-  return <section className="container-shell max-w-5xl py-7 md:py-10"><p className="eyebrow">Online Payment</p><div className="mt-2 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-3xl font-black">Complete Your Payment</h1><p className="mt-2 break-all text-sm text-text-secondary">Order {order.orderNumber}</p></div><p className="text-4xl font-black text-accent">₹{Number(order.total).toLocaleString("en-IN")}</p></div>
-    <div className="payment-status-overview mt-6 grid gap-4 sm:grid-cols-3">{[["Order created", "Complete"], ["Payment submitted", order.paymentStatus === "pending" || order.paymentStatus === "rejected" ? "Waiting" : "Complete"], ["Order confirmed", order.paymentStatus === "paid" ? "Complete" : "Waiting"]].map(([label, state]) => <div key={label} className="rounded-xl border border-border bg-white p-4"><p className="text-sm font-black">{label}</p><p className={`mt-1 text-xs font-bold ${state === "Complete" ? "text-success" : "text-text-secondary"}`}>{state}</p></div>)}</div>
-    <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_20rem]"><div className="space-y-6">
-      {order.paymentStatus === "paid" ? <section className="card-surface p-6"><CheckCircle2 className="size-8 text-success" /><h2 className="mt-3 text-xl font-black">Payment Verified ✓</h2><p className="mt-2 text-sm text-text-secondary">Your payment has been verified and your order is confirmed.</p><Link href={`/orders/${orderId}`} className="mt-4 inline-flex font-black text-primary underline">Track your order</Link></section> : order.paymentStatus === "verification_pending" ? <section className="card-surface p-6"><Clock3 className="size-8 text-warning" /><h2 className="mt-3 text-xl font-black">Payment Submitted for Verification</h2><p className="mt-2 text-sm text-text-secondary">We&apos;ve received your payment details. Your order will be confirmed after verification.</p><p className="mt-3 text-sm font-bold">Proof: {order.paymentProofMethod === "whatsapp" ? "WhatsApp" : "Website"}{order.paymentReference ? ` · UTR ${order.paymentReference}` : ""}</p>{order.paymentProofMethod === "website" && <a href={`/api/orders/${encodeURIComponent(orderId)}/payment-screenshot`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block font-bold text-primary underline">View submitted screenshot</a>}</section> : order.orderStatus === "cancelled" ? <section className="card-surface p-6"><h2 className="text-xl font-black">Order cancelled</h2><p className="mt-2 text-sm text-text-secondary">Contact us if you need assistance with a payment already sent.</p></section> : <>
-        {order.paymentStatus === "rejected" && <section className="rounded-2xl border border-danger/30 bg-danger/8 p-5"><h2 className="font-black text-danger">Payment Could Not Be Verified</h2><p className="mt-2 text-sm">Reason: {order.paymentRejectionReason || "Please contact us for details."}</p><p className="mt-2 text-sm">Resubmit new payment details below or contact us on WhatsApp.</p></section>}
-        <section className="card-surface p-5 md:p-7"><PaymentOptions payment={payment} channel={channel} onChange={setChannel} amount={order.total} orderNumber={order.orderNumber} /><p className="mt-4 rounded-xl bg-warning/10 p-3 text-xs font-bold">Do not pay a different amount unless instructed by GharKaBite.</p></section>
-        <section className="card-surface p-5 md:p-7"><h2 className="text-xl font-black">Submit Payment Details</h2><p className="mt-2 text-sm text-text-secondary">After paying, keep your screenshot and Transaction ID / UTR. Your order stays payment pending until we verify it.</p><button type="button" onClick={() => setShowProof((current) => !current)} aria-expanded={showProof} aria-controls="payment-proof-form" className="mt-4 min-h-11 rounded-xl bg-primary px-5 text-sm font-black text-white">{showProof ? "Hide payment form" : order.paymentStatus === "rejected" ? "Resubmit Payment Details" : "I Have Paid · Send Payment Proof"}</button>{showProof && <form id="payment-proof-form" onSubmit={submitWebsite} noValidate className="ui-enter mt-5 space-y-4 rounded-xl border border-border p-4"><label className="block text-sm font-bold">Transaction ID / UTR<input id="payment-reference" required minLength={6} maxLength={50} value={reference} onChange={(event) => { setReference(event.target.value); setFieldErrors((current) => ({ ...current, reference: "" })); }} aria-invalid={Boolean(fieldErrors.reference)} aria-describedby={fieldErrors.reference ? "payment-reference-error" : undefined} className="input-field mt-2" placeholder="Enter the ID shown in your payment app" />{fieldErrors.reference && <span id="payment-reference-error" role="alert" className="mt-1 block text-xs text-danger">{fieldErrors.reference}</span>}</label><PaymentScreenshotPicker file={screenshot} onChange={(file) => { setScreenshot(file); setFieldErrors((current) => ({ ...current, screenshot: "" })); }} requiredError={fieldErrors.screenshot} disabled={busy} /><label className="block text-sm font-bold">Optional Note<textarea value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} className="input-field mt-2 min-h-20" /></label><button disabled={busy} aria-busy={busy} className="flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-black text-white disabled:opacity-50"><Upload className="size-4" aria-hidden="true" />{busy ? "Submitting…" : "Submit for verification"}</button></form>}</section>
-        {proofUrl && <section className="card-surface p-5 md:p-7"><h2 className="text-lg font-black">Send proof on WhatsApp instead</h2><p className="mt-2 text-sm text-text-secondary">Open the chat and attach your screenshot manually. Then return here and tell us you sent it.</p><a href={proofUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-primary px-4 text-sm font-black text-primary"><MessageCircle className="size-4" /> Send Payment Proof on WhatsApp</a><button type="button" onClick={submitWhatsApp} disabled={busy} className="mt-3 block min-h-11 rounded-xl bg-primary px-4 text-sm font-black text-white disabled:opacity-50">I Sent Payment Proof on WhatsApp</button></section>}
-      </>}
-      {notice && <p role="status" className="rounded-xl bg-success/10 p-4 text-sm font-bold text-success">{notice}</p>}{error && <p id="payment-form-error" tabIndex={-1} role="alert" className="rounded-xl bg-danger/10 p-4 text-sm font-bold text-danger">{error}</p>}
-    </div><aside className="card-surface h-fit p-5"><h2 className="font-black">Payment summary</h2><p className="mt-3 text-sm">Order: <strong>{order.orderNumber}</strong></p><p className="mt-2 text-sm">Amount: <strong>₹{order.total}</strong></p><p className="mt-2 text-sm">Payment: <strong className="capitalize">{order.paymentStatus.replaceAll("_", " ")}</strong></p><p className="mt-2 text-sm">Order: <strong className="capitalize">{order.orderStatus.replaceAll("_", " ")}</strong></p><p className="mt-2 text-sm">Selected: <strong>{({ qr: "Scan QR", upi_id: "UPI ID", phone: "Phone Number" })[order.paymentChannel] || "Online Payment"}</strong></p><p className="mt-2 text-xs text-text-secondary">Placed {formatOrderTimestamp(order.createdAt)}</p><ol className="mt-5 list-inside list-decimal space-y-2 text-sm leading-6 text-text-secondary"><li>Pay the exact amount.</li><li>Use the QR, UPI ID or phone shown.</li><li>Keep your screenshot and UTR.</li><li>Submit payment details.</li><li>Wait for GharKaBite to verify.</li></ol>{helpUrl && <a href={helpUrl} target="_blank" rel="noopener noreferrer" className="mt-5 inline-block text-sm font-black text-primary underline">Need help with payment? Chat on WhatsApp</a>}<Link href={`/orders/${orderId}`} className="mt-5 block text-sm font-black text-primary underline">View order details</Link></aside></div>
+  return <section className="container-shell post-checkout">
+    <Link className="checkout-text-action" href={orderHref}>← Order details</Link>
+    <header className="post-checkout-header order-payment-header">
+      <div><p className="eyebrow">Order {order.orderNumber}</p><h1 className="type-page-title">{order.paymentMethod === "manual_online" ? "Order payment" : "Payment details"}</h1><div className="payment-badges"><Badge tone={order.orderStatus === "cancelled" ? "cancelled" : "informational"}>{orderStatusLabel(order)}</Badge><Badge tone={paymentStatus.tone}>{paymentStatus.label}</Badge></div><CopyPaymentValue value={order.orderNumber} label="Copy order number" /></div>
+      <div><span className="type-meta text-text-secondary">{canSubmit && order.paymentStatus === "pending" && !read.error && payment?.availability === "available" ? "Amount to pay" : "Stored order total"}</span><p className="payment-amount">{formatINR(order.total)}</p>{canSubmit && <CopyPaymentValue value={order.total.toFixed(2)} label="Copy amount" />}</div>
+    </header>
+    <div className="post-checkout-grid">
+      <div className="post-checkout-stack">
+        {canSubmit && order.paymentStatus === "rejected" && <div className="card-surface post-checkout-card"><OrderPaymentStatus order={order} /><p className="type-supporting mt-2">If you already paid, check your original transaction before sending money again.</p></div>}
+        {canSubmit && <section className="card-surface post-checkout-card">
+          {!read.error && payment?.availability === "available" ? <>{payment.channelsChanged && <p className="checkout-notice mb-3">Some payment options changed since checkout. If you already paid or aren’t sure, submit proof or <a href="#payment-help" className="font-bold underline">contact support</a> before paying again.</p>}<PaymentOptions payment={payment.destinations} defaultChannel={order.paymentChannel} amount={order.total} orderNumber={order.orderNumber} /></> : <><h2 className="type-section-title">Payment instructions unavailable</h2><p className="type-supporting mt-2 text-text-secondary">We couldn’t confirm a current destination for this order. Contact support before paying. If you already paid, you can still submit proof when a proof option is available.</p></>}
+        </section>}
+        {canSubmit && <section className="card-surface post-checkout-card">
+          <h2 className="type-section-title">Already paid?</h2><p className="type-supporting my-2 text-text-secondary">Send proof for manual verification. Submitting it does not confirm your order.</p>
+          {payment?.proofUploadAvailable ? <>
+            <Button type="button" variant="outline" disabled={Boolean(busy)} aria-expanded={showProof} aria-controls="payment-proof-form" onClick={() => setShowProof(!showProof)}>{showProof ? "Hide proof form" : order.paymentStatus === "rejected" ? "Resubmit proof" : "Submit payment proof"}</Button>
+            {showProof && <form id="payment-proof-form" className="payment-proof-form" noValidate onSubmit={(event) => { event.preventDefault(); submit("website"); }}>
+              <label className="type-label block">Transaction ID / UTR<input id="payment-reference" className="input-field mt-2" required value={reference} maxLength={50} disabled={Boolean(busy)} onChange={(event) => { setReference(event.target.value); setErrors({ ...errors, reference: "" }); }} aria-invalid={Boolean(errors.reference)} aria-describedby={errors.reference ? "payment-reference-error" : undefined} />{errors.reference && <span className="type-meta text-danger" role="alert" id="payment-reference-error">{errors.reference}</span>}</label>
+              <PaymentScreenshotPicker file={screenshot} onChange={(file) => { setScreenshot(file); uploaded.current = null; setErrors({ ...errors, screenshot: "" }); }} disabled={Boolean(busy)} requiredError={errors.screenshot} />
+              <label className="type-label block">Note (optional)<textarea className="input-field mt-2" maxLength={500} value={note} disabled={Boolean(busy)} onChange={(event) => setNote(event.target.value)} /></label>
+              <Button type="submit" loading={Boolean(busy)} loadingText={busy} disabled={unresolved}>Submit for verification</Button>
+            </form>}
+          </> : <p className="type-supporting text-text-secondary">Website screenshot upload is unavailable.</p>}
+          {proofUrl && <div className="payment-whatsapp"><a className="checkout-text-action" href={proofUrl} target="_blank" rel="noopener noreferrer">Send proof on WhatsApp</a><p className="type-supporting text-text-secondary">Attach your screenshot in the chat, then come back and report that you sent it. GharKaBite still checks the payment manually.</p><Button type="button" variant="outline" disabled={Boolean(busy) || unresolved} onClick={() => submit("whatsapp")}>I sent proof on WhatsApp</Button></div>}
+          {busy && <p className="type-meta text-text-secondary" role="status">{busy}</p>}
+          {error && <p id="payment-form-error" className="checkout-notice checkout-notice--error" tabIndex={-1} role="alert">{error}</p>}
+        </section>}
+        {!canSubmit && <section className="card-surface post-checkout-card"><h2 className="type-section-title">What happens next</h2><div className="my-3"><OrderPaymentStatus order={order} /></div><Button href={orderHref}>Track order</Button></section>}
+      </div>
+      <aside className="post-checkout-stack">
+        <section className="card-surface post-checkout-card"><h2 className="type-card-title">Order summary</h2><p className="type-supporting mt-2">{[order.serviceDate, order.mealPeriod, order.deliverySlot].filter(Boolean).join(" · ")}</p>{canSubmit && order.paymentStatus === "pending" && <p className="type-supporting mt-2 text-text-secondary">{paymentStatus.description}</p>}{order.paymentSubmittedAt && <p className="type-meta mt-3 text-text-secondary">{order.paymentProofMethod === "whatsapp" ? "Proof reported" : "Proof submitted"} {formatOrderTimestamp(order.paymentSubmittedAt)}</p>}{order.paymentReference && <p className="type-meta mt-1 break-all">UTR: {order.paymentReference}</p>}{order.paymentHasScreenshot && <a className="checkout-text-action mt-2" href={proofImageHref(order)} target="_blank" rel="noopener noreferrer">View submitted screenshot</a>}<OrderRefreshFeedback read={{ ...read, refresh }} orderId={order.orderNumber} payment /></section>
+        <section id="payment-help" className="card-surface post-checkout-card scroll-mt-20"><h2 className="type-card-title">Need help?</h2><p className="type-supporting mt-2 text-text-secondary">Have your order number ready when contacting GharKaBite.</p>{helpUrl ? <a className="checkout-text-action mt-2" href={helpUrl} target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a> : <Link className="checkout-text-action mt-2" href="/contact">Contact GharKaBite</Link>}</section>
+      </aside>
+    </div>
   </section>;
 }

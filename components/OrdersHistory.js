@@ -4,17 +4,27 @@ import { mealDetailHref } from "@/lib/meal-period";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { ArrowRight, CalendarDays, RotateCcw, UtensilsCrossed } from "lucide-react";
 import Button from "./Button";
 import EmptyState from "./EmptyState";
 import LoadingState from "./LoadingState";
 import { useCart } from "@/context/CartContext";
-import { formatOrderTimestamp } from "@/lib/order-utils";
+import { formatOrderTimestamp, orderStatusLabel, paymentPresentation } from "@/lib/order-utils";
+import { canSubmitProof } from "@/lib/payment-settings";
+import { formatINR } from "@/lib/cart-pricing";
 import { kolkataDate } from "@/lib/dates";
 import { calculateThaliPrice } from "@/lib/thali";
 import { useKitchen } from "@/context/KitchenContext";
 
 export default function OrdersHistory() {
+  const { data, status } = useSession();
+  if (status === "loading") return <LoadingState label="Loading your orders" rows={2} />;
+  if (status !== "authenticated" || !data?.user?.id) return <section className="container-shell py-6"><Button href="/welcome?mode=signin&returnTo=/orders">Sign in to view your orders</Button></section>;
+  return <OrdersHistoryView key={data.user.id} />;
+}
+
+function OrdersHistoryView() {
   const router = useRouter();
   const { addOrderItems } = useCart();
   const { getAvailability } = useKitchen();
@@ -24,12 +34,15 @@ export default function OrdersHistory() {
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     const loadOrders = window.setTimeout(async () => {
       try {
-        const response = await fetch("/api/orders");
+        const response = await fetch("/api/orders", { cache: "no-store", signal: controller.signal });
+        if ([401, 403, 404].includes(response.status)) { if (active) { setOrders([]); setExpired(true); setLoading(false); } return; }
         if (!response.ok) throw new Error("ORDERS_UNAVAILABLE");
         const databaseOrders = (await response.json()).orders || [];
         if (active) {
@@ -41,7 +54,7 @@ export default function OrdersHistory() {
       }
       if (active) setLoading(false);
     }, 0);
-    return () => { active = false; window.clearTimeout(loadOrders); };
+    return () => { active = false; controller.abort(); window.clearTimeout(loadOrders); };
   }, [retryKey]);
 
   async function reorder(order) {
@@ -75,6 +88,7 @@ export default function OrdersHistory() {
   }
 
   if (loading) return <LoadingState label="Loading your orders" rows={2} />;
+  if (expired) return <section className="container-shell py-6"><Button href="/welcome?mode=signin&returnTo=/orders">Sign in to view your orders</Button></section>;
   if (loadError) return <section className="container-shell py-10" role="alert"><p className="font-bold text-danger">{loadError}</p><button type="button" onClick={() => { setLoading(true); setRetryKey((current) => current + 1); }} className="mt-3 min-h-11 rounded-xl border border-primary px-4 font-bold text-primary">Try again</button></section>;
   if (!orders.length) return <section className="container-shell py-12"><EmptyState title="No orders here yet" description="Your first order will appear here with its status, delivery timing and an easy reorder option." /></section>;
 
@@ -83,8 +97,8 @@ export default function OrdersHistory() {
       {message && <p className="mb-5 rounded-xl border border-primary/15 bg-primary/7 p-4 text-sm font-bold text-primary" aria-live="polite">{message}</p>}
       <div className="space-y-5">{orders.map((order) => (
         <article key={order.orderNumber} className="order-card card-surface overflow-hidden">
-          <div className="flex flex-col gap-3 border-b border-border bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><Link href={`/orders/${order.orderNumber}`} className="font-black text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 flex items-center gap-1.5 text-xs text-text-secondary"><CalendarDays className="size-3.5" aria-hidden="true" /> {formatOrderTimestamp(order.createdAt)}</p></div><span data-status={order.orderStatus} className="order-state w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-black capitalize text-primary">{order.orderStatus.replaceAll("_", " ")}</span></div>
-          <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:p-5"><div><p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-text-secondary"><UtensilsCrossed className="size-4" aria-hidden="true" /> {order.mealPeriod} · {order.deliverySlot}</p><p className="mt-3 font-black">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(" · ")}</p><p className="mt-2 text-sm text-text-secondary">Total <strong className="text-accent">₹{order.total}</strong> · {order.paymentMethod === "COD" ? "Cash on Delivery" : "Online Payment"}</p><p className="mt-2 text-sm font-bold capitalize">Payment: {order.paymentStatus.replaceAll("_", " ")} · Order: {order.orderStatus.replaceAll("_", " ")}</p></div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" loading={reordering === order.orderNumber} loadingText="Checking menu…" disabled={Boolean(reordering)} onClick={() => reorder(order)}><RotateCcw className="size-4" aria-hidden="true" /> Order Again</Button>{order.paymentMethod === "manual_online" && ["pending", "rejected"].includes(order.paymentStatus) && order.orderStatus !== "cancelled" && <Button href={`/orders/${order.orderNumber}/payment`}>{order.paymentStatus === "rejected" ? "Resubmit Payment" : "Complete Payment"}</Button>}{order.paymentStatus === "verification_pending" && <span className="self-center text-xs font-bold text-warning">Awaiting Verification</span>}<Button href={`/orders/${order.orderNumber}`}>View Details <ArrowRight className="size-4" aria-hidden="true" /></Button></div></div>
+          <div className="flex flex-col gap-3 border-b border-border bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><Link href={`/orders/${order.orderNumber}`} className="font-black text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 flex items-center gap-1.5 text-xs text-text-secondary"><CalendarDays className="size-3.5" aria-hidden="true" /> {formatOrderTimestamp(order.createdAt)}</p></div><span data-status={order.orderStatus} className="order-state w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-black capitalize text-primary">{orderStatusLabel(order)}</span></div>
+          <div className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-end md:p-5"><div><p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-text-secondary"><UtensilsCrossed className="size-4" aria-hidden="true" /> {order.mealPeriod} · {order.deliverySlot}</p><p className="mt-3 font-black">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(" · ")}</p><p className="mt-2 text-sm text-text-secondary">Total <strong className="text-accent">{formatINR(order.total)}</strong> · {order.paymentMethod === "COD" ? "Cash on delivery" : order.paymentMethod === "manual_online" ? "Online payment" : "Earlier order payment"}</p><p className="mt-2 text-sm font-bold">{paymentPresentation(order).label}</p></div><div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" loading={reordering === order.orderNumber} loadingText="Checking menu…" disabled={Boolean(reordering)} onClick={() => reorder(order)}><RotateCcw className="size-4" aria-hidden="true" /> Order Again</Button>{canSubmitProof(order) && order.total > 0 && <Button href={`/orders/${order.orderNumber}/payment`}>{order.paymentStatus === "rejected" ? "Review or resubmit proof" : "Payment instructions"}</Button>}<Button href={`/orders/${order.orderNumber}`}>View Details <ArrowRight className="size-4" aria-hidden="true" /></Button></div></div>
         </article>
       ))}</div>
     </section>
