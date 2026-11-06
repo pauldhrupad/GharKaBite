@@ -53,7 +53,7 @@ function AccountCheckout({ user }) {
   const [selectedAddressId, setSelectedAddressId] = useState("custom");
   const [editingContact, setEditingContact] = useState(false);
   const [editingAddress, setEditingAddress] = useState(true);
-  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileState, setProfileState] = useState("loading");
   const [deliverySlot, setDeliverySlot] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentChannel, setPaymentChannel] = useState("");
@@ -148,8 +148,8 @@ function AccountCheckout({ user }) {
       setSavedAddresses(addresses); setSelectedAddressId(saved ? "custom" : first ? addressKey(first, 0) : "custom");
       setForm(saved?.form || { ...initialForm, fullName: profile?.name || "", mobile: profile?.phone || "", email: profile?.email || "", ...(first ? addressValues(first) : {}) });
       restoreSaved();
-      setEditingContact(!profile?.name || !profile?.phone); setEditingAddress(Boolean(saved) || !first); setProfileLoaded(true);
-    }).catch(() => { if (!controller.signal.aborted) { setForm(saved?.form || { ...initialForm, fullName: user.name || "", mobile: user.phone || "", email: user.email || "" }); restoreSaved(); setEditingContact(true); setEditingAddress(true); setProfileLoaded(true); } });
+      setEditingContact(!profile?.name || !profile?.phone); setEditingAddress(Boolean(saved) || !first); setProfileState("ready");
+    }).catch(() => { if (!controller.signal.aborted) { setForm(saved?.form || { ...initialForm, fullName: user.name || "", mobile: user.phone || "", email: user.email || "" }); restoreSaved(); setEditingContact(true); setEditingAddress(true); setProfileState("error"); } });
     fetch("/api/subscriptions", { cache: "no-store", signal: controller.signal }).then(async (response) => { if (!response.ok) throw new Error(); return response.json(); }).then((data) => { if (!controller.signal.aborted) { setSubscriptions(data.subscriptions || []); setSubscriptionError(""); } }).catch(() => { if (!controller.signal.aborted) setSubscriptionError("Existing plan credits could not be loaded. Retry checkout before using a credit."); });
     return () => controller.abort();
   }, [user.id, user.name, user.phone, user.email, checkoutDraftRef, setPromoCode, router]);
@@ -260,7 +260,7 @@ function AccountCheckout({ user }) {
     } catch { if (!signal.aborted && version === addressVersion.current) setDeliveryResult({ serviceable: false, reason: "Unable to verify this address. Please retry." }); }
     finally { if (!signal.aborted && version === addressVersion.current) setCheckingAddress(false); }
   }
-  if (!profileLoaded) return <LoadingState label="Loading your checkout details" rows={2} />;
+  if (profileState === "loading") return <LoadingState label="Loading your checkout details" rows={2} />;
   if (!items.length && !unknownOutcome) return <EmptyCart />;
   if (!items.length) return <section className="container-shell cart-page"><form className="card-surface p-5 space-y-3" onSubmit={handleSubmit}>
     <h2 className="type-section-title">Check your previous order</h2>
@@ -273,7 +273,7 @@ function AccountCheckout({ user }) {
   return <form onSubmit={handleSubmit} noValidate className="customer-checkout container-shell checkout-grid cart-page">
     <fieldset disabled={locked} className="checkout-fields"><legend className="sr-only">Delivery and payment details</legend>
       <CheckoutSection icon={MapPin} number="1" title="Delivery address">
-        {profileState.status === "error" && <p className="checkout-notice">Saved details could not be loaded. Enter your details for this order.</p>}
+        {profileState === "error" && <p className="checkout-notice">Saved details could not be loaded. Enter your details for this order.</p>}
         {!editingContact ? <div className="checkout-detail-summary"><div><strong>{form.fullName}</strong><p>{form.mobile}</p>{form.email && <p>{form.email}</p>}</div><button type="button" className="checkout-text-action" onClick={() => setEditingContact(true)}>Edit contact</button></div> : <div className="checkout-form-grid"><Field label="Full name" name="fullName" value={form.fullName} onChange={updateField} error={errors.fullName} autoComplete="name" maxLength={80} /><Field label="Mobile number" name="mobile" type="tel" value={form.mobile} onChange={updateField} error={errors.mobile} autoComplete="tel" inputMode="numeric" maxLength={10} /><Field label="Email" optional name="email" type="email" value={form.email} onChange={updateField} error={errors.email} autoComplete="email" /></div>}
         {savedAddresses.length > 0 && <label className="checkout-field-label">Deliver to<CustomSelect value={selectedAddressId} onChange={selectAddress} className="input-field mt-2"><option value="custom">Use another address</option>{savedAddresses.map((address, index) => <option key={addressKey(address, index)} value={addressKey(address, index)}>{address.label || `Address ${index + 1}`} · {address.area}</option>)}</CustomSelect></label>}
         {!editingAddress && selectedAddress ? <div className="checkout-detail-summary"><div><strong>{selectedAddress.label || "Saved address"}</strong><p>{[form.house, form.street, form.area, form.city, form.pinCode].filter(Boolean).join(", ")}</p>{form.landmark && <p>{form.landmark}</p>}</div><button type="button" className="checkout-text-action" onClick={() => setEditingAddress(true)}>Edit address</button></div> : <>
