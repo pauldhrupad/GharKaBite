@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Button from "./Button";
@@ -40,6 +40,7 @@ async function loadCatalog(date, signal) {
 
 function RepeatDraft({ source, fromOrder, url, returnTo, scope }) {
   const { items, hydrated, addOrderItems } = useCart();
+  const groupId = useId();
   const { now } = useKitchen();
   const router = useRouter();
   const [lines, setLines] = useState(() => fromOrder ? orderSelections(source) : [{ ...source, id: "favorite", name: source.mealName, isFavorite: true }]);
@@ -125,8 +126,8 @@ function RepeatDraft({ source, fromOrder, url, returnTo, scope }) {
     <p className="type-supporting text-text-secondary">{fromOrder ? `From order ${source.orderNumber}${source.serviceDate ? ` · ${source.serviceDate}` : ""}. Your original order stays unchanged.` : `Saved favorite: ${source.name}`}</p>
     <section className="card-surface retention-card">
       <h2 className="type-section-title">Choose delivery</h2>
-      <fieldset className="retention-options" disabled={busy || editing !== null}><legend>Service date</legend>{[[today, "Today"], [tomorrow, "Tomorrow"]].map(([day, label]) => <label className="checkout-choice" key={day}><input name="repeat-date" type="radio" checked={date === day} onChange={() => { setDate(day); resetConfirmation(); }} /><span>{label}<small>{day}</small></span></label>)}</fieldset>
-      <fieldset className="retention-options" disabled={busy || editing !== null}><legend>Meal period</legend>{["Lunch", "Dinner"].map((slot) => <label className="checkout-choice" key={slot}><input name="repeat-period" type="radio" checked={period === slot} onChange={() => { setPeriod(slot); resetConfirmation(); }} />{slot}</label>)}</fieldset>
+      <fieldset className="retention-options" disabled={busy || editing !== null}><legend>Service date</legend>{[[today, "Today"], [tomorrow, "Tomorrow"]].map(([day, label]) => <label className="checkout-choice" key={day}><input name={groupId + "-date"} type="radio" checked={date === day} onChange={() => { setDate(day); resetConfirmation(); }} /><span>{label}<small>{day}</small></span></label>)}</fieldset>
+      <fieldset className="retention-options" disabled={busy || editing !== null}><legend>Meal period</legend>{["Lunch", "Dinner"].map((slot) => <label className="checkout-choice" key={slot}><input name={groupId + "-period"} type="radio" checked={period === slot} onChange={() => { setPeriod(slot); resetConfirmation(); }} />{slot}</label>)}</fieldset>
       {validDate && !checked && <p className="mt-2 type-supporting" role="status">Checking the current menu…</p>}
       {checked?.error && <div className="checkout-notice mt-2" role="alert">{checked.error} <button type="button" className="font-bold underline" onClick={() => setRetry(retry + 1)}>Try again</button></div>}
       {availability && <p className="checkout-notice mt-2" role="status">{availability}</p>}

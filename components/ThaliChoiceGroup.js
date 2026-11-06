@@ -1,6 +1,8 @@
+import { useId } from "react";
 import { Check } from "lucide-react";
 
 export default function ThaliChoiceGroup({ group, selected, onSelect, onClear, error }) {
+  const inputName = useId();
   const min = group.minSelections ?? (group.required ? 1 : 0);
   const max = group.maxSelections ?? 1;
   const single = max === 1 && selected.length <= 1;
@@ -16,7 +18,7 @@ export default function ThaliChoiceGroup({ group, selected, onSelect, onClear, e
       const unavailable = option.active === false;
       const atLimit = !single && selected.length >= max && !checked;
       return <label key={option.id} className={`thali-option ${checked ? "is-selected" : ""} ${unavailable || atLimit ? "is-disabled" : ""}`}>
-        <input type={single ? "radio" : "checkbox"} name={`choice-${group.id}`} checked={checked} disabled={unavailable || atLimit} onChange={() => onSelect(group, option.id)} />
+        <input type={single ? "radio" : "checkbox"} name={inputName} checked={checked} disabled={unavailable || atLimit} onChange={() => onSelect(group, option.id)} />
         <span className="thali-option-copy"><strong>{option.name}</strong>{option.description && <small>{option.description}</small>}<small>{unavailable ? "Unavailable" : atLimit ? "Selection limit reached" : option.priceAdjustment ? `+₹${option.priceAdjustment} per meal` : "Included"}</small></span>
         <span className="thali-option-check" aria-hidden="true">{checked && <Check />}</span>
       </label>;

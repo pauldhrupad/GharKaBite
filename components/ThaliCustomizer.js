@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Minus, Plus, ShoppingBag } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -19,6 +19,7 @@ import { consumeFavoriteDraft } from "@/lib/favorite-draft";
 
 export default function ThaliCustomizer({ meal, serviceDate, initialPeriod, editKey = "", initialSelection, onReviewSave, favoriteDraft = "" }) {
   const router = useRouter();
+  const periodGroup = useId();
   const { status: authStatus } = useSession();
   const { items, addItem, hydrated, storageError } = useCart();
   const { hydrated: kitchenHydrated, loadFailed, getAvailability } = useKitchen();
@@ -146,7 +147,7 @@ export default function ThaliCustomizer({ meal, serviceDate, initialPeriod, edit
       {review.issues.length > 0 && <section className="thali-notice" aria-label="Selections needing review"><h2>Some selections have changed</h2><ul>{review.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul><button type="button" className="thali-text-action" onClick={() => { setChoices(review.cleanChoices); setAddOns(review.cleanAddOns); changed(); }}>Remove unavailable selections</button><p>Your other choices will be kept.</p></section>}
       {periodIssue && <div className="thali-notice">Your previous {periodIssue} period is no longer supported by this meal. <button type="button" className="thali-text-action" onClick={() => setPeriodIssue("")}>Use {period} instead</button></div>}
       <fieldset disabled={!ready || missingEdit} className="thali-controls"><legend className="sr-only">Customize {meal.name}</legend>
-        {!onReviewSave && <fieldset className="thali-period"><legend>Delivery period <span>{serviceDate}</span></legend><div>{meal.slots.map((slot) => <label key={slot} className={period === slot ? "is-selected" : ""}><input type="radio" name="thaliPeriod" checked={period === slot} onChange={() => { setPeriod(slot); setPeriodIssue(""); changed(); }} />{slot}</label>)}</div></fieldset>}
+        {!onReviewSave && <fieldset className="thali-period"><legend>Delivery period <span>{serviceDate}</span></legend><div>{meal.slots.map((slot) => <label key={slot} className={period === slot ? "is-selected" : ""}><input type="radio" name={periodGroup} checked={period === slot} onChange={() => { setPeriod(slot); setPeriodIssue(""); changed(); }} />{slot}</label>)}</div></fieldset>}
         {!onReviewSave && !availability.available && <p className="thali-notice" role="status">{availability.reason}</p>}
         {!meal.available && <p className="thali-notice">{meal.choiceUnavailable ? "A required choice is unavailable. This meal cannot currently be ordered." : "This meal is currently unavailable for this date."}</p>}
         {requiredGroups.length > 0 && <div className="thali-progress"><span>{completed} of {requiredGroups.length} required groups complete</span><span aria-hidden="true">{completed === requiredGroups.length ? "Ready to review" : "Make it yours"}</span><progress value={completed} max={requiredGroups.length} aria-label="Required choices completed" /></div>}

@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Keep the original QR pixels and aspect ratio. */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Copy } from "lucide-react";
 import { validUpiId } from "@/lib/payment-settings";
 import Button from "./Button";
@@ -29,6 +29,7 @@ export function CopyPaymentValue({ value, label }) {
 const labels = { qr: "Scan QR", upi_id: "UPI ID", phone: "Phone number" };
 
 export default function PaymentOptions({ payment, defaultChannel, amount, orderNumber }) {
+  const channelGroup = useId();
   const [selected, setSelected] = useState("");
   const [failedQr, setFailedQr] = useState("");
   const channels = availableChannels(payment);
@@ -37,7 +38,7 @@ export default function PaymentOptions({ payment, defaultChannel, amount, orderN
   const upiLink = validUpiId(payment.upiId) && Number.isFinite(amount) && amount > 0 ? `upi://pay?${new URLSearchParams({ pa: payment.upiId, ...(payment.upiDisplayName ? { pn: payment.upiDisplayName } : {}), am: amount.toFixed(2), cu: "INR", tn: orderNumber })}` : "";
   return <fieldset className="payment-methods">
     <legend className="type-section-title">How to pay</legend>
-    <div className="payment-channels">{channels.map((item) => <label className="checkout-choice" key={item}><input type="radio" name="order-payment-channel" checked={channel === item} onChange={() => setSelected(item)} /><span>{labels[item]}</span></label>)}</div>
+    <div className="payment-channels">{channels.map((item) => <label className="checkout-choice" key={item}><input type="radio" name={channelGroup} checked={channel === item} onChange={() => setSelected(item)} /><span>{labels[item]}</span></label>)}</div>
     <div className="payment-destination">
       {channel === "qr" && (failedQr === payment.upiQrImage ? <p role="status" className="type-supporting text-danger">The QR could not load. Try another available channel or contact support.</p> : <><img src={payment.upiQrImage} alt="Configured GharKaBite UPI payment QR" className="payment-qr" onError={() => setFailedQr(payment.upiQrImage)} /><a href={payment.upiQrImage} target="_blank" rel="noopener noreferrer" className="checkout-text-action">Enlarge QR</a></>)}
       {channel === "upi_id" && <><p className="type-meta text-text-secondary">UPI ID</p><p className="break-all text-lg font-bold">{payment.upiId}</p><CopyPaymentValue value={payment.upiId} label="Copy UPI ID" />{upiLink && <a href={upiLink} className="checkout-text-action">Open UPI app</a>}</>}
