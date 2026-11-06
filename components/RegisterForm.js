@@ -40,7 +40,7 @@ export default function RegisterForm({ callbackUrl = "/profile" }) {
       if (!response.ok) { setError(data.message || "Unable to create your account."); revealValidationTarget("register-form-error"); return; }
       const result = await signIn("credentials", { identifier: form.email, password: form.password, redirect: false });
       if (result?.error) { router.push(authContinueHref("signin", callbackUrl)); return; }
-      router.push(customerReturnTo(callbackUrl));
+      window.location.assign(customerReturnTo(callbackUrl));
       router.refresh();
     } catch {
       setError("Registration is temporarily unavailable.");

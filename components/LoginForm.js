@@ -1,28 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { ArrowRight, LockKeyhole } from "lucide-react";
 import Button from "./Button";
 import BrandMark from "./BrandMark";
-import { authContinueHref } from "@/lib/auth-navigation";
+import { authContinueHref, customerReturnTo } from "@/lib/auth-navigation";
 import OwnerAuthShell from "./OwnerAuthShell";
 import { revealValidationTarget } from "@/lib/validation-navigation";
 
-function safeCallbackUrl(value, fallback) {
-  try {
-    const url = new URL(value, window.location.origin);
-    if (url.origin === window.location.origin) return `${url.pathname}${url.search}${url.hash}`;
-  } catch {
-    // Invalid return paths fall back to the appropriate account area.
-  }
-  return fallback;
-}
-
 export default function LoginForm({ callbackUrl, owner = false }) {
-  const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -55,8 +43,7 @@ export default function LoginForm({ callbackUrl, owner = false }) {
           return;
         }
       }
-      router.push(safeCallbackUrl(callbackUrl, owner ? "/admin/dashboard" : "/profile"));
-      router.refresh();
+      window.location.assign(customerReturnTo(callbackUrl, { origin: window.location.origin, fallback: owner ? "/admin/dashboard" : "/profile" }));
     } catch {
       setError("Sign in is temporarily unavailable.");
       revealValidationTarget("login-form-error");

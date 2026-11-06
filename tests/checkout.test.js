@@ -73,6 +73,16 @@ beforeAll(async () => {
 afterAll(async () => { if (mongoose?.connection?.readyState) await mongoose.disconnect(); if (replica) await replica.stop(); });
 beforeEach(async () => { authState.role = "customer"; authState.id = null; for (const collection of Object.values(mongoose.connection.collections)) await collection.deleteMany({}); await seedCatalog(); });
 
+it("rechecks the current role even when the signed session claims owner access", async () => {
+  const { currentSessionRole } = await import("@/lib/admin-access");
+  const owner = await User.create({ name: "Revocable Owner", email: "revocable@example.test", phone: "9876543231", passwordHash: "test", role: "admin" });
+  const existingToken = { id: String(owner._id), role: "admin" };
+  expect(await currentSessionRole(existingToken)).toBe("admin");
+  await User.updateOne({ _id: owner._id }, { $set: { role: "customer" } });
+  expect(await currentSessionRole(existingToken)).toBe("customer");
+  expect(await currentSessionRole({ id: String(user()), role: "admin" })).toBe("customer");
+});
+
 describe("private customer meals", () => {
   const jsonRequest = (method, body) => new Request("http://localhost/api/favorites", { method, headers: { "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const favoriteBody = { name: "My usual", mealId: "veg-home-meal", preferredPeriod: "Lunch", quantity: 1, selectedChoices: { base: ["rice"] }, selectedAddOns: {} };

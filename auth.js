@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/User";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { currentSessionRole } from "@/lib/admin-access";
 
 if (!process.env.AUTH_SECRET) throw new Error("AUTH_SECRET must be configured.");
 
@@ -48,7 +49,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id;
-        session.user.role = token.role || "customer";
+        session.user.role = await currentSessionRole(token);
         session.user.phone = token.phone || "";
       }
       return session;
