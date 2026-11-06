@@ -6,6 +6,7 @@ import { orderResponse, privateOrderJson as json } from "@/lib/order-response";
 import { canSubmitProof, validBusinessWhatsApp, validProofRevision } from "@/lib/payment-settings";
 import Order from "@/models/Order";
 import KitchenSettings from "@/models/KitchenSettings";
+import { MAX_MULTIPART_IMAGE_BYTES } from "@/lib/constants";
 
 const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
 const allowedFormats = "jpg,jpeg,png,webp";
@@ -115,7 +116,8 @@ export async function POST(request, { params }) {
         if (!validAsset(await response.json(), id, paymentScreenshotUrl)) return invalidAsset();
       } else {
         const file = body.get("screenshot");
-        if (!(file instanceof File) || !file.size || file.size > maxBytes || !allowedTypes.includes(file.type)) return invalidAsset();
+        if (!(file instanceof File) || !file.size || !allowedTypes.includes(file.type)) return invalidAsset();
+        if (file.size > MAX_MULTIPART_IMAGE_BYTES) return json({ message: "Use the screenshot upload form for images over 4 MB." }, { status: 413 });
         const bytes = new Uint8Array(await file.arrayBuffer());
         if (!validImage(bytes, file.type)) return invalidAsset();
         const id = newAssetId(order);

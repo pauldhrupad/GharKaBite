@@ -1,4 +1,5 @@
 "use client";
+import { MAX_MULTIPART_IMAGE_BYTES } from "@/lib/constants";
 
 import Image from "next/image";
 import { useState } from "react";
@@ -43,6 +44,7 @@ export default function AdminThaliForm({ initial, editing, onClose, onSaved }) {
 
   async function upload(event) {
     const file = event.target.files?.[0]; if (!file) return;
+    if (file.size > MAX_MULTIPART_IMAGE_BYTES) { setMessage("Choose a meal image up to 4 MB."); return; }
     if (busy) return; setBusy(true); setActivity("uploading"); setMessage("");
     try { const body = new FormData(); body.set("file", file); const response = await fetch("/api/admin/meals/upload", { method: "POST", body }); const data = await response.json(); if (!response.ok) throw new Error(data.message); setForm((current) => ({ ...current, image: data.image, imagePublicId: data.imagePublicId })); }
     catch (error) { setMessage(error.message); } finally { setBusy(false); setActivity(""); }

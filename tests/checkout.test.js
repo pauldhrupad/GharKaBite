@@ -999,7 +999,7 @@ describe("manual online payment", () => {
     };
     try {
       expect((await makeProof(first.orderNumber, "UTR123456", "fake PNG")).status).toBe(400);
-      expect((await makeProof(first.orderNumber, "UTR123456", new Uint8Array(5 * 1024 * 1024 + 1))).status).toBe(400);
+      expect((await makeProof(first.orderNumber, "UTR123456", new Uint8Array(4 * 1024 * 1024 + 1))).status).toBe(413);
       expect(fetch).not.toHaveBeenCalled();
       expect((await makeProof(first.orderNumber, "UTR123456")).status).toBe(200);
       expect((await Order.findById(first._id)).paymentScreenshotUrl).toContain("payment-proofs");
@@ -1126,7 +1126,9 @@ describe("customer profile photo", () => {
     try {
       expect((await upload(new File(["fake"], "fake.png", { type: "image/png" }))).status).toBe(400);
       expect((await upload(new File([Uint8Array.from([137,80,78,71,13,10,26,10,1])], "photo.png", { type: "image/png" }))).status).toBe(200);
-      const profile = await (await getCustomerProfile()).json();
+      const response = await getCustomerProfile();
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      const profile = await response.json();
       expect(profile.user.avatarUrl).toBe(photoUrl);
     } finally {
       vi.unstubAllGlobals();

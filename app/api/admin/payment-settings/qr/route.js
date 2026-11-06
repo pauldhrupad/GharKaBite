@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { MAX_MULTIPART_IMAGE_BYTES } from "@/lib/constants";
 import crypto from "node:crypto";
 
 export async function GET(request) {
@@ -24,7 +25,7 @@ export async function POST(request) {
   try {
     await enforceRateLimit(request, "payment-qr-upload", 20, 3600);
     const file = (await request.formData()).get("file");
-    if (!(file instanceof File) || !file.size || file.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) return Response.json({ message: "Choose a JPG, PNG, or WebP image up to 5 MB." }, { status: 400 });
+    if (!(file instanceof File) || !file.size || file.size > MAX_MULTIPART_IMAGE_BYTES || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) return Response.json({ message: "Choose a JPG, PNG, or WebP image up to 4 MB." }, { status: 400 });
     const bytes = new Uint8Array(await file.arrayBuffer());
     const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
     const png = bytes.slice(0, 8).join(",") === "137,80,78,71,13,10,26,10";
