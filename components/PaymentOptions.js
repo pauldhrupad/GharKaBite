@@ -7,6 +7,7 @@ import { validUpiId } from "@/lib/payment-settings";
 import Button from "./Button";
 
 export function availableChannels(payment) {
+  if (Array.isArray(payment?.channels)) return payment.channels;
   return [payment?.upiQrImage && "qr", payment?.upiId && "upi_id", payment?.upiPhoneNumber && "phone"].filter(Boolean);
 }
 

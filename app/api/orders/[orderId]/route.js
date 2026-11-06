@@ -6,7 +6,7 @@ import KitchenSettings from "@/models/KitchenSettings";
 import { orderResponse, privateOrderJson as json } from "@/lib/order-response";
 import { orderPaymentAvailability } from "@/lib/payment-settings";
 
-const statusFields = "orderNumber orderStatus paymentStatus paymentMethod paymentChannel paymentDetails paymentReference paymentProofMethod paymentProofRevision paymentScreenshotUrl paymentSubmittedAt paymentVerifiedAt paymentReceivedAt paymentRejectionReason statusHistory total";
+const statusFields = "orderNumber orderStatus paymentStatus paymentMethod paymentChannel paymentDetails paymentDeadline serviceDate mealPeriod deliverySlot paymentReference paymentProofMethod paymentProofRevision paymentScreenshotUrl paymentSubmittedAt paymentVerifiedAt paymentReceivedAt paymentRejectionReason statusHistory total";
 
 export async function GET(request, { params }) {
   const session = await auth();
@@ -22,7 +22,7 @@ export async function GET(request, { params }) {
     const query = Order.findOne(session.user.role === "admin" ? { orderNumber: orderId } : { orderNumber: orderId, user: session.user.id });
     const order = await (view === "status" ? query.select(statusFields) : query).lean();
     if (!order) return json({ message: "Order not found." }, { status: 404 });
-    const settings = order.paymentMethod === "manual_online" ? await KitchenSettings.findOne({ key: "primary" }).select("onlinePaymentEnabled upiId upiPhoneNumber upiDisplayName upiQrImage businessWhatsApp").lean().catch(() => null) : null;
+    const settings = order.paymentMethod === "manual_online" ? await KitchenSettings.findOne({ key: "primary" }).select("onlinePaymentEnabled upiId upiPhoneNumber upiDisplayName upiQrImage businessWhatsApp lunchCutoff dinnerCutoff").lean().catch(() => null) : null;
     const proofUploadAvailable = Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
     return json({ order: orderResponse(order), payment: order.paymentMethod === "manual_online" ? orderPaymentAvailability(order, settings, proofUploadAvailable) : null });
   } catch { return json({ message: "Order details are temporarily unavailable." }, { status: 503 }); }

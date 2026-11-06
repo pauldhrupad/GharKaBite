@@ -857,6 +857,44 @@ describe("manual online payment", () => {
     expect((await Order.findById(order._id)).toObject()).toMatchObject({ paymentStatus: "paid", orderStatus: "confirmed", paymentProofMethod: "whatsapp" });
     expect((await verify(order.orderNumber, "confirm", revision)).status).toBe(409);
   });
+  it("keeps late or undated legacy receipts out of cooking without losing evidence", async () => {
+    const order = await setupOrder();
+    expect(order.paymentDeadline).toEqual(new Date(`${order.serviceDate}T11:00:00+05:30`));
+    const context = { params: Promise.resolve({ orderId: order.orderNumber }) };
+    await Order.updateOne({ _id: order._id }, { $set: { paymentDeadline: new Date(Date.now() - 1000) } });
+    const details = await (await getOrder(new Request("http://localhost/order?view=status"), context)).json();
+    expect(details.payment).toMatchObject({ availability: "closed", windowClosed: true, destinations: {} });
+    const evidence = await proof(order.orderNumber);
+    expect(evidence.status).toBe(200);
+    const { paymentProofRevision } = (await evidence.json()).order;
+    authState.role = "admin";
+    const late = await verify(order.orderNumber, "confirm", paymentProofRevision);
+    expect(late.status).toBe(409);
+    expect(await late.json()).toHaveProperty("code", "PAYMENT_WINDOW_CLOSED");
+    await Order.updateOne({ _id: order._id }, { $unset: { paymentDeadline: 1, serviceDate: 1 } });
+    expect((await verify(order.orderNumber, "confirm", paymentProofRevision)).status).toBe(409);
+    expect(await Order.findById(order._id).lean()).toMatchObject({ paymentStatus: "verification_pending", orderStatus: "payment_pending", paymentProofRevision, paymentProofMethod: "whatsapp", paymentVerifiedAt: null });
+  });
+
+  it.each(["COD", "manual_online"])("settles a fully covered %s order without a receipt or duplicate credit use", async (method) => {
+    const buyer = user();
+    authState.id = String(buyer);
+    await KitchenSettings.create({ key: "primary", onlinePaymentEnabled: true, upiId: "kitchen@upi" });
+    const plan = await SubscriptionPlan.findOne({ slug: "trial" });
+    const subscription = await purchaseSubscription(buyer, { planId: String(plan._id), mode: "Mixed", purchaseKey: crypto.randomUUID() });
+    const payload = { ...request(), subscriptionId: String(subscription._id), coveredMealId: "veg-home-meal", paymentChannel: method === "manual_online" ? "upi_id" : null };
+    const order = await createOrder(buyer, payload, method, { verifyDelivery: delivery });
+    expect(order).toMatchObject({ total: 0, paymentStatus: "not_required", orderStatus: "confirmed", paymentReceivedAt: null, paymentVerifiedAt: null });
+    expect(order.paymentDetails).toBeUndefined();
+    expect(order.paymentDeadline).toBeUndefined();
+    expect((await createOrder(buyer, payload, method, { verifyDelivery: delivery })).orderNumber).toBe(order.orderNumber);
+    expect((await Subscription.findById(subscription._id)).remainingMeals).toBe(subscription.remainingMeals - 1);
+    const { countsForPreparation } = await import("@/lib/preparation");
+    expect(countsForPreparation(order)).toBe(true);
+    expect((await proof(order.orderNumber)).status).toBe(409);
+    expect((await updateOrderStatus(order.orderNumber, "delivered")).paymentStatus).toBe("not_required");
+    await expect(markCodPaymentReceived(order.orderNumber)).rejects.toMatchObject({ status: 409 });
+  });
   it("lets a rejected payment be resubmitted on the same order", async () => {
     const order = await setupOrder();
     const firstRevision = (await (await proof(order.orderNumber)).json()).order.paymentProofRevision;
@@ -943,7 +981,9 @@ describe("manual online payment", () => {
     authState.role = "admin";
     expect((await save()).status).toBe(200);
     const payment = (await (await getPublicPaymentSettings()).json()).payment;
-    expect(payment).toMatchObject({ upiDisplayName: "GharKaBite", upiId: "kitchen@upi", upiPhoneNumber: "9876543210", onlinePaymentEnabled: true, codEnabled: true });
+    expect(payment).toEqual({ onlinePaymentEnabled: true, codEnabled: true, channels: ["upi_id", "phone"], businessWhatsApp: "919876543210" });
+    await KitchenSettings.updateOne({ key: "primary" }, { $set: { onlinePaymentEnabled: false } });
+    expect((await (await getPublicPaymentSettings()).json()).payment).toMatchObject({ onlinePaymentEnabled: false, channels: [] });
     expect(payment).not.toHaveProperty("dailyMaximum");
     expect(payment).not.toHaveProperty("_id");
   });

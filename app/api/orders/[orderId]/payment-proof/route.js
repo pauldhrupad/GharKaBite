@@ -34,7 +34,7 @@ export async function GET(request, { params }) {
   try {
     await enforceRateLimit(request, "proof-upload-signature", 15, 3600);
     const { orderId } = await params;
-    const order = await Order.findOne({ orderNumber: orderId, user: session.user.id }).select("paymentMethod paymentStatus orderStatus paymentProofRevision").lean();
+    const order = await Order.findOne({ orderNumber: orderId, user: session.user.id }).select("paymentMethod paymentStatus orderStatus paymentProofRevision total").lean();
     if (!order) return json({ message: "Order not found." }, { status: 404 });
     if (!canSubmitProof(order)) return conflict();
     const config = cloudinary();

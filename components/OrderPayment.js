@@ -31,11 +31,20 @@ function PaymentDetails({ read }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [unresolved, setUnresolved] = useState(false);
+  const [elapsedDeadline, setElapsedDeadline] = useState(null);
   const pending = useRef(null);
   const uploaded = useRef(null);
   useEffect(() => () => pending.current?.abort(), []);
+  const deadline = payment?.deadline;
+  useEffect(() => {
+    if (!deadline) return;
+    const timer = window.setTimeout(() => setElapsedDeadline(deadline), Math.max(0, Date.parse(deadline) - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [deadline]);
 
-  const canSubmit = canSubmitProof(order) && order.total > 0;
+  const canSubmit = canSubmitProof(order);
+  const paymentClosed = order.orderStatus === "payment_pending" && (payment?.windowClosed || Boolean(deadline && elapsedDeadline === deadline));
+  const showDestinations = canSubmit && !paymentClosed && !read.error && payment?.availability === "available";
   const businessWhatsApp = read.error ? "" : payment?.businessWhatsApp;
   const proofUrl = whatsappUrl(businessWhatsApp, `Hi GharKaBite, I’m sending payment proof for order ${order.orderNumber} (${formatINR(order.total)}).`);
   const helpUrl = whatsappUrl(businessWhatsApp, `Hi GharKaBite, I need help with order ${order.orderNumber}.`);
@@ -119,13 +128,13 @@ function PaymentDetails({ read }) {
     <Link className="checkout-text-action" href={orderHref}>← Order details</Link>
     <header className="post-checkout-header order-payment-header">
       <div><p className="eyebrow">Order {order.orderNumber}</p><h1 className="type-page-title">{order.paymentMethod === "manual_online" ? "Order payment" : "Payment details"}</h1><div className="payment-badges"><Badge tone={order.orderStatus === "cancelled" ? "cancelled" : "informational"}>{orderStatusLabel(order)}</Badge><Badge tone={paymentStatus.tone}>{paymentStatus.label}</Badge></div><CopyPaymentValue value={order.orderNumber} label="Copy order number" /></div>
-      <div><span className="type-meta text-text-secondary">{canSubmit && order.paymentStatus === "pending" && !read.error && payment?.availability === "available" ? "Amount to pay" : "Stored order total"}</span><p className="payment-amount">{formatINR(order.total)}</p>{canSubmit && <CopyPaymentValue value={order.total.toFixed(2)} label="Copy amount" />}</div>
+      <div><span className="type-meta text-text-secondary">{showDestinations && order.paymentStatus === "pending" ? "Amount to pay" : "Stored order total"}</span><p className="payment-amount">{formatINR(order.total)}</p>{showDestinations && <CopyPaymentValue value={order.total.toFixed(2)} label="Copy amount" />}</div>
     </header>
     <div className="post-checkout-grid">
       <div className="post-checkout-stack">
         {canSubmit && order.paymentStatus === "rejected" && <div className="card-surface post-checkout-card"><OrderPaymentStatus order={order} /><p className="type-supporting mt-2">If you already paid, check your original transaction before sending money again.</p></div>}
-        {canSubmit && <section className="card-surface post-checkout-card">
-          {!read.error && payment?.availability === "available" ? <>{payment.channelsChanged && <p className="checkout-notice mb-3">Some payment options changed since checkout. If you already paid or aren’t sure, submit proof or <a href="#payment-help" className="font-bold underline">contact support</a> before paying again.</p>}<PaymentOptions payment={payment.destinations} defaultChannel={order.paymentChannel} amount={order.total} orderNumber={order.orderNumber} /></> : <><h2 className="type-section-title">Payment instructions unavailable</h2><p className="type-supporting mt-2 text-text-secondary">We couldn’t confirm a current destination for this order. Contact support before paying. If you already paid, you can still submit proof when a proof option is available.</p></>}
+        {(canSubmit || paymentClosed) && <section className="card-surface post-checkout-card">
+          {paymentClosed ? <><h2 className="type-section-title">Payment window closed</h2><p className="type-supporting mt-2 text-text-secondary">Please don’t send a new payment. If you already paid, <a href="#payment-help" className="font-bold underline">contact support</a> so we can review your transfer. You can still send proof if it hasn’t been submitted.</p></> : showDestinations ? <>{payment.channelsChanged && <p className="checkout-notice mb-3">Some payment options changed since checkout. If you already paid or aren’t sure, submit proof or <a href="#payment-help" className="font-bold underline">contact support</a> before paying again.</p>}<PaymentOptions payment={payment.destinations} defaultChannel={order.paymentChannel} amount={order.total} orderNumber={order.orderNumber} /></> : <><h2 className="type-section-title">Payment instructions unavailable</h2><p className="type-supporting mt-2 text-text-secondary">We couldn’t confirm a current destination for this order. Contact support before paying. If you already paid, you can still submit proof when a proof option is available.</p></>}
         </section>}
         {canSubmit && <section className="card-surface post-checkout-card">
           <h2 className="type-section-title">Already paid?</h2><p className="type-supporting my-2 text-text-secondary">Send proof for manual verification. Submitting it does not confirm your order.</p>

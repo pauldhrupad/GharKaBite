@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { orderRefreshDelay, watchOrder } from "@/lib/use-order-refresh";
 import { paymentPresentation, trackingSteps } from "@/lib/order-utils";
-import { orderPaymentAvailability } from "@/lib/payment-settings";
+import { orderPaymentAvailability, paymentWindowDeadline } from "@/lib/payment-settings";
 
 const online = { orderStatus: "payment_pending", paymentStatus: "verification_pending", paymentMethod: "manual_online", total: 150 };
 const cod = { orderStatus: "delivered", paymentStatus: "pending", paymentMethod: "COD", total: 150 };
@@ -102,12 +102,23 @@ describe("truthful order presentation", () => {
 
   it("shows only unchanged configured destinations and never asks a zero-balance order to pay", () => {
     const details = { upiId: "kitchen@upi", upiPhoneNumber: "9876543210", upiQrImage: "https://res.cloudinary.com/demo/image/upload/v1/gharkabite/payment-qr/test.png" };
-    const order = { ...online, paymentStatus: "pending", paymentDetails: details };
-    const config = { ...details, onlinePaymentEnabled: true, upiId: "another@upi" };
-    const partial = orderPaymentAvailability(order, config, true);
+    const order = { ...online, serviceDate: "2026-11-07", mealPeriod: "Lunch", deliverySlot: "12–1 PM", paymentStatus: "pending", paymentDetails: details };
+    const config = { ...details, lunchCutoff: "11:00", onlinePaymentEnabled: true, upiId: "another@upi" };
+    const now = new Date("2026-11-07T10:59:59+05:30");
+    const partial = orderPaymentAvailability(order, config, true, now);
     expect(partial.channelsChanged).toBe(true);
     expect(partial.destinations).toEqual({ upiPhoneNumber: details.upiPhoneNumber, upiQrImage: details.upiQrImage });
-    expect(orderPaymentAvailability(order, { ...config, onlinePaymentEnabled: false }, true)).toMatchObject({ availability: "paused", destinations: {}, proofUploadAvailable: true });
-    expect(orderPaymentAvailability({ ...order, total: 0 }, config, true)).toMatchObject({ availability: "not_due", destinations: {} });
+    expect(orderPaymentAvailability(order, { ...config, onlinePaymentEnabled: false }, true, now)).toMatchObject({ availability: "paused", destinations: {}, proofUploadAvailable: true });
+    expect(orderPaymentAvailability({ ...order, total: 0 }, config, true, now)).toMatchObject({ availability: "not_due", destinations: {} });
+    expect(orderPaymentAvailability(order, config, true, new Date("2026-11-07T11:00:00+05:30"))).toMatchObject({ availability: "closed", destinations: {}, proofUploadAvailable: true });
+  });
+
+  it("uses the earliest recorded deadline, current cutoff, or slot start and fails closed on unknown legacy dates", () => {
+    const order = { serviceDate: "2026-11-07", mealPeriod: "Dinner", deliverySlot: "7–8 PM" };
+    expect(paymentWindowDeadline(order, { dinnerCutoff: "20:00" })?.toISOString()).toBe("2026-11-07T13:30:00.000Z");
+    const withSnapshot = { ...order, paymentDeadline: "2026-11-07T18:00:00+05:30" };
+    expect(paymentWindowDeadline(withSnapshot, { dinnerCutoff: "18:30" })?.toISOString()).toBe("2026-11-07T12:30:00.000Z");
+    expect(paymentWindowDeadline(withSnapshot, { dinnerCutoff: "17:00" })?.toISOString()).toBe("2026-11-07T11:30:00.000Z");
+    expect(paymentWindowDeadline({ ...order, serviceDate: "2026-11-31" }, { dinnerCutoff: "18:00" })).toBeNull();
   });
 });

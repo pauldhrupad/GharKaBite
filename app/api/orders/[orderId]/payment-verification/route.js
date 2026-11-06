@@ -2,8 +2,9 @@ import { auth } from "@/auth";
 import dbConnect from "@/lib/dbConnect";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import Order from "@/models/Order";
+import KitchenSettings from "@/models/KitchenSettings";
 import { orderResponse, privateOrderJson as json } from "@/lib/order-response";
-import { validProofRevision } from "@/lib/payment-settings";
+import { paymentWindowDeadline, validProofRevision } from "@/lib/payment-settings";
 
 const reasons = ["Transaction not found", "Wrong amount paid", "Invalid payment proof", "Screenshot unclear", "Duplicate transaction ID", "Other"];
 
@@ -18,14 +19,19 @@ export async function PATCH(request, { params }) {
     if (action === "reject" && !reasons.includes(reason)) return json({ message: "Choose a rejection reason." }, { status: 400 });
     if (!validProofRevision(expectedProofRevision)) return json({ message: "Load the current proof before verifying it." }, { status: 400 });
     await dbConnect();
-    const filter = { orderNumber: orderId, paymentMethod: "manual_online", paymentStatus: "verification_pending", orderStatus: "payment_pending", paymentProofRevision: expectedProofRevision };
+    const filter = { orderNumber: orderId, paymentMethod: "manual_online", paymentStatus: "verification_pending", orderStatus: "payment_pending", paymentProofRevision: expectedProofRevision, total: { $gt: 0 } };
     const current = await Order.findOne(filter).lean();
     if (!current) return json({ message: "This proof changed or is no longer awaiting verification. Review the current order." }, { status: 409 });
     if (action === "confirm" && current.paymentReference) {
       const duplicate = await Order.exists({ _id: { $ne: current._id }, paymentReference: current.paymentReference, paymentStatus: "paid" });
       if (duplicate) return json({ message: "This Transaction ID is already paid on another order. Investigate before confirming." }, { status: 409 });
     }
+    const settings = action === "confirm" ? await KitchenSettings.findOne({ key: "primary" }).select("lunchCutoff dinnerCutoff").lean() : null;
     const now = new Date();
+    if (action === "confirm") {
+      const deadline = paymentWindowDeadline(current, settings);
+      if (!deadline || deadline <= now) return json({ code: "PAYMENT_WINDOW_CLOSED", message: "The payment window has closed. Reconcile this receipt with support and keep it out of the kitchen queue." }, { status: 409 });
+    }
     const set = action === "confirm" ? { paymentStatus: "paid", orderStatus: "confirmed", paymentVerifiedAt: now, paymentVerifiedBy: session.user.id, paymentReceivedAt: now, paymentRejectionReason: "" } : { paymentStatus: "rejected", paymentRejectionReason: reason };
     const update = action === "confirm" ? { $set: set, $push: { statusHistory: { status: "confirmed", timestamp: now } } } : { $set: set };
     const order = await Order.findOneAndUpdate({ ...filter, _id: current._id }, update, { returnDocument: "after", runValidators: true }).lean();

@@ -229,7 +229,7 @@ function AccountCheckout({ user }) {
         if (data.code === "PRICE_REVIEW_REQUIRED") { await fetchQuote(payload, { ...quote, ...(data.previousQuote || {}), pricingRevision: payload.pricingRevision }); return; }
         throw new Error(data.message || "Unable to place this order.");
       }
-      setUnknownOutcome(false); completeCheckout(payload); router.push(payload.paymentMethod === "manual_online" ? `/orders/${data.order.orderNumber}/payment` : `/orders/${data.order.orderNumber}`);
+      setUnknownOutcome(false); completeCheckout(payload); router.push(data.order.paymentMethod === "manual_online" && data.order.total > 0 ? `/orders/${data.order.orderNumber}/payment` : `/orders/${data.order.orderNumber}`);
     } catch (error) { if (!signal.aborted) { if (!receivedResponse) setUnknownOutcome(true); setSubmitError(!receivedResponse ? "We couldn’t read the order response. Retry the same request to check its result safely." : error.message || "Unable to place this order. Please retry."); revealValidationTarget("checkout-submit-error"); } }
     finally { if (!signal.aborted) setSubmitting(false); }
   }
@@ -314,7 +314,7 @@ function AccountCheckout({ user }) {
       {unknownOutcome && <p role="alert" className="checkout-notice">The order result is uncertain. Retry the same request to retrieve it safely, or check <Link href="/orders" className="checkout-text-action">your orders</Link>. Your checkout inputs are preserved. Meals or quantities added afterward will remain in your cart.</p>}
       {recoveryWarning && <p role="status" className="checkout-notice">{recoveryWarning}</p>}
       {submitError && <p id="checkout-submit-error" tabIndex={-1} role="alert" className="checkout-notice checkout-notice--error">{submitError}</p>}
-      <CheckoutActionBar type="submit" totalLabel={unknownOutcome ? "Original total" : "Total"} total={unknownOutcome ? quoteState?.quote.total : quote?.total ?? estimate.total} label={unknownOutcome ? "Retry same request" : !quote ? "Review order total" : paymentMethod === "manual_online" ? "Place order & pay" : "Place COD order"} loading={busy} loadingText={quoting ? "Validating order…" : "Placing order…"} disabled={!unknownOutcome && (review.blocked || !availability.available || !paymentSettings || Boolean(promoCode && !promo.valid))}>{review.blocked ? "Review your cart selections before continuing." : !quote ? "Your final price is checked before order creation." : paymentMethod === "manual_online" ? "Payment remains pending until verified." : "Pay cash when your meal arrives."}</CheckoutActionBar>
+      <CheckoutActionBar type="submit" totalLabel={unknownOutcome ? "Original total" : "Total"} total={unknownOutcome ? quoteState?.quote.total : quote?.total ?? estimate.total} label={unknownOutcome ? "Retry same request" : !quote ? "Review order total" : quote.total === 0 ? "Place order" : paymentMethod === "manual_online" ? "Place order & pay" : "Place COD order"} loading={busy} loadingText={quoting ? "Validating order…" : "Placing order…"} disabled={!unknownOutcome && (review.blocked || !availability.available || !paymentSettings || Boolean(promoCode && !promo.valid))}>{review.blocked ? "Review your cart selections before continuing." : !quote ? "Your final price is checked before order creation." : quote.total === 0 ? "No payment is due." : paymentMethod === "manual_online" ? "Payment remains pending until verified." : "Pay cash when your meal arrives."}</CheckoutActionBar>
     </aside>
   </form>;
 }
